@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang='pt'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Switch Second Screen - Mac Mockup (Lumiose Tiles)</title>
+    <style>
+        body { background-color: #12121F; color: #FFFFFF; font-family: system-ui, sans-serif; margin: 0; padding: 0; user-select: none; }
+        .top-bar { background: #1F1F38; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0F3460; }
+        .title { color: #00F5D4; font-size: 18px; font-weight: bold; letter-spacing: 1px; }
+        select { background: #0F3460; color: #00F5D4; border: 1px solid #00F5D4; padding: 8px 14px; border-radius: 6px; font-size: 14px; font-weight: bold; }
+        .tabs { display: flex; background: #18182C; border-bottom: 1px solid #2E2E52; }
+        .tab { flex: 1; padding: 14px; text-align: center; color: #8888AA; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .tab.active { color: #00F5D4; border-bottom: 3px solid #00F5D4; background: #12121F; }
+        .content { padding: 20px; display: none; max-width: 700px; margin: 0 auto; }
+        .content.active { display: block; }
+        .card { background: #1E1E36; border-radius: 10px; padding: 16px; margin-bottom: 16px; border: 1px solid #2E2E52; }
+        .card h3 { margin-top: 0; color: #00F5D4; font-size: 16px; border-bottom: 1px solid #2E2E52; padding-bottom: 8px; }
+
+        /* HP Bars */
+        .pkmn-row { margin-bottom: 12px; }
+        .pkmn-header { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; font-weight: bold; }
+        .hp-bg { background: #0B1320; height: 14px; border-radius: 7px; overflow: hidden; border: 1px solid #2E2E52; }
+        .hp-fill { height: 100%; transition: width 0.3s; }
+
+        /* Map Viewport & Tile Grid para Hardware Simulation */
+        .tile-grid {
+            display: grid;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .map-viewport {
+            width: 100%;
+            max-width: 420px; /* Mantém a caixa quadrada como a imagem original */
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+            background-color: #0B1320;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid #0F3460;
+        }
+        .map-tile-bg {
+            background-size: 100% 100%; /* Evita que cada tile dê crop nas bordas! */
+            background-repeat: no-repeat;
+        }
+
+        .marker { position: absolute; transform: translate(-50%, -50%); font-size: 12px; font-weight: bold; display: flex; flex-direction: column; align-items: center; transition: 0.25s; z-index: 10; }
+        .dot-player { width: 14px; height: 14px; background: #FF1744; border: 2px solid #FFF; border-radius: 50%; box-shadow: 0 0 8px #FF1744; }
+        .dot-poi { width: 12px; height: 12px; background: #FFD600; border: 2px solid #12121F; border-radius: 3px; transform: rotate(45deg); }
+
+        /* Macros Grid */
+        .btn-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .btn { background-color: #0F3460; color: white; border: 1px solid #1F4E8C; padding: 16px; font-size: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .btn:active { background-color: #00F5D4; color: #12121F; }
+    </style>
+</head>
+<body>
+
+<div class='top-bar'>
+    <div class='title'>SWITCH HUD // LUMIOSE TILES SIMULATOR</div>
+    <select id='gameSelect' onchange='changeGame(this.value)'>
+        <option value='pkmn_za' selected>Pokémon Legends: Z-A (Lumiose City)</option>
+        <option value='zelda_totk'>Zelda: Tears of the Kingdom</option>
+    </select>
+</div>
+
+<div class='tabs'>
+    <div id='tab-status' class='tab active' onclick='switchTab("status")'>Status / HUD</div>
+    <div id='tab-map' class='tab' onclick='switchTab("map")'>Mapa (Hardware Tiles)</div>
+    <div id='tab-macros' class='tab' onclick='switchTab("macros")'>Macros</div>
+    <div id='tab-config' class='tab' onclick='switchTab("config")'>Hardware & PSRAM</div>
+</div>
+
+<!-- ABA 1: STATUS -->
+<div id='content-status' class='content active'>
+    <div id='hud-container'></div>
+</div>
+
+<!-- ABA 2: MAPA -->
+<div id='content-map' class='content'>
+    <div style='display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px; color:#00F5D4; font-family:monospace;'>
+        <span id='map-zone'>Zona: Lumiose City (Prism Tower)</span>
+        <span id='map-coords'>X: 2039 | Y: 2034</span>
+    </div>
+    <div class='map-viewport'>
+        <div class='tile-grid' id='tileGrid'></div>
+        <div class='marker' id='poi1' style='top:35%; left:60%;'>
+            <div class='dot-poi'></div>
+            <span style='color:#222; background:rgba(255,255,255,0.9); padding:1px 5px; border-radius:4px; font-size:10px; margin-top:2px; font-weight:bold;'>Mega Evolution Spot</span>
+        </div>
+        <div class='marker' id='playerMarker' style='top:50%; left:50%;'>
+            <div class='dot-player'></div>
+            <span style='color:#222; background:rgba(255,255,255,0.9); padding:1px 5px; border-radius:4px; font-size:10px; margin-top:2px; font-weight:bold;'>Você</span>
+        </div>
+    </div>
+    <div style='margin-top:12px; display:flex; gap:8px;'>
+        <button class='btn' style='padding:10px; flex:1;' onclick='movePlayer(-6, 0)'>◀ Oeste</button>
+        <button class='btn' style='padding:10px; flex:1;' onclick='movePlayer(0, -6)'>▲ Norte</button>
+        <button class='btn' style='padding:10px; flex:1;' onclick='movePlayer(0, 6)'>▼ Sul</button>
+        <button class='btn' style='padding:10px; flex:1;' onclick='movePlayer(6, 0)'>Este ▶</button>
+    </div>
+</div>
+
+<!-- ABA 3: MACROS -->
+<div id='content-macros' class='content'>
+    <div class='card'>
+        <h3>Macros para Pokémon Legends: Z-A</h3>
+        <div class='btn-grid' id='macro-buttons'></div>
+    </div>
+</div>
+
+<!-- ABA 4: CONFIG -->
+<div id='content-config' class='content'>
+    <div class='card'>
+        <h3>Arquitetura de Hardware (MicroSD Tiles)</h3>
+        <p style='font-size:14px; color:#00E676;'>• Renderização em mosaico dinâmica pronta para o ESP32-S3 e Pico W.</p>
+    </div>
+</div>
+
+<script>
+    let px = 50, py = 50;
+
+    async function loadCoordinatedTiles() {
+        const grid = document.getElementById('tileGrid');
+        try {
+            let response = await fetch('tiles_map.json');
+            let data = await response.json();
+
+            grid.innerHTML = '';
+            // Configura dinamicamente o grid CSS com base no manifesto do hardware
+            grid.style.gridTemplateColumns = `repeat(${data.cols}, 1fr)`;
+            grid.style.gridTemplateRows = `repeat(${data.rows}, 1fr)`;
+
+            data.tiles.forEach(tile => {
+                let div = document.createElement('div');
+                div.className = 'map-tile-bg';
+                div.style.backgroundImage = `url("${tile.path}")`;
+                div.style.gridColumn = `${tile.col + 1}`;
+                div.style.gridRow = `${tile.row + 1}`;
+                grid.appendChild(div);
+            });
+        } catch (e) {
+            grid.innerHTML = `<div style='padding:20px; color:#FF1744;'>Erro ao carregar tiles_map.json. Certifique-se de executar o gerador.</div>`;
+        }
+    }
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-' + tabId).classList.add('active');
+        document.getElementById('content-' + tabId).classList.add('active');
+    }
+
+    function movePlayer(dx, dy) {
+        px = Math.max(10, Math.min(90, px + dx));
+        py = Math.max(10, Math.min(90, py + dy));
+        document.getElementById('playerMarker').style.left = px + '%';
+        document.getElementById('playerMarker').style.top = py + '%';
+        document.getElementById('map-coords').innerText = `X: ${2039 + Math.floor(px/5)} | Y: ${2034 + Math.floor(py/5)}`;
+    }
+
+    function changeGame(game) {
+        const hud = document.getElementById('hud-container');
+        const macros = document.getElementById('macro-buttons');
+
+        if (game === 'pkmn_za') {
+            hud.innerHTML = `
+      <div class='card'>
+        <h3>Pokémon Legends: Z-A // Party Status</h3>
+        <div class='pkmn-row'>
+          <div class='pkmn-header'><span>⚡ Mega Pikachu Lv.90</span><span style='color:#00E676;'>260 / 260 HP</span></div>
+          <div class='hp-bg'><div class='hp-fill' style='width:100%; background:#00E676;'></div></div>
+        </div>
+      </div>`;
+            macros.innerHTML = `
+      <button class='btn'>Auto-Catch Alpha</button>
+      <button class='btn'>Fast Travel Lumiose</button>
+      <button class='btn'>Shiny Hunt Macro</button>
+      <button class='btn'>Instant Mega-Evolve</button>`;
+        } else {
+            hud.innerHTML = `<div class='card'><h3>Zelda: Tears of the Kingdom</h3><p>15 Corações</p></div>`;
+            macros.innerHTML = `<button class='btn'>Duplicar Minérios</button>`;
+        }
+    }
+
+    loadCoordinatedTiles();
+    changeGame('pkmn_za');
+</script>
+</body>
+</html>

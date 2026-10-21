@@ -1,0 +1,135 @@
+{
+  "cols": 4,
+  "rows": 4,
+  "zoom": 12,
+  "tiles": [
+    {
+      "z": "12",
+      "x": "2039",
+      "y": "2034",
+      "col": 0,
+      "row": 0,
+      "path": "pokemon-lumiose-city/tiles/12/2039/2034.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2040",
+      "y": "2034",
+      "col": 1,
+      "row": 0,
+      "path": "pokemon-lumiose-city/tiles/12/2040/2034.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2041",
+      "y": "2034",
+      "col": 2,
+      "row": 0,
+      "path": "pokemon-lumiose-city/tiles/12/2041/2034.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2042",
+      "y": "2034",
+      "col": 3,
+      "row": 0,
+      "path": "pokemon-lumiose-city/tiles/12/2042/2034.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2039",
+      "y": "2035",
+      "col": 0,
+      "row": 1,
+      "path": "pokemon-lumiose-city/tiles/12/2039/2035.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2040",
+      "y": "2035",
+      "col": 1,
+      "row": 1,
+      "path": "pokemon-lumiose-city/tiles/12/2040/2035.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2041",
+      "y": "2035",
+      "col": 2,
+      "row": 1,
+      "path": "pokemon-lumiose-city/tiles/12/2041/2035.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2042",
+      "y": "2035",
+      "col": 3,
+      "row": 1,
+      "path": "pokemon-lumiose-city/tiles/12/2042/2035.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2039",
+      "y": "2036",
+      "col": 0,
+      "row": 2,
+      "path": "pokemon-lumiose-city/tiles/12/2039/2036.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2040",
+      "y": "2036",
+      "col": 1,
+      "row": 2,
+      "path": "pokemon-lumiose-city/tiles/12/2040/2036.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2041",
+      "y": "2036",
+      "col": 2,
+      "row": 2,
+      "path": "pokemon-lumiose-city/tiles/12/2041/2036.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2042",
+      "y": "2036",
+      "col": 3,
+      "row": 2,
+      "path": "pokemon-lumiose-city/tiles/12/2042/2036.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2039",
+      "y": "2037",
+      "col": 0,
+      "row": 3,
+      "path": "pokemon-lumiose-city/tiles/12/2039/2037.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2040",
+      "y": "2037",
+      "col": 1,
+      "row": 3,
+      "path": "pokemon-lumiose-city/tiles/12/2040/2037.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2041",
+      "y": "2037",
+      "col": 2,
+      "row": 3,
+      "path": "pokemon-lumiose-city/tiles/12/2041/2037.jpg"
+    },
+    {
+      "z": "12",
+      "x": "2042",
+      "y": "2037",
+      "col": 3,
+      "row": 3,
+      "path": "pokemon-lumiose-city/tiles/12/2042/2037.jpg"
+    }
+  ]
+}
