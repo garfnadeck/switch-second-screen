@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang='pt'>
+<head>
+  <meta charset='UTF-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+  <title>Switch Second Screen - Isolated Game Hub</title>
+  <style>
+    body { background-color: #12121F; color: #FFFFFF; font-family: system-ui, sans-serif; margin: 0; padding: 0; user-select: none; }
+    .top-bar { background: #1F1F38; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0F3460; }
+    .title { color: #00F5D4; font-size: 17px; font-weight: bold; letter-spacing: 1px; }
+    select { background: #0F3460; color: #00F5D4; border: 1px solid #00F5D4; padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; }
+    .tabs { display: flex; background: #18182C; border-bottom: 1px solid #2E2E52; }
+    .tab { flex: 1; padding: 14px; text-align: center; color: #8888AA; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; }
+    .tab.active { color: #00F5D4; border-bottom: 3px solid #00F5D4; background: #12121F; }
+    .content { padding: 18px; display: none; max-width: 700px; margin: 0 auto; }
+    .content.active { display: block; }
+    .card { background: #1E1E36; border-radius: 10px; padding: 16px; margin-bottom: 16px; border: 1px solid #2E2E52; }
+    .card h3 { margin-top: 0; color: #00F5D4; font-size: 16px; border-bottom: 1px solid #2E2E52; padding-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+
+    /* HUD Específico para Pokémon Legends: Z-A */
+    .za-hud-box { background: #151528; border: 1px solid #00F5D4; border-radius: 8px; padding: 12px; margin-bottom: 14px; }
+    .za-title { color: #00F5D4; font-size: 14px; font-weight: bold; margin-bottom: 6px; display: flex; justify-content: space-between; }
+
+    .layer-bar { display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; padding-bottom: 4px; }
+    .layer-btn { flex: 1; background: #18182C; color: #9494B8; border: 1px solid #2E2E52; padding: 8px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap; transition: 0.2s; }
+    .layer-btn.active { background: #0F3460; color: #00F5D4; border-color: #00F5D4; box-shadow: 0 0 8px rgba(0,245,212,0.25); }
+
+    .map-viewport { width: 100%; max-width: 420px; aspect-ratio: 1 / 1; margin: 0 auto; background: #0B1320; border-radius: 10px; position: relative; overflow: hidden; border: 2px solid #0F3460; }
+    .tile-grid { display: grid; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+    .map-tile-bg { background-size: 100% 100%; background-repeat: no-repeat; }
+
+    .marker { position: absolute; transform: translate(-50%, -50%); font-size: 12px; font-weight: bold; display: flex; flex-direction: column; align-items: center; transition: 0.25s; z-index: 10; }
+    .dot-player { width: 14px; height: 14px; background: #FF1744; border: 2px solid #FFF; border-radius: 50%; box-shadow: 0 0 8px #FF1744; }
+    .dot-poi { width: 12px; height: 12px; background: #FFD600; border: 2px solid #12121F; border-radius: 3px; transform: rotate(45deg); }
+
+    .btn-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .btn {
+      background-color: #0F3460;
+      color: white;
+      border: 1px solid #1F4E8C;
+      padding: 14px 12px;
+      font-size: 13.5px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-align: left;
+      gap: 8px;
+      transition: 0.2s;
+    }
+    .btn.macro-active {
+      background-color: #133E35;
+      border-color: #00E676;
+      box-shadow: 0 0 12px rgba(0, 230, 118, 0.25);
+    }
+    .status-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .dot-inactive { background-color: #FF1744; box-shadow: 0 0 8px rgba(255, 23, 68, 0.8); }
+    .dot-active { background-color: #00E676; box-shadow: 0 0 10px rgba(0, 230, 118, 1); }
+    .legend-bar { display: flex; gap: 16px; font-size: 12px; color: #9494B8; margin-bottom: 12px; align-items: center; }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+  </style>
+</head>
+<body>
+
+<div class='top-bar'>
+  <div class='title'>SWITCH HUD // ISOLATED</div>
+  <select id='gameSelect' onchange='changeGame(this.value)'>
+    <option value='pkmn_za' selected>Pokémon Legends: Z-A</option>
+    <option value='zelda_totk'>Zelda: Tears of the Kingdom</option>
+    <option value='zelda_botw'>Zelda: Breath of the Wild</option>
+    <option value='pkmn_sv'>Pokémon Scarlet / Violet</option>
+    <option value='mk8'>Mario Kart 8 Deluxe</option>
+  </select>
+</div>
+
+<div class='tabs'>
+  <div id='tab-map' class='tab active' onclick='switchTab("map")'>Interface & Mapa</div>
+  <div id='tab-macros' class='tab' onclick='switchTab("macros")'>Macros USB-C</div>
+  <div id='tab-config' class='tab' onclick='switchTab("config")'>Sistema</div>
+</div>
+
+<!-- ABA 1: MAPA / HUD DINÂMICO ISOLADO POR JOGO -->
+<div id='content-map' class='content active'>
+  <div id='gameSpecificHud'></div>
+
+  <div id='mapSection' style='display:none;'>
+    <div id='layer-bar' class='layer-bar'></div>
+    <div style='display:flex; justify-content:space-between; margin-bottom:8px; font-size:12px; color:#00F5D4; font-family:monospace;'>
+      <span id='map-zone'>Zona: Lumiose</span>
+      <span id='map-coords'>X: 2049 | Y: 2044 | Z: 0</span>
+    </div>
+    <div class='map-viewport'>
+      <div class='tile-grid' id='tileGrid'></div>
+      <div class='marker' id='poi1' style='top:35%; left:60%;'>
+        <div class='dot-poi'></div>
+        <span id='poi1-label' style='color:#222; background:rgba(255,255,255,0.9); padding:1px 5px; border-radius:4px; font-size:10px;'>POI</span>
+      </div>
+      <div class='marker' id='playerMarker' style='top:50%; left:50%;'>
+        <div class='dot-player'></div>
+        <span style='color:#222; background:rgba(255,255,255,0.9); padding:1px 5px; border-radius:4px; font-size:10px;'>Você</span>
+      </div>
+    </div>
+    <div style='margin-top:12px; display:flex; gap:8px;'>
+      <button class='btn' style='padding:10px; flex:1; justify-content:center;' onclick='movePlayer(-6, 0)'>◀ Oeste</button>
+      <button class='btn' style='padding:10px; flex:1; justify-content:center;' onclick='movePlayer(0, -6)'>▲ Norte</button>
+      <button class='btn' style='padding:10px; flex:1; justify-content:center;' onclick='movePlayer(0, 6)'>▼ Sul</button>
+      <button class='btn' style='padding:10px; flex:1; justify-content:center;' onclick='movePlayer(6, 0)'>Este ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- ABA 2: MACROS USB-C ISOLADAS POR JOGO -->
+<div id='content-macros' class='content'>
+  <div class='card'>
+    <h3>
+      <span id='macro-profile-title'>Macros: Pokémon Legends: Z-A</span>
+      <span id='macro-exec-count' style='font-size:12px; color:#00F5D4;'>0 execuções</span>
+    </h3>
+    <div class='legend-bar'>
+      <div class='legend-item'><span class='status-dot dot-active'></span> Ativo (Executando)</div>
+      <div class='legend-item'><span class='status-dot dot-inactive'></span> Inativo (Parado)</div>
+    </div>
+    <div class='btn-grid' id='macro-grid'></div>
+  </div>
+</div>
+
+<!-- ABA 3: CONFIGURAÇÃO / BOOTSEL -->
+<div id='content-config' class='content'>
+  <div class='card'>
+    <h3>Modo de Atualização (BOOTSEL)</h3>
+    <p style='font-size:13px; color:#BBB; margin-bottom:14px;'>Reiniciar o Pico W diretamente para o modo de gravação USB:</p>
+    <button class='btn' style='background:#FF1744; border-color:#FF6E88; justify-content:center;' onclick='rebootBootloader()'>🔄 Entrar em Modo BOOTSEL (RPI-RP2)</button>
+  </div>
+</div>
+
+<script>
+  let px = 50, py = 50, pz = 0;
+  let currentGame = 'pkmn_za';
+  let currentLayerId = 'lumiose';
+  let mapsConfig = null;
+  let activeMacroSlot = -1;
+
+  const GAME_CONFIGS = {
+    pkmn_za: {
+      name: "Pokémon Legends: Z-A",
+      hasMap: true,
+      macros: [
+        "🎮 Parear Switch (L+R)",
+        "⚔️ Combo de Batalha (Esquiva + Y)",
+        "⚡ Turbo A (Loop Contínuo)",
+        "🔄 Farm & Hatch (Círculo + B)",
+        "🗺️ Abrir Mapa Lumiose (+)",
+        "🅱️ Cancelar / Voltar (B)"
+      ]
+    },
+    pkmn_sv: {
+      name: "Pokémon Scarlet / Violet",
+      hasMap: false,
+      macros: [
+        "🎮 Parear Switch (L+R)",
+        "🎯 Auto-Throw PokéBall",
+        "⚡ Turbo A (Escola / Raid)",
+        "🥚 Auto-Hatch Analógico",
+        "🏕️ Abrir Menu / Picnic (+)",
+        "🅱️ Cancelar / Correr (B)"
+      ]
+    },
+    zelda_totk: {
+      name: "Zelda: Tears of the Kingdom",
+      hasMap: false,
+      macros: [
+        "🎮 Parear Switch (L+R)",
+        "⚔️ Combo Ataque (Y+Y+X)",
+        "⚡ Turbo A (Coletar Itens)",
+        "🔄 Giro Analógico (Spin)",
+        "🗺️ Purah Pad / Mapa (+)",
+        "🅱️ Cancelar / Guardar (B)"
+      ]
+    },
+    zelda_botw: {
+      name: "Zelda: Breath of the Wild",
+      hasMap: false,
+      macros: [
+        "🎮 Parear Switch (L+R)",
+        "⚔️ Combo Ataque (Y+Y+X)",
+        "⚡ Turbo A (Coletar Itens)",
+        "🔄 Giro Analógico (Spin)",
+        "🗺️ Sheikah Slate (+)",
+        "🅱️ Cancelar / Correr (B)"
+      ]
+    },
+    mk8: {
+      name: "Mario Kart 8 Deluxe",
+      hasMap: false,
+      macros: [
+        "🎮 Parear Switch (L+R)",
+        "🍄 Usar Item / Confirmar",
+        "⚡ Auto-Acelerar (Turbo A)",
+        "🔄 Spin Analógico",
+        "⏸️ Pausar Corrida (+)",
+        "🅱️ Frear / Ré (B)"
+      ]
+    }
+  };
+
+  async function loadMapsConfig() {
+    try {
+      const res = await fetch('/maps_config.json');
+      mapsConfig = await res.json();
+      changeGame(currentGame);
+    } catch (err) {
+      changeGame(currentGame);
+    }
+  }
+
+  function renderGameHud(game) {
+    const hudContainer = document.getElementById('gameSpecificHud');
+    const mapSection = document.getElementById('mapSection');
+
+    if (game === 'pkmn_za') {
+      mapSection.style.display = 'block';
+      hudContainer.innerHTML = `
+      <div class='za-hud-box'>
+        <div class='za-title'><span>⚡ Lumiose City // Z-A Context</span><span style='color:#00E676;'>USB HID Ativo</span></div>
+        <p style='font-size:12px; color:#A0A0C0; margin:0;'>Mapeamento ativo para a superfície e subsecções (Sewers / Lysandre Labs).</p>
+      </div>`;
+      renderLayerButtons(game);
+    } else {
+      mapSection.style.display = 'none';
+      hudContainer.innerHTML = `
+      <div class='card'>
+        <h3>${GAME_CONFIGS[game].name} // Perfil Isolado</h3>
+        <p style='font-size:13px; color:#A0A0C0;'>Interface configurada com atalhos e macros dedicadas para este título. Utilize a aba de Macros USB-C para disparar os comandos físicos no console.</p>
+      </div>`;
+    }
+  }
+
+  function renderMacroButtons(game) {
+    const grid = document.getElementById('macro-grid');
+    const cfg = GAME_CONFIGS[game] || GAME_CONFIGS['pkmn_za'];
+    grid.innerHTML = '';
+
+    cfg.macros.forEach((label, slot) => {
+      const isAct = (activeMacroSlot === slot);
+      const btn = document.createElement('button');
+      btn.id = `mbtn-${slot}`;
+      btn.className = 'btn' + (isAct ? ' macro-active' : '');
+      btn.onclick = () => sendMacro(slot);
+      btn.innerHTML = `
+      <span>${label}</span>
+      <span id="mdot-${slot}" class="status-dot ${isAct ? 'dot-active' : 'dot-inactive'}"></span>
+    `;
+      grid.appendChild(btn);
+    });
+  }
+
+  function updateMacroDots(activeSlot, totalExecs) {
+    activeMacroSlot = activeSlot;
+    for (let i = 0; i < 6; i++) {
+      const btn = document.getElementById(`mbtn-${i}`);
+      const dot = document.getElementById(`mdot-${i}`);
+      if (!btn || !dot) continue;
+      if (i === activeSlot) {
+        btn.classList.add('macro-active');
+        dot.className = 'status-dot dot-active';
+      } else {
+        btn.classList.remove('macro-active');
+        dot.className = 'status-dot dot-inactive';
+      }
+    }
+    if (totalExecs !== undefined) {
+      document.getElementById('macro-exec-count').innerText = `${totalExecs} execuções`;
+    }
+  }
+
+  function renderLayerButtons(game) {
+    const bar = document.getElementById('layer-bar');
+    bar.innerHTML = '';
+    if (!mapsConfig || !mapsConfig.games[game]) return;
+    mapsConfig.games[game].forEach((layer, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'layer-btn' + (idx === 0 ? ' active' : '');
+      btn.id = 'lbtn-' + layer.id;
+      btn.innerText = layer.name;
+      btn.onclick = () => selectLayer(game, layer.id);
+      bar.appendChild(btn);
+    });
+    if (mapsConfig.games[game].length > 0) {
+      selectLayer(game, mapsConfig.games[game][0].id);
+    }
+  }
+
+  function selectLayer(game, layerId) {
+    if (!mapsConfig || !mapsConfig.games[game]) return;
+    currentLayerId = layerId;
+    document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+    const activeBtn = document.getElementById('lbtn-' + layerId);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    const layerObj = mapsConfig.games[game].find(l => l.id === layerId);
+    if (!layerObj) return;
+
+    document.getElementById('map-zone').innerText = 'Zona: ' + layerObj.zone;
+    document.getElementById('poi1-label').innerText = layerObj.poi;
+    pz = (layerObj.z !== undefined) ? layerObj.z : 0;
+    document.getElementById('map-coords').innerText = `X: ${2039 + Math.floor(px/5)} | Y: ${2034 + Math.floor(py/5)} | Z: ${pz}`;
+
+    const grid = document.getElementById('tileGrid');
+    grid.innerHTML = '';
+    const cols = layerObj.grid || 4;
+    const rows = layerObj.grid || 4;
+    grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const div = document.createElement('div');
+        div.className = 'map-tile-bg';
+        div.style.gridColumn = `${c + 1}`;
+        div.style.gridRow = `${r + 1}`;
+        if (layerObj.has_tiles) {
+          div.style.backgroundImage = `url("${layerObj.base_path}/${c}_${r}.jpg")`;
+        } else {
+          div.style.background = layerObj.theme || '#182232';
+          div.style.display = 'flex';
+          div.style.alignItems = 'center';
+          div.style.justifyContent = 'center';
+          div.style.fontSize = '10px';
+          div.style.color = '#00F5D4';
+          div.innerHTML = `<span>${layerObj.id.toUpperCase()}</span>`;
+        }
+        grid.appendChild(div);
+      }
+    }
+  }
+
+  function switchTab(tabId) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tab-' + tabId).classList.add('active');
+    document.getElementById('content-' + tabId).classList.add('active');
+  }
+
+  function movePlayer(dx, dy) {
+    px = Math.max(10, Math.min(90, px + dx));
+    py = Math.max(10, Math.min(90, py + dy));
+    document.getElementById('playerMarker').style.left = px + '%';
+    document.getElementById('playerMarker').style.top = py + '%';
+  }
+
+  async function sendMacro(slot) {
+    try {
+      const res = await fetch(`/api/macro?slot=${slot}`);
+      const data = await res.json();
+      updateMacroDots(data.active_slot, data.executions);
+    } catch (e) {}
+  }
+
+  async function changeGame(game) {
+    currentGame = game;
+    const cfg = GAME_CONFIGS[game] || GAME_CONFIGS['pkmn_za'];
+    document.getElementById('macro-profile-title').innerText = 'Macros: ' + cfg.name;
+    renderGameHud(game);
+    renderMacroButtons(game);
+    try {
+      const res = await fetch(`/api/profile?game=${game}`);
+      const data = await res.json();
+      updateMacroDots(data.active_slot, data.executions);
+    } catch (e) {}
+  }
+
+  async function rebootBootloader() {
+    if (confirm("Deseja colocar o Pico W em modo de gravação (BOOTSEL)?")) {
+      await fetch('/api/reboot');
+      alert("Placa em modo BOOTSEL! Pode copiar o ficheiro .uf2 para a unidade RPI-RP2.");
+    }
+  }
+
+  setInterval(async () => {
+    try {
+      const res = await fetch('/api/macro_status');
+      const data = await res.json();
+      updateMacroDots(data.active_slot, data.executions);
+    } catch (e) {}
+  }, 350);
+
+  loadMapsConfig();
+</script>
+</body>
+</html>
