@@ -86,6 +86,13 @@ private:
         }
     }
 
+    // Aperta (hold_ms) e solta (gap_ms): 2 passos da fila
+    void tap(uint16_t btns, uint16_t hold_ms, uint16_t gap_ms) { tap(btns, 0x08, hold_ms, gap_ms); }
+    void tap(uint16_t btns, uint8_t dpad, uint16_t hold_ms, uint16_t gap_ms) {
+        enqueueStep(btns, dpad, hold_ms);
+        enqueueStep(SW_BTN_NONE, 0x08, gap_ms);
+    }
+
     void sendUsbReport(uint16_t btns, uint8_t dpad,
                        uint8_t lx = 128, uint8_t ly = 128, uint8_t rx = 128, uint8_t ry = 128) {
 #ifdef ARDUINO
@@ -147,6 +154,10 @@ public:
     void update(GameState &state) override {
         state.mode = SwitchMode::LOCKED_USB_MACRO;
         unsigned long now = millis();
+        state.active_macro_slot = static_cast<int8_t>(active_slot);
+#ifdef ARDUINO
+        state.connected = TinyUSBDevice.mounted();   // cabo USB-C ligado e enumerado
+#endif
 
         if (q_head != q_tail) {
             HidStep &step = queue[q_head];
@@ -163,22 +174,34 @@ public:
                 }
             }
         } else if (loop_mode) {
-            if (active_slot == 2) {
-                // Slot 2: Turbo A Contínuo
-                if (now - last_loop_ms >= 85) {
-                    last_loop_ms = now;
-                    loop_phase = !loop_phase;
-                    sendUsbReport(loop_phase ? SW_BTN_A : SW_BTN_NONE, 0x08);
-                }
-            } else if (active_slot == 3) {
-                // Slot 3: Círculo Perfeito com Analógico (Farm / Hatch de Ovos)
-                if (now - last_loop_ms >= 45) {
-                    last_loop_ms = now;
-                    loop_phase = (loop_phase + 1) % 12;
-                    const uint8_t lx_circ[12] = {128, 195, 240, 255, 240, 195, 128, 60, 15, 0, 15, 60};
-                    const uint8_t ly_circ[12] = {0, 15, 60, 128, 195, 240, 255, 240, 195, 128, 60, 15};
-                    sendUsbReport(SW_BTN_B, 0x08, lx_circ[loop_phase], ly_circ[loop_phase], 128, 128);
-                }
+            switch (active_slot) {
+                case 2:  // Turbo A
+                case 8:  // Spam Y
+                case 9:  // Spam B
+                    if (now - last_loop_ms >= 85) {
+                        last_loop_ms = now;
+                        loop_phase = !loop_phase;
+                        uint16_t b = (active_slot == 2) ? SW_BTN_A : (active_slot == 8) ? SW_BTN_Y : SW_BTN_B;
+                        sendUsbReport(loop_phase ? b : SW_BTN_NONE, 0x08);
+                    }
+                    break;
+                case 3:  // Circulo Perfeito com Analogico (Farm / Hatch de Ovos)
+                    if (now - last_loop_ms >= 45) {
+                        last_loop_ms = now;
+                        loop_phase = (loop_phase + 1) % 12;
+                        const uint8_t lx_circ[12] = {128, 195, 240, 255, 240, 195, 128, 60, 15, 0, 15, 60};
+                        const uint8_t ly_circ[12] = {0, 15, 60, 128, 195, 240, 255, 240, 195, 128, 60, 15};
+                        sendUsbReport(SW_BTN_B, 0x08, lx_circ[loop_phase], ly_circ[loop_phase], 128, 128);
+                    }
+                    break;
+                case 10: // Andar reto (analogico para frente)
+                case 11: // Correr (analogico para frente + B)
+                    if (now - last_loop_ms >= 40) {
+                        last_loop_ms = now;
+                        sendUsbReport(active_slot == 11 ? SW_BTN_B : SW_BTN_NONE, 0x08, 128, 0, 128, 128);
+                    }
+                    break;
+                default: break;
             }
         } else {
             if (now - last_keepalive_ms >= 50) {
@@ -196,6 +219,7 @@ public:
             loop_mode = false;
             active_slot = -1;
             state.generic.turbo_enabled = false;
+            state.active_macro_slot = -1;
             sendUsbReport(SW_BTN_NONE, 0x08);
             return;
         }
@@ -203,47 +227,91 @@ public:
         clearQueue();
         loop_mode = false;
         active_slot = clicked_slot;
+        state.active_macro_slot = static_cast<int8_t>(clicked_slot);
         state.generic.macro_executions++;
 
-        switch (action) {
-            case ActionMacro::MACRO_SLOT_1: // Slot 0: Parear Switch (L+R -> A)
+        switch (clicked_slot) {
+            case 0: // Parear Switch (L+R -> A)
                 enqueueStep(SW_BTN_L | SW_BTN_R, 0x08, 300);
                 enqueueStep(SW_BTN_NONE, 0x08, 150);
                 enqueueStep(SW_BTN_A, 0x08, 200);
                 enqueueStep(SW_BTN_NONE, 0x08, 100);
                 break;
 
-            case ActionMacro::MACRO_SLOT_2: // Slot 1: Combo de Batalha Avançado (Esquiva + Y Carregado)
-                enqueueStep(SW_BTN_B, 0x08, 120, 128, 255, 128, 128); // Esquiva recuando com analógico para baixo
+            case 1: // Combo de Batalha (Esquiva + Y carregado)
+                enqueueStep(SW_BTN_B, 0x08, 120, 128, 255, 128, 128); // esquiva recuando (analogico para baixo)
                 enqueueStep(SW_BTN_NONE, 0x08, 80);
-                enqueueStep(SW_BTN_Y, 0x08, 400, 128, 128, 128, 128);  // Ataque pesado mantendo Y
+                enqueueStep(SW_BTN_Y, 0x08, 400, 128, 128, 128, 128); // ataque pesado mantendo Y
                 enqueueStep(SW_BTN_NONE, 0x08, 150);
                 break;
 
-            case ActionMacro::MACRO_SLOT_3: // Slot 2: Turbo A (Toggle)
+            case 2: case 8: case 9: case 3: case 10: case 11: // toggles (loop em update())
                 loop_mode = true;
                 loop_phase = 0;
-                state.generic.turbo_enabled = true;
+                if (clicked_slot == 2) state.generic.turbo_enabled = true;
                 break;
 
-            case ActionMacro::MACRO_SLOT_4: // Slot 3: Farm & Hatch (Círculo Analógico + B)
-                loop_mode = true;
-                loop_phase = 0;
-                break;
-
-            case ActionMacro::MACRO_SLOT_5: // Slot 4: Abrir Mapa / Fast Travel
+            case 4: // Abrir Mapa (+ -> A)
                 enqueueStep(SW_BTN_PLUS, 0x08, 200);
                 enqueueStep(SW_BTN_NONE, 0x08, 350);
                 enqueueStep(SW_BTN_A, 0x08, 150);
                 enqueueStep(SW_BTN_NONE, 0x08, 100);
                 break;
 
-            case ActionMacro::MACRO_SLOT_6: // Slot 5: Cancelar / Voltar (2x B)
-                enqueueStep(SW_BTN_B, 0x08, 120);
-                enqueueStep(SW_BTN_NONE, 0x08, 100);
-                enqueueStep(SW_BTN_B, 0x08, 120);
+            case 5: // Cancelar / Voltar (2x B)
+                tap(SW_BTN_B, 120, 100);
+                tap(SW_BTN_B, 120, 100);
+                break;
+
+            case 6: // Auto-Catch (ZL+ZR)
+                enqueueStep(SW_BTN_ZL | SW_BTN_ZR, 0x08, 400);
+                enqueueStep(SW_BTN_NONE, 0x08, 150);
+                break;
+
+            case 7: // Esquiva simples (B + analogico para tras)
+                enqueueStep(SW_BTN_B, 0x08, 120, 128, 255, 128, 128);
                 enqueueStep(SW_BTN_NONE, 0x08, 100);
                 break;
+
+            case 12: // Menu rapido (X)
+                tap(SW_BTN_X, 150, 200);
+                break;
+
+            case 13: // Home
+                tap(SW_BTN_HOME, 150, 200);
+                break;
+
+            case 14: // Reset da camera (R3)
+                tap(SW_BTN_RCLK, 120, 150);
+                break;
+
+            // ---- CURA (PRECISAM SER CALIBRADAS no seu jogo: ordem/posicao dos itens no menu) ----
+            // Sequencia assumida: X abre o menu -> A entra em Itens -> A usa o item sob o cursor
+            //                     -> A escolhe o 1o Pokemon -> A confirma -> B x3 fecha tudo.
+            case 15: // Curar HP (item de cura na 1a posicao da lista)
+                tap(SW_BTN_X, 150, 600);
+                tap(SW_BTN_A, 150, 500);
+                tap(SW_BTN_A, 150, 400);
+                tap(SW_BTN_A, 150, 400);
+                tap(SW_BTN_A, 150, 300);
+                tap(SW_BTN_B, 120, 200);
+                tap(SW_BTN_B, 120, 200);
+                tap(SW_BTN_B, 120, 200);
+                break;
+
+            case 16: // Curar Status (cura-tudo na 2a posicao: 1x para baixo antes de usar)
+                tap(SW_BTN_X, 150, 600);
+                tap(SW_BTN_A, 150, 500);
+                tap(SW_BTN_NONE, 0x04, 100, 250);   // D-pad para baixo (hat 4)
+                tap(SW_BTN_A, 150, 400);
+                tap(SW_BTN_A, 150, 400);
+                tap(SW_BTN_A, 150, 300);
+                tap(SW_BTN_B, 120, 200);
+                tap(SW_BTN_B, 120, 200);
+                tap(SW_BTN_B, 120, 200);
+                break;
+
+            default: break;
         }
     }
 };

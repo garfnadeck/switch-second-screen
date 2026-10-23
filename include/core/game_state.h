@@ -22,6 +22,9 @@ enum class GameProfile : uint8_t {
     COUNT = 8
 };
 
+// Quantidade total de macros (slots 0..MACRO_COUNT-1). Slots 0..5 = os 6 originais.
+static constexpr uint8_t MACRO_COUNT = 17;
+
 enum class ActionMacro : uint8_t {
     MACRO_SLOT_1 = 0,
     MACRO_SLOT_2 = 1,
@@ -35,6 +38,7 @@ enum class ActionMacro : uint8_t {
     MACRO_4 = 3, // Alias
     MACRO_5 = 4, // Alias
     MACRO_6 = 5  // Alias
+    // Slots 6..16 (Z-A) sao enviados como numero: static_cast<ActionMacro>(slot)
 };
 
 struct PokemonSlot {
@@ -83,6 +87,8 @@ struct GameState {
     SwitchMode mode = SwitchMode::MOCK_SIMULATOR;
     GameProfile profile = GameProfile::POKEMON_SV;
     bool connected = false;
+    int8_t active_macro_slot = -1; // -1 = nenhuma macro em execucao
+    char link_status[24] = "desativado";   // estado da leitura de RAM (sys-botbase)
     char switch_ip[16] = "192.168.1.50";
     uint16_t switch_port = 6000;
 

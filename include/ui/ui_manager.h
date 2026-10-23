@@ -36,9 +36,14 @@ private:
     lv_obj_t * waypoint_dots[3] = {nullptr};
     lv_obj_t * waypoint_lbls[3] = {nullptr};
     lv_obj_t * coord_label = nullptr;
+    lv_obj_t * macro_generic = nullptr;   // pagina com os 6 botoes genericos
     lv_obj_t * macro_btn_lbls[6] = {nullptr};
     lv_obj_t * status_footer = nullptr;
     lv_obj_t * ip_textarea = nullptr;
+    lv_obj_t * lbl_diag = nullptr;        // Config: USB / macro ativa / execucoes
+    int8_t   diag_conn = -1, diag_active = -2;
+    uint32_t diag_exec = 0xFFFFFFFF;
+    char     diag_link[24] = {};
 
     IGameModule* getActiveModule() {
         uint8_t idx = static_cast<uint8_t>(state.profile);
@@ -49,6 +54,11 @@ private:
         if (state.mode == SwitchMode::LOCKED_USB_MACRO) return "USB-HID";
         if (state.mode == SwitchMode::UNLOCKED_SYSBOTBASE) return "SYS-BOT";
         return "MOCK";
+    }
+
+    // Botoes desenhados pelos modulos chamam isto
+    static void macroThunk(void * ctx, uint8_t slot) {
+        static_cast<UIManager*>(ctx)->onMacroClicked(slot);
     }
 
 public:
@@ -70,6 +80,11 @@ public:
         }
 
         IGameModule * mod = getActiveModule();
+
+        // Botoes genericos so aparecem se o jogo nao tem layout proprio de macros
+        if (mod->hasCustomMacroTab()) lv_obj_add_flag(macro_generic, LV_OBJ_FLAG_HIDDEN);
+        else                          lv_obj_clear_flag(macro_generic, LV_OBJ_FLAG_HIDDEN);
+
         for (int i = 0; i < 6; i++) {
             lv_label_set_text(macro_btn_lbls[i], mod->getMacroLabel(i));
         }
@@ -92,6 +107,18 @@ public:
         char buf[64];
         mod->formatMapCoordText(buf, sizeof(buf), state);
         lv_label_set_text(coord_label, buf);
+
+        // Config > diagnostico (so redesenha quando muda)
+        int8_t conn = state.connected ? 1 : 0;
+        if (lbl_diag && (conn != diag_conn || state.active_macro_slot != diag_active ||
+                         state.generic.macro_executions != diag_exec ||
+                         strncmp(state.link_status, diag_link, sizeof(diag_link)) != 0)) {
+            snprintf(diag_link, sizeof(diag_link), "%s", state.link_status);
+            diag_conn = conn; diag_active = state.active_macro_slot; diag_exec = state.generic.macro_executions;
+            const char * act = (diag_active >= 0) ? mod->getMacroLabel((uint8_t)diag_active) : "nenhuma";
+            lv_label_set_text_fmt(lbl_diag, "USB: %s\nMacro ativa: %s\nExecucoes: %lu\nLeitura RAM: %s",
+                                  conn ? "#00E676 ON#" : "#FF1744 OFF#", act, (unsigned long)diag_exec, state.link_status);
+        }
     }
 
     void onProfileSelected(uint16_t sel) {
@@ -117,7 +144,7 @@ public:
     }
 
     void buildUI() {
-        router.init(state);
+        router.init(state);   // idempotente: nao reinicializa se o main ja chamou
 
         lv_obj_t * scr = lv_scr_act();
         lv_obj_set_style_bg_color(scr, lv_color_hex(0x12121F), LV_PART_MAIN);
@@ -148,6 +175,10 @@ public:
             "Mario Kart World\n"
             "Generic Hub"
         );
+        // O dropdown precisa comecar no jogo que o provider realmente ativou
+        if (static_cast<uint8_t>(state.profile) < NUM_MODULES) {
+            lv_dropdown_set_selected(dd, static_cast<uint16_t>(state.profile));
+        }
         lv_obj_set_size(dd, 185, 30);
         lv_obj_align(dd, LV_ALIGN_RIGHT_MID, -4, 0);
         lv_obj_set_style_bg_color(dd, lv_color_hex(0x0F3460), LV_PART_MAIN);
@@ -174,6 +205,7 @@ public:
         lv_obj_t * tab_macros = lv_tabview_add_tab(tabview, "Macros");
         lv_obj_t * tab_config = lv_tabview_add_tab(tabview, "Config");
         lv_obj_set_style_pad_all(tab_status, 6, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(tab_macros, 0, LV_PART_MAIN);   // grade 4x3 + pager usam a aba inteira (480x224)
 
         // Aba 1: Status
         for (uint8_t i = 0; i < NUM_MODULES; i++) {
@@ -227,13 +259,24 @@ public:
         lv_obj_set_style_border_color(player_dot, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
         lv_obj_set_style_border_width(player_dot, 2, LV_PART_MAIN);
 
-        // Aba 3: Macros Compactas
+        // Aba 3: Macros — botoes genericos (jogos sem layout proprio) ...
+        macro_generic = lv_obj_create(tab_macros);
+        lv_obj_set_size(macro_generic, LV_PCT(100), LV_PCT(100));
+        lv_obj_set_pos(macro_generic, 0, 0);
+        lv_obj_set_style_pad_all(macro_generic, 0, LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(macro_generic, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_border_width(macro_generic, 0, LV_PART_MAIN);
+        lv_obj_clear_flag(macro_generic, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_flex_flow(macro_generic, LV_FLEX_FLOW_ROW_WRAP);
+        lv_obj_set_flex_align(macro_generic, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+        lv_obj_set_style_pad_column(macro_generic, 6, LV_PART_MAIN);
+        lv_obj_set_style_pad_row(macro_generic, 8, LV_PART_MAIN);
+        lv_obj_set_style_pad_left(macro_generic, 3, LV_PART_MAIN);
+        lv_obj_set_style_pad_top(macro_generic, 4, LV_PART_MAIN);
+
         for (int i = 0; i < 6; i++) {
-            lv_obj_t * btn = lv_btn_create(tab_macros);
-            lv_obj_set_size(btn, 148, 85);
-            int col = i % 3;
-            int row = i / 3;
-            lv_obj_set_pos(btn, col * 154 + 6, row * 92 + 8);
+            lv_obj_t * btn = lv_btn_create(macro_generic);
+            lv_obj_set_size(btn, LV_PCT(32), 90);
             lv_obj_set_style_bg_color(btn, lv_color_hex(0x0F3460), LV_PART_MAIN);
             lv_obj_set_user_data(btn, (void*)(intptr_t)i);
             lv_obj_add_event_cb(btn, [](lv_event_t * e) {
@@ -246,6 +289,13 @@ public:
             lv_obj_center(macro_btn_lbls[i]);
         }
 
+        // ... e paginas proprias dos modulos que tem layout dedicado (ex.: Z-A)
+        for (uint8_t i = 0; i < NUM_MODULES; i++) {
+            if (modules[i]->hasCustomMacroTab()) {
+                modules[i]->buildMacroTab(tab_macros, &UIManager::macroThunk, this);
+            }
+        }
+
         // Aba 4: Config
         lv_obj_t * lbl_mode = lv_label_create(tab_config);
         lv_label_set_text(lbl_mode, "Modo:");
@@ -254,6 +304,7 @@ public:
 
         lv_obj_t * dd_mode = lv_dropdown_create(tab_config);
         lv_dropdown_set_options(dd_mode, "Simulador (Mock)\nUSB HID\nSys-Botbase");
+        lv_dropdown_set_selected(dd_mode, static_cast<uint16_t>(state.mode));
         lv_obj_set_size(dd_mode, 210, 32);
         lv_obj_align(dd_mode, LV_ALIGN_TOP_LEFT, 5, 24);
         lv_obj_set_style_bg_color(dd_mode, lv_color_hex(0x1E1E36), LV_PART_MAIN);
@@ -276,6 +327,14 @@ public:
         lv_obj_align(ip_textarea, LV_ALIGN_TOP_LEFT, 235, 24);
         lv_obj_set_style_bg_color(ip_textarea, lv_color_hex(0x1E1E36), LV_PART_MAIN);
         lv_obj_set_style_text_color(ip_textarea, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+
+        lbl_diag = lv_label_create(tab_config);
+        lv_label_set_recolor(lbl_diag, true);
+        lv_obj_set_style_text_color(lbl_diag, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+        lv_obj_set_style_text_font(lbl_diag, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_obj_set_style_text_line_space(lbl_diag, 4, LV_PART_MAIN);
+        lv_obj_align(lbl_diag, LV_ALIGN_TOP_LEFT, 5, 70);
+        lv_label_set_text(lbl_diag, "USB: -");
 
         // Rodapé
         status_footer = lv_label_create(scr);

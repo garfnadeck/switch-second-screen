@@ -9,7 +9,7 @@
 
 /* Memory settings - Pool interno seguro para Mac, ESP32-S3 e RP2040 (Pico W) */
 #define LV_MEM_CUSTOM 0
-#define LV_MEM_SIZE (48U * 1024U) /* 48 KB para objetos da UI */
+#define LV_MEM_SIZE (128U * 1024U) /* ESP32-S3 tem 512KB SRAM. 8 modulos + Z-A com 17 macros usam ~55-65 KB; 64 KB ficava com <5 KB livres */
 
 /* HAL settings */
 #define LV_TICK_CUSTOM 1
