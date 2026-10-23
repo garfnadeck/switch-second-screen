@@ -3,192 +3,430 @@
 <head>
     <meta charset='UTF-8'>
     <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-    <title>Switch Second Screen - Mac Mockup (Lumiose Tiles)</title>
+    <title>Switch HUD - Z-A (MVP)</title>
     <style>
-        body { background-color: #12121F; color: #FFFFFF; font-family: system-ui, sans-serif; margin: 0; padding: 0; user-select: none; }
-        .top-bar { background: #1F1F38; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0F3460; }
-        .title { color: #00F5D4; font-size: 18px; font-weight: bold; letter-spacing: 1px; }
-        select { background: #0F3460; color: #00F5D4; border: 1px solid #00F5D4; padding: 8px 14px; border-radius: 6px; font-size: 14px; font-weight: bold; }
-        .tabs { display: flex; background: #18182C; border-bottom: 1px solid #2E2E52; }
-        .tab { flex: 1; padding: 14px; text-align: center; color: #8888AA; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .tab.active { color: #00F5D4; border-bottom: 3px solid #00F5D4; background: #12121F; }
-        .content { padding: 20px; display: none; max-width: 700px; margin: 0 auto; }
-        .content.active { display: block; }
-        .card { background: #1E1E36; border-radius: 10px; padding: 16px; margin-bottom: 16px; border: 1px solid #2E2E52; }
-        .card h3 { margin-top: 0; color: #00F5D4; font-size: 16px; border-bottom: 1px solid #2E2E52; padding-bottom: 8px; }
+        /* Espelho do layout da tela fisica 480x320 (LVGL). Mesma paleta do ui_manager.h */
+        * { box-sizing: border-box; }
+        html, body { margin: 0; height: 100%; background: #05050A; overflow: hidden; user-select: none;
+            font-family: 'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+        #wrap { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+        #stage { width: 480px; height: 320px; background: #12121F; position: relative; overflow: hidden;
+            transform-origin: top left; color: #fff; font-size: 14px; }
 
-        /* HP Bars */
-        .pkmn-row { margin-bottom: 12px; }
-        .pkmn-header { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; font-weight: bold; }
-        .hp-bg { background: #0B1320; height: 14px; border-radius: 7px; overflow: hidden; border: 1px solid #2E2E52; }
-        .hp-fill { height: 100%; transition: width 0.3s; }
+        /* Barra superior 38px */
+        #top { position: absolute; left: 0; top: 0; width: 480px; height: 38px; background: #1F1F38;
+            display: flex; align-items: center; justify-content: space-between; padding: 0 8px; }
+        #top .title { color: #00F5D4; font-size: 14px; }
+        #top .game { width: 185px; height: 30px; background: #0F3460; border-radius: 6px; border: 1px solid #2D3E66;
+            display: flex; align-items: center; justify-content: space-between; padding: 0 10px; font-size: 12px; }
 
-        /* Map Viewport & Tile Grid para Hardware Simulation */
-        .tile-grid {
-            display: grid;
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-        .map-viewport {
-            width: 100%;
-            max-width: 420px; /* Mantém a caixa quadrada como a imagem original */
-            aspect-ratio: 1 / 1;
-            margin: 0 auto;
-            background-color: #0B1320;
-            border-radius: 10px;
-            position: relative;
-            overflow: hidden;
-            border: 2px solid #0F3460;
-        }
-        .map-tile-bg {
-            background-size: 100% 100%; /* Evita que cada tile dê crop nas bordas! */
-            background-repeat: no-repeat;
-        }
+        /* Abas 32px */
+        #tabs { position: absolute; left: 0; top: 38px; width: 480px; height: 32px; background: #18182C; display: flex; }
+        .tab { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; color: #fff; }
+        .tab.active { color: #2D8CFF; box-shadow: inset 0 -3px 0 #2D8CFF; background: #0F1B33; }
 
-        .marker { position: absolute; transform: translate(-50%, -50%); font-size: 12px; font-weight: bold; display: flex; flex-direction: column; align-items: center; transition: 0.25s; z-index: 10; }
-        .dot-player { width: 14px; height: 14px; background: #FF1744; border: 2px solid #FFF; border-radius: 50%; box-shadow: 0 0 8px #FF1744; }
-        .dot-poi { width: 12px; height: 12px; background: #FFD600; border: 2px solid #12121F; border-radius: 3px; transform: rotate(45deg); }
+        /* Area de conteudo 480x224 */
+        .page { position: absolute; left: 0; top: 70px; width: 480px; height: 224px; display: none; }
+        .page.active { display: block; }
 
-        /* Macros Grid */
-        .btn-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-        .btn { background-color: #0F3460; color: white; border: 1px solid #1F4E8C; padding: 16px; font-size: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        .btn:active { background-color: #00F5D4; color: #12121F; }
+        /* Status */
+        #zone { position: absolute; left: 10px; top: 4px; font-size: 12px; color: #00F5D4; }
+        .prow { position: absolute; left: 10px; right: 10px; height: 30px; font-size: 12px; }
+        .prow .n { position: absolute; left: 0; top: 5px; width: 118px; white-space: nowrap; overflow: hidden; }
+        .prow .b { position: absolute; left: 122px; top: 6px; width: 190px; height: 12px; background: #1F1F38; border-radius: 4px; overflow: hidden; }
+        .prow .f { height: 100%; width: 0; border-radius: 4px; background: #444466; transition: width .3s; }
+        .prow .h { position: absolute; left: 318px; top: 5px; color: #CCCCDD; }
+        .prow .s { position: absolute; left: 402px; top: 5px; color: #FFC400; }
+        .cy { color: #00F5D4; } .gr { color: #00E676; } .rd { color: #FF1744; } .mu { color: #8888AA; }
+
+        /* Macros 3x2 */
+        #grid { position: absolute; left: 3px; right: 3px; top: 4px; display: grid;
+            grid-template-columns: repeat(3, 1fr); gap: 8px 6px; }
+        #mhead { position: absolute; left: 3px; right: 3px; top: 2px; height: 28px; display: none; align-items: center; justify-content: space-between; }
+        #mhead .ttl { color: #00F5D4; font-size: 14px; }
+        .hbtn { height: 28px; width: 92px; border-radius: 8px; border: 2px solid #2D3E66; background: #1F1F38; color: #fff; font: inherit; font-size: 12px; cursor: pointer; }
+        .hbtn.stop, .slot.stop { background: #5A1020; border-color: #FF1744; }
+        .hbtn.stop { color: #FF6E88; }
+        #grid.cat { top: 34px; }
+        .slot { position: relative; height: 90px; background: #0F3460; border: 2px solid #1F4E8C; border-radius: 8px;
+            color: #fff; font: inherit; font-size: 13px; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; text-align: center; line-height: 1.3; cursor: pointer; padding: 2px; }
+        .slot:active { background: #1F4E8C; }
+        .slot .ic { color: #00F5D4; font-size: 15px; }
+        .slot .sub { color: #8888AA; font-size: 12px; }
+        .slot .lp { color: #8888AA; }
+        .slot .dot { position: absolute; top: 0; right: 0; width: 12px; height: 12px; border-radius: 50%; background: #FF1744; }
+        .slot.on { background: #133E35; border-color: #00E676; }
+        .slot.on .dot { background: #00E676; }
+
+        /* Mapa: quadro quadrado a esquerda, camadas/info a direita */
+        #mapbox { position: absolute; left: 10px; top: 8px; width: 208px; height: 208px; background: #182232;
+            border: 2px solid #1F4E8C; border-radius: 6px; overflow: hidden; cursor: crosshair; }
+        #tileGrid { position: absolute; inset: 0; display: grid; }
+        .tile { background-size: cover; background-position: center; border: 1px solid #0b1220;
+            display: flex; align-items: center; justify-content: center; font-size: 10px; color: #00F5D4; }
+        #pin { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+            background: #FF1744; border: 2px solid #fff; pointer-events: none; transition: left .15s, top .15s; }
+        #mside { position: absolute; left: 230px; right: 10px; top: 8px; font-size: 12px; }
+        #layers { display: flex; flex-direction: column; gap: 4px; max-height: 128px; overflow-y: auto; }
+        .lbtn { background: #0F3460; border: 1px solid #1F4E8C; border-radius: 6px; color: #fff; font: inherit;
+            font-size: 12px; padding: 5px 8px; text-align: left; cursor: pointer; }
+        .lbtn.active { background: #133E35; border-color: #00E676; }
+        #mzone { margin-top: 8px; color: #00F5D4; } #mcoord { margin-top: 2px; } #mpoi { margin-top: 2px; color: #8888AA; }
+
+        /* Rede */
+        #net { position: absolute; left: 12px; right: 12px; top: 6px; font-size: 12px; line-height: 1.4; }
+        #net .row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+        #net label { width: 78px; color: #00F5D4; }
+        #net input { flex: 1; min-width: 0; height: 28px; background: #1E1E36; color: #fff; border: 1px solid #2D3E66;
+            border-radius: 6px; padding: 0 8px; font: inherit; font-size: 12px; user-select: text; -webkit-user-select: text; }
+        #net button { height: 28px; background: #0F3460; color: #fff; border: 1px solid #1F4E8C; border-radius: 6px;
+            padding: 0 10px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+        #net .hint { margin-top: 8px; color: #8888AA; font-size: 11px; }
+
+        /* Config */
+        #cfg { position: absolute; left: 14px; top: 8px; right: 14px; font-size: 12px; line-height: 1.5; }
+        #cfg button { margin-top: 8px; background: #B71C1C; color: #fff; border: 1px solid #FF6E88; border-radius: 8px;
+            padding: 10px 14px; font: inherit; font-size: 12px; cursor: pointer; }
+
+        /* Rodape */
+        #foot { position: absolute; left: 0; bottom: 0; width: 480px; height: 26px; display: flex; align-items: center;
+            justify-content: space-between; padding: 0 8px; font-size: 10px; color: #8888AA; }
     </style>
 </head>
 <body>
-
-<div class='top-bar'>
-    <div class='title'>SWITCH HUD // LUMIOSE TILES SIMULATOR</div>
-    <select id='gameSelect' onchange='changeGame(this.value)'>
-        <option value='pkmn_za' selected>Pokémon Legends: Z-A (Lumiose City)</option>
-        <option value='zelda_totk'>Zelda: Tears of the Kingdom</option>
-    </select>
-</div>
-
-<div class='tabs'>
-    <div id='tab-status' class='tab active' onclick='switchTab("status")'>Status / HUD</div>
-    <div id='tab-map' class='tab' onclick='switchTab("map")'>Mapa (Hardware Tiles)</div>
-    <div id='tab-macros' class='tab' onclick='switchTab("macros")'>Macros</div>
-    <div id='tab-config' class='tab' onclick='switchTab("config")'>Hardware & PSRAM</div>
-</div>
-
-<!-- ABA 1: STATUS -->
-<div id='content-status' class='content active'>
-    <div id='hud-container'></div>
-</div>
-
-<!-- ABA 2: MAPA -->
-<div id='content-map' class='content'>
-    <div style='display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px; color:#00F5D4; font-family:monospace;'>
-        <span id='map-zone'>Zona: Lumiose City (Prism Tower)</span>
-        <span id='map-coords'>X: 2039 | Y: 2034</span>
-    </div>
-    <div class='map-viewport'>
-        <div class='tile-grid' id='tileGrid'></div>
-        <div class='marker' id='poi1' style='top:35%; left:60%;'>
-            <div class='dot-poi'></div>
-            <span style='color:#222; background:rgba(255,255,255,0.9); padding:1px 5px; border-radius:4px; font-size:10px; margin-top:2px; font-weight:bold;'>Mega Evolution Spot</span>
+<div id='wrap'>
+    <div id='stage'>
+        <div id='top'>
+            <div class='title'>SWITCH HUD</div>
+            <div class='game'><span>Pokemon Legends ZA</span><span>&#8964;</span></div>
         </div>
-        <div class='marker' id='playerMarker' style='top:50%; left:50%;'>
-            <div class='dot-player'></div>
-            <span style='color:#222; background:rgba(255,255,255,0.9); padding:1px 5px; border-radius:4px; font-size:10px; margin-top:2px; font-weight:bold;'>Você</span>
+
+        <div id='tabs'>
+            <div class='tab' id='t-status' onclick='tab("status")'>Status</div>
+            <div class='tab active' id='t-macros' onclick='tab("macros")'>Macros</div>
+            <div class='tab' id='t-mapa' onclick='tab("mapa")'>Mapa</div>
+            <div class='tab' id='t-rede' onclick='tab("rede")'>Rede</div>
+            <div class='tab' id='t-config' onclick='tab("config")'>Config</div>
         </div>
-    </div>
-    <div style='margin-top:12px; display:flex; gap:8px;'>
-        <button class='btn' style='padding:10px; flex:1;' onclick='movePlayer(-6, 0)'>◀ Oeste</button>
-        <button class='btn' style='padding:10px; flex:1;' onclick='movePlayer(0, -6)'>▲ Norte</button>
-        <button class='btn' style='padding:10px; flex:1;' onclick='movePlayer(0, 6)'>▼ Sul</button>
-        <button class='btn' style='padding:10px; flex:1;' onclick='movePlayer(6, 0)'>Este ▶</button>
-    </div>
-</div>
 
-<!-- ABA 3: MACROS -->
-<div id='content-macros' class='content'>
-    <div class='card'>
-        <h3>Macros para Pokémon Legends: Z-A</h3>
-        <div class='btn-grid' id='macro-buttons'></div>
-    </div>
-</div>
+        <div class='page' id='p-status'><div id='zone'>Zona: -</div><div id='party'></div></div>
+        <div class='page active' id='p-macros'>
+            <div id='mhead'><button class='hbtn' onclick='backMenu()'>&#8249; Voltar</button><span class='ttl' id='mttl'></span><button class='hbtn stop' onclick='stopAll()'>&#9632; PARAR</button></div>
+            <div id='grid'></div>
+        </div>
+        <div class='page' id='p-mapa'>
+            <div id='mapbox' onclick='mapClick(event)'><div id='tileGrid'></div><div id='pin'></div></div>
+            <div id='mside'>
+                <div id='layers'></div>
+                <div id='mzone'>Zona: -</div>
+                <div id='mcoord'>X: - Y: -</div>
+                <div id='mpoi'></div>
+            </div>
+        </div>
+        <div class='page' id='p-rede'>
+            <div id='net'>
+                <div id='netinfo' class='mu'>Rede: ?</div>
+                <div class='row'><label>IP do Switch</label><input id='swip' inputmode='decimal' placeholder='192.168.x.x'>
+                    <button onclick='saveSwitch()'>Salvar</button><button onclick='scan()'>Detectar</button></div>
+                <div id='swmsg' class='hint'>&nbsp;</div>
+                <div class='row'><label>Wi-Fi</label><input id='ssid' placeholder='nome da rede (vazio = rede da placa)' autocapitalize='off'></div>
+                <div class='row'><label>Senha</label><input id='pass' type='password' placeholder='(manter a atual)'>
+                    <button onclick='saveWifi()'>Salvar e reiniciar</button></div>
+                <div class='hint'>Sem Wi-Fi? Ligue o Switch e o celular na rede <b>SwitchHUD</b> (senha switchhud1) e toque em Detectar.</div>
+            </div>
+        </div>
+        <div class='page' id='p-config'>
+            <div id='cfg'>
+                <div><span class='cy'>Firmware:</span> <span id='cfg-fw'>?</span></div>
+                <div><span class='cy'>Pagina:</span> <span id='cfg-page'></span></div>
+                <div><span class='cy'>Tela fisica:</span> <span id='cfg-disp'>?</span></div>
+                <div style='margin-top:8px'><span class='cy'>USB:</span> <span id='cfg-usb'>?</span></div>
+                <div><span class='cy'>Macro ativa:</span> <span id='cfg-act'>nenhuma</span></div>
+                <div><span class='cy'>Execucoes:</span> <span id='cfg-exe'>0</span></div>
+                <div><span class='cy'>Leitura RAM:</span> <span id='cfg-link'>?</span></div>
+                <button onclick='bootsel()'>Entrar em modo BOOTSEL (RPI-RP2)</button>
+            </div>
+        </div>
 
-<!-- ABA 4: CONFIG -->
-<div id='content-config' class='content'>
-    <div class='card'>
-        <h3>Arquitetura de Hardware (MicroSD Tiles)</h3>
-        <p style='font-size:14px; color:#00E676;'>• Renderização em mosaico dinâmica pronta para o ESP32-S3 e Pico W.</p>
+        <div id='foot'><span id='foot-l'>[USB-HID] aguardando placa...</span><span id='foot-r'></span></div>
     </div>
 </div>
 
 <script>
-    let px = 50, py = 50;
+    const PAGE_VERSION = 'mvp-2026-10-23a';   // muda a cada versao: confere se o uploadfs gravou esta pagina
 
-    async function loadCoordinatedTiles() {
-        const grid = document.getElementById('tileGrid');
-        try {
-            let response = await fetch('tiles_map.json');
-            let data = await response.json();
+    // Mesmos 6 slots do UIManager / modulo Z-A / usb_hid_provider.h
+    // 17 macros = slots do usb_hid_provider.h (0..16). t = toggle (liga/desliga). 12 por pagina (4x3).
+    const SLOTS = [
+        { ic: '\u{1F3AE}', name: 'Parear L+R' },
+        { ic: '\u{1F500}', name: 'Combo Esq+Y' },
+        { ic: '⚡', name: 'Turbo A', t: 1 },
+        { ic: '\u{1F504}', name: 'AFK Círculo', t: 1 },
+        { ic: '\u{1F5FA}', name: 'Mapa (+)' },
+        { ic: '↩', name: 'Cancelar 2xB' },
+        { ic: '▶', name: 'Auto-Catch' },
+        { ic: '➡', name: 'Esquiva' },
+        { ic: '\u{1F501}', name: 'Spam Y', t: 1 },
+        { ic: '\u{1F501}', name: 'Spam B', t: 1 },
+        { ic: '⬆', name: 'Andar reto', t: 1 },
+        { ic: '⏩', name: 'Correr', t: 1 },
+        { ic: '☰', name: 'Menu (X)' },
+        { ic: '\u{1F3E0}', name: 'Home' },
+        { ic: '\u{1F441}', name: 'Reset Cam' },
+        { ic: '➕', name: 'Curar HP' },
+        { ic: '✔', name: 'Curar Status' }
+    ];
+    // Mini menus (mesmas categorias do modulo LVGL): cada slot aparece em uma categoria
+    const CATS = [
+        { name: 'Batalha',   ic: '\u{1F500}', slots: [1, 7, 6, 8] },
+        { name: 'Cura',      ic: '➕',     slots: [15, 16] },
+        { name: 'Movimento', ic: '⏩',     slots: [10, 11, 14] },
+        { name: 'Farm',      ic: '\u{1F504}', slots: [3, 2, 9] },
+        { name: 'Sistema',   ic: '⚙',     slots: [12, 13, 4, 5, 0] }
+    ];
+    let curCat = -1;
 
-            grid.innerHTML = '';
-            // Configura dinamicamente o grid CSS com base no manifesto do hardware
-            grid.style.gridTemplateColumns = `repeat(${data.cols}, 1fr)`;
-            grid.style.gridTemplateRows = `repeat(${data.rows}, 1fr)`;
+    let active = -1, execs = 0, usb = null, online = false, lastMsg = '';
 
-            data.tiles.forEach(tile => {
-                let div = document.createElement('div');
-                div.className = 'map-tile-bg';
-                div.style.backgroundImage = `url("${tile.path}")`;
-                div.style.gridColumn = `${tile.col + 1}`;
-                div.style.gridRow = `${tile.row + 1}`;
-                grid.appendChild(div);
+    const $ = (id) => document.getElementById(id);
+
+    function slotBtn(i) {
+        const s = SLOTS[i], b = document.createElement('button');
+        b.className = 'slot'; b.id = 'b' + i; b.onclick = () => macro(i);
+        b.innerHTML = `<span class='dot'></span><span class='ic'>${s.ic}</span><span>${s.name}${s.t ? " <span class='lp'>~</span>" : ''}</span>`;
+        return b;
+    }
+
+    function buildGrid() {
+        const g = $('grid'); g.innerHTML = '';
+        if (curCat < 0) {                                   // menu: 5 categorias + PARAR TUDO
+            g.classList.remove('cat'); $('mhead').style.display = 'none';
+            CATS.forEach((c, k) => {
+                const b = document.createElement('button');
+                b.className = 'slot'; b.id = 'c' + k; b.onclick = () => { curCat = k; buildGrid(); };
+                b.innerHTML = `<span class='dot'></span><span class='ic'>${c.ic}</span><span>${c.name}</span><span class='sub'>${c.slots.length} macros</span>`;
+                g.appendChild(b);
             });
+            const st = document.createElement('button');
+            st.className = 'slot stop'; st.onclick = stopAll;
+            st.innerHTML = `<span class='ic' style='color:#FF6E88'>&#9632;</span><span>PARAR TUDO</span>`;
+            g.appendChild(st);
+        } else {                                            // categoria: grade 3x2 + cabecalho
+            g.classList.add('cat'); $('mhead').style.display = 'flex'; $('mttl').textContent = CATS[curCat].name;
+            CATS[curCat].slots.forEach(i => g.appendChild(slotBtn(i)));
+        }
+        render();
+    }
+    function backMenu() { curCat = -1; buildGrid(); }
+    async function stopAll() {
+        lastMsg = 'PARAR TUDO';
+        try { apply(await (await fetch('/api/stop', { cache: 'no-store' })).json()); }
+        catch (e) { online = false; render(); }
+    }
+
+    // ---- Status: time (barras de vida) ----
+    let partyBuilt = false;
+    function buildParty() {
+        const p = $('party'); p.innerHTML = '';
+        for (let i = 0; i < 6; i++)
+            p.insertAdjacentHTML('beforeend', `<div class='prow' style='top:${20 + i * 30}px'><div class='n' id='pn${i}'>---</div>` +
+                `<div class='b'><div class='f' id='pf${i}'></div></div><div class='h' id='ph${i}'>sem dados</div><div class='s' id='ps${i}'></div></div>`);
+        partyBuilt = true;
+    }
+    async function pollParty() {
+        try {
+            const d = await (await fetch('/api/party', { cache: 'no-store' })).json();
+            $('cfg-link').textContent = d.link || '-';
+            $('zone').textContent = d.zone ? `Zona: ${d.zone}  X:${d.x} Y:${d.y}` : 'Zona: -';
+            d.party.forEach((m, i) => {
+                const has = m.max > 0, pct = has ? Math.min(100, m.hp * 100 / m.max) : 0;
+                $('pn' + i).textContent = has ? `${m.n} Lv${m.lv}` : '---';
+                $('ph' + i).textContent = has ? `${m.hp}/${m.max}` : 'sem dados';
+                $('ps' + i).textContent = m.st || '';
+                const f = $('pf' + i); f.style.width = pct + '%';
+                f.style.background = !has ? '#444466' : pct > 50 ? '#00E676' : pct > 20 ? '#FFC400' : '#FF1744';
+            });
+        } catch (e) {}
+    }
+
+    function render() {
+        SLOTS.forEach((_, i) => { const el = $('b' + i); if (el) el.classList.toggle('on', i === active); });
+        CATS.forEach((c, k) => { const el = $('c' + k); if (el) el.classList.toggle('on', c.slots.includes(active)); });
+        const act = (active >= 0 && SLOTS[active]) ? SLOTS[active].name : 'nenhuma';
+        $('cfg-usb').innerHTML = usb === null ? `<span class='mu'>?</span>` : (usb ? `<span class='gr'>ON</span>` : `<span class='rd'>OFF</span>`);
+        $('cfg-act').textContent = act; $('cfg-exe').textContent = execs;
+        $('foot-l').textContent = online ? `[USB-HID] ${lastMsg || 'online'}` : '[USB-HID] SEM CONEXAO COM A PLACA';
+    }
+
+    function apply(d) {
+        active = (d.active_slot === undefined) ? -1 : d.active_slot;
+        execs = d.executions || 0;
+        if (d.usb !== undefined) usb = d.usb;
+        online = true;
+        render();
+    }
+
+    async function macro(slot) {
+        lastMsg = 'Macro: ' + SLOTS[slot].name;
+        try { apply(await (await fetch('/api/macro?slot=' + slot, { cache: 'no-store' })).json()); }
+        catch (e) { online = false; render(); }
+    }
+
+    async function poll() {
+        try { apply(await (await fetch('/api/macro_status', { cache: 'no-store' })).json()); }
+        catch (e) { online = false; render(); }
+    }
+
+    async function loadVersion() {
+        try {
+            const v = await (await fetch('/api/version', { cache: 'no-store' })).json();
+            $('cfg-fw').textContent = v.fw;
+            $('cfg-disp').textContent = v.display ? 'sim (LVGL)' : 'nao (so USB HID + web)';
+            $('foot-r').textContent = 'fw ' + v.fw.slice(0, 11) + ' | pg ' + PAGE_VERSION;
         } catch (e) {
-            grid.innerHTML = `<div style='padding:20px; color:#FF1744;'>Erro ao carregar tiles_map.json. Certifique-se de executar o gerador.</div>`;
+            $('cfg-fw').textContent = 'antigo (sem /api/version)';
+            $('foot-r').textContent = 'fw antigo | pg ' + PAGE_VERSION;
         }
     }
 
-    function switchTab(tabId) {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
-        document.getElementById('tab-' + tabId).classList.add('active');
-        document.getElementById('content-' + tabId).classList.add('active');
+    function tab(id) {
+        ['status', 'macros', 'mapa', 'rede', 'config'].forEach(t => {
+            $('t-' + t).classList.toggle('active', t === id);
+            $('p-' + t).classList.toggle('active', t === id);
+        });
     }
 
-    function movePlayer(dx, dy) {
-        px = Math.max(10, Math.min(90, px + dx));
-        py = Math.max(10, Math.min(90, py + dy));
-        document.getElementById('playerMarker').style.left = px + '%';
-        document.getElementById('playerMarker').style.top = py + '%';
-        document.getElementById('map-coords').innerText = `X: ${2039 + Math.floor(px/5)} | Y: ${2034 + Math.floor(py/5)}`;
-    }
-
-    function changeGame(game) {
-        const hud = document.getElementById('hud-container');
-        const macros = document.getElementById('macro-buttons');
-
-        if (game === 'pkmn_za') {
-            hud.innerHTML = `
-      <div class='card'>
-        <h3>Pokémon Legends: Z-A // Party Status</h3>
-        <div class='pkmn-row'>
-          <div class='pkmn-header'><span>⚡ Mega Pikachu Lv.90</span><span style='color:#00E676;'>260 / 260 HP</span></div>
-          <div class='hp-bg'><div class='hp-fill' style='width:100%; background:#00E676;'></div></div>
-        </div>
-      </div>`;
-            macros.innerHTML = `
-      <button class='btn'>Auto-Catch Alpha</button>
-      <button class='btn'>Fast Travel Lumiose</button>
-      <button class='btn'>Shiny Hunt Macro</button>
-      <button class='btn'>Instant Mega-Evolve</button>`;
-        } else {
-            hud.innerHTML = `<div class='card'><h3>Zelda: Tears of the Kingdom</h3><p>15 Corações</p></div>`;
-            macros.innerHTML = `<button class='btn'>Duplicar Minérios</button>`;
+    async function bootsel() {
+        if (confirm('Colocar o Pico W em modo de gravacao (BOOTSEL)?')) {
+            try { await fetch('/api/reboot'); } catch (e) {}
+            alert('Placa em BOOTSEL. Copie o .uf2 para a unidade RPI-RP2.');
         }
     }
 
-    loadCoordinatedTiles();
-    changeGame('pkmn_za');
+    // Ajusta a moldura 480x320 a tela (celular ou desktop), sem mudar o desenho
+    function fit() {
+        const s = Math.min(window.innerWidth / 480, window.innerHeight / 320, 2.2);
+        $('stage').style.transform = `scale(${s})`;
+        const w = $('wrap'); w.style.width = (480 * s) + 'px'; w.style.height = (320 * s) + 'px';
+    }
+    window.addEventListener('resize', fit);
+
+    // ---------------- Rede: IP do Switch / Wi-Fi (gravados na placa) ----------------
+    const msg = (t) => { $('swmsg').textContent = t; };
+    async function loadNet() {
+        try {
+            const c = await (await fetch('/api/config', { cache: 'no-store' })).json();
+            $('swip').value = c.switch_ip; $('ssid').value = c.ssid;
+            $('netinfo').textContent = c.net === 'ap' ? `Rede da placa (SwitchHUD) - pagina em ${c.ip}` : `Conectada ao Wi-Fi - placa em ${c.ip}`;
+            swPort = c.switch_port;
+        } catch (e) { $('netinfo').textContent = 'Rede: sem resposta da placa'; }
+    }
+    let swPort = 6000;
+    async function post(path, data) {
+        const r = await fetch(path, { method: 'POST', body: new URLSearchParams(data) });
+        return r.json();
+    }
+    async function saveSwitch() {
+        try {
+            const r = await post('/api/config', { switch_ip: $('swip').value.trim(), switch_port: swPort });
+            msg(r.ok ? 'IP salvo. Conectando ao Switch... (veja Config > Leitura RAM)' : 'Erro: ' + (r.err || 'falha ao salvar'));
+        } catch (e) { msg('Erro: placa nao respondeu'); }
+    }
+    async function saveWifi() {
+        if (!confirm('Salvar o Wi-Fi e reiniciar a placa? O Switch vai reconectar o controle.')) return;
+        try { await post('/api/config', { ssid: $('ssid').value, pass: $('pass').value }); } catch (e) {}
+        msg('Reiniciando... reconecte o celular e abra a pagina de novo.');
+    }
+    let scanTimer = null;
+    async function scan() {
+        try { await post('/api/scan', {}); } catch (e) { msg('Erro: placa nao respondeu'); return; }
+        msg('Procurando o Switch (0%)... precisa estar ligado com o sys-botbase');
+        clearInterval(scanTimer);
+        scanTimer = setInterval(async () => {
+            try {
+                const d = await (await fetch('/api/scan_status', { cache: 'no-store' })).json();
+                if (d.state === 'running') msg(`Procurando o Switch (${d.progress}%)...`);
+                else {
+                    clearInterval(scanTimer);
+                    if (d.state === 'found') { $('swip').value = d.ip; msg('Switch encontrado em ' + d.ip + ' (salvo).'); }
+                    else msg('Nao encontrei. Confira: Switch na mesma rede, sys-botbase ativo.');
+                }
+            } catch (e) { /* a placa fica ocupada durante a varredura: tenta de novo */ }
+        }, 1200);
+    }
+
+    // ---------------- Mapa (Lumiose) ----------------
+    // /maps_config.json: { games: { pkmn_za: [ {id,name,zone,poi,z,grid,has_tiles,base_path,theme} ] } }
+    let layers = [], px = 50, py = 50, curLayer = null;
+
+    function note(t) { $('mpoi').textContent = t; }
+
+    async function loadMaps() {
+        let why = '';
+        try {
+            const r = await fetch('/maps_config.json', { cache: 'no-store' });
+            if (!r.ok) why = `maps_config.json: HTTP ${r.status} (rode uploadfs)`;
+            else {
+                const cfg = await r.json();
+                // aceita { games:{ pkmn_za:[...] } }, { pkmn_za:[...] } ou uma lista direta
+                layers = Array.isArray(cfg) ? cfg : ((cfg.games && cfg.games.pkmn_za) || cfg.pkmn_za || []);
+                if (!layers.length) why = 'maps_config.json sem camadas em games.pkmn_za (chaves: ' +
+                    Object.keys(cfg.games || cfg).join(', ') + ')';
+            }
+        } catch (e) { why = 'maps_config.json invalido/ausente'; }
+        const bar = $('layers'); bar.innerHTML = '';
+        if (!layers.length) { $('mzone').textContent = 'Mapa sem dados'; note(why); return; }
+        layers.forEach(l => {
+            const b = document.createElement('button');
+            b.className = 'lbtn'; b.id = 'lb-' + l.id; b.textContent = l.name || l.id;
+            b.onclick = () => selectLayer(l.id);
+            bar.appendChild(b);
+        });
+        selectLayer(layers[0].id);
+    }
+
+    function updCoord() {
+        const z = curLayer && curLayer.z !== undefined ? curLayer.z : 0;
+        $('mcoord').textContent = `X: ${2039 + Math.floor(px / 5)}  Y: ${2034 + Math.floor(py / 5)}  Z: ${z}`;
+        $('pin').style.left = px + '%'; $('pin').style.top = py + '%';
+    }
+
+    function selectLayer(id) {
+        curLayer = layers.find(l => l.id === id); if (!curLayer) return;
+        layers.forEach(l => $('lb-' + l.id).classList.toggle('active', l.id === id));
+        $('mzone').textContent = 'Zona: ' + (curLayer.zone || curLayer.name || curLayer.id);
+        note(curLayer.poi || '');
+        const g = $('tileGrid'); g.innerHTML = '';
+        const n = curLayer.grid || 4;
+        g.style.gridTemplateColumns = `repeat(${n}, 1fr)`; g.style.gridTemplateRows = `repeat(${n}, 1fr)`;
+        let bad = 0, firstBad = '';
+        for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+            const d = document.createElement('div'); d.className = 'tile';
+            if (curLayer.has_tiles) {
+                // base_path vem do maps_config.json (ex.: /m/lumiose) ; tile = <col>_<linha>.jpg
+                const url = `${curLayer.base_path}/${c}_${r}.jpg`;
+                const img = new Image();
+                img.onload = () => { d.style.backgroundImage = `url("${url}")`; };
+                img.onerror = () => { bad++; if (!firstBad) firstBad = url; d.textContent = 'x'; note(`${bad} tile(s) nao carregaram. 1o: ${firstBad}`); };
+                img.src = url;
+            } else { d.style.background = curLayer.theme || '#182232'; if (!r && !c) d.textContent = curLayer.id.toUpperCase(); }
+            g.appendChild(d);
+        }
+        updCoord();
+    }
+
+    // Sem leitura de posicao do jogo no MVP: tocar no mapa move o marcador (simulado)
+    function mapClick(e) {
+        const r = $('mapbox').getBoundingClientRect();
+        px = Math.max(5, Math.min(95, (e.clientX - r.left) / r.width * 100));
+        py = Math.max(5, Math.min(95, (e.clientY - r.top) / r.height * 100));
+        updCoord();
+    }
+
+    $('cfg-page').textContent = PAGE_VERSION;
+    buildParty(); buildGrid(); loadMaps(); loadNet(); fit(); loadVersion(); poll(); pollParty();
+    setInterval(poll, 350); setInterval(pollParty, 1500);
 </script>
 </body>
 </html>

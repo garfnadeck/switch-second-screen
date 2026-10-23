@@ -24,6 +24,8 @@ enum class GameProfile : uint8_t {
 
 // Quantidade total de macros (slots 0..MACRO_COUNT-1). Slots 0..5 = os 6 originais.
 static constexpr uint8_t MACRO_COUNT = 17;
+// Valor especial enviado pelos botoes "PARAR TUDO" (cancela fila e toggles, solta os botoes)
+static constexpr uint8_t MACRO_STOP = 255;
 
 enum class ActionMacro : uint8_t {
     MACRO_SLOT_1 = 0,

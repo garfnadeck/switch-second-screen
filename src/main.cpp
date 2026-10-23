@@ -211,6 +211,11 @@ void setup() {
         server.send(200, "application/json", statusJson(true));
     });
 
+    server.on("/api/stop", HTTP_GET, []() {
+        router.stopAll(state);
+        server.send(200, "application/json", statusJson(true));
+    });
+
     server.on("/api/macro_status", HTTP_GET, []() {
         server.send(200, "application/json", statusJson(false));
     });
