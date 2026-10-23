@@ -4,6 +4,9 @@
 #include <lvgl.h>
 #include "game_state.h"
 
+// Chamado quando o usuario toca num botao de macro desenhado pelo modulo (slot 0..MACRO_COUNT-1)
+typedef void (*MacroHandler)(void * ctx, uint8_t slot);
+
 class IGameModule {
 public:
     virtual ~IGameModule() = default;
@@ -25,6 +28,13 @@ public:
 
     // Controle de visibilidade ao trocar de jogo
     virtual void setVisible(bool visible) = 0;
+
+    // ---- Opcional: layout proprio da Aba Macros (com ponto de estado por slot) ----
+    // Modulos que nao sobrescrevem usam os 6 botoes genericos do UIManager.
+    virtual bool hasCustomMacroTab() const { return false; }
+    virtual void buildMacroTab(lv_obj_t * parent, MacroHandler cb, void * ctx) {
+        (void)parent; (void)cb; (void)ctx;
+    }
 };
 
 #endif // I_GAME_MODULE_H
