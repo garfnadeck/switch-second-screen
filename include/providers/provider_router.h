@@ -45,6 +45,9 @@ public:
     uint8_t scanState() const { return tcp_prov.scanState(); }
     int     scanProgress() const { return tcp_prov.scanProgress(); }
 
+    // Parar tudo (macros USB). O sys-botbase nao envia botoes, entao nao ha o que cancelar nele.
+    void stopAll(GameState &state) { usb_prov.stopAll(state); }
+
     void switchMode(GameState &state, SwitchMode new_mode) {
         state.mode = new_mode;
         if (new_mode == SwitchMode::MOCK_SIMULATOR) {

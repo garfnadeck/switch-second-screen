@@ -137,6 +137,11 @@ public:
     }
 
     void onMacroClicked(uint8_t slot) {
+        if (slot == MACRO_STOP) {
+            router.stopAll(state);
+            lv_label_set_text_fmt(status_footer, "[%s] PARAR TUDO", getModeName());
+            return;
+        }
         router.triggerAction(static_cast<ActionMacro>(slot), state);
         lv_label_set_text_fmt(status_footer, "[%s] Macro: %s",
                               getModeName(),

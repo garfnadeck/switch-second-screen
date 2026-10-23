@@ -41,18 +41,21 @@
 
     /* Macros 3x2 */
     #grid { position: absolute; left: 3px; right: 3px; top: 4px; display: grid;
-      grid-template-columns: repeat(4, 1fr); gap: 8px 6px; }
-    #pager { position: absolute; left: 0; right: 0; bottom: 0; height: 26px; display: flex; align-items: center;
-      justify-content: center; gap: 14px; color: #8888AA; font-size: 12px; }
-    #pager button { width: 56px; height: 24px; background: #1F1F38; color: #fff; border: 0; border-radius: 6px;
-      font: inherit; cursor: pointer; }
-    .slot { position: relative; height: 58px; background: #0F3460; border: 2px solid #1F4E8C; border-radius: 8px;
-      color: #fff; font: inherit; font-size: 12px; display: flex; flex-direction: column; align-items: center;
+      grid-template-columns: repeat(3, 1fr); gap: 8px 6px; }
+    #mhead { position: absolute; left: 3px; right: 3px; top: 2px; height: 28px; display: none; align-items: center; justify-content: space-between; }
+    #mhead .ttl { color: #00F5D4; font-size: 14px; }
+    .hbtn { height: 28px; width: 92px; border-radius: 8px; border: 2px solid #2D3E66; background: #1F1F38; color: #fff; font: inherit; font-size: 12px; cursor: pointer; }
+    .hbtn.stop, .slot.stop { background: #5A1020; border-color: #FF1744; }
+    .hbtn.stop { color: #FF6E88; }
+    #grid.cat { top: 34px; }
+    .slot { position: relative; height: 90px; background: #0F3460; border: 2px solid #1F4E8C; border-radius: 8px;
+      color: #fff; font: inherit; font-size: 13px; display: flex; flex-direction: column; align-items: center;
       justify-content: center; text-align: center; line-height: 1.3; cursor: pointer; padding: 2px; }
     .slot:active { background: #1F4E8C; }
-    .slot .ic { color: #00F5D4; font-size: 13px; }
+    .slot .ic { color: #00F5D4; font-size: 15px; }
+    .slot .sub { color: #8888AA; font-size: 12px; }
     .slot .lp { color: #8888AA; }
-    .slot .dot { position: absolute; top: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; background: #FF1744; }
+    .slot .dot { position: absolute; top: 0; right: 0; width: 12px; height: 12px; border-radius: 50%; background: #FF1744; }
     .slot.on { background: #133E35; border-color: #00E676; }
     .slot.on .dot { background: #00E676; }
 
@@ -108,7 +111,10 @@
     </div>
 
     <div class='page' id='p-status'><div id='zone'>Zona: -</div><div id='party'></div></div>
-    <div class='page active' id='p-macros'><div id='grid'></div><div id='pager'><button onclick='page(-1)'>&#8249;</button><span id='pg'>1/2</span><button onclick='page(1)'>&#8250;</button></div></div>
+    <div class='page active' id='p-macros'>
+      <div id='mhead'><button class='hbtn' onclick='backMenu()'>&#8249; Voltar</button><span class='ttl' id='mttl'></span><button class='hbtn stop' onclick='stopAll()'>&#9632; PARAR</button></div>
+      <div id='grid'></div>
+    </div>
     <div class='page' id='p-mapa'>
       <div id='mapbox' onclick='mapClick(event)'><div id='tileGrid'></div><div id='pin'></div></div>
       <div id='mside'>
@@ -148,7 +154,7 @@
 </div>
 
 <script>
-  const PAGE_VERSION = 'mvp-2026-10-22e';   // muda a cada versao: confere se o uploadfs gravou esta pagina
+  const PAGE_VERSION = 'mvp-2026-10-23a';   // muda a cada versao: confere se o uploadfs gravou esta pagina
 
   // Mesmos 6 slots do UIManager / modulo Z-A / usb_hid_provider.h
   // 17 macros = slots do usb_hid_provider.h (0..16). t = toggle (liga/desliga). 12 por pagina (4x3).
@@ -171,27 +177,53 @@
     { ic: '➕', name: 'Curar HP' },
     { ic: '✔', name: 'Curar Status' }
   ];
-  const PER_PAGE = 12, PAGES = Math.ceil(SLOTS.length / PER_PAGE);
-  let curPage = 0;
+  // Mini menus (mesmas categorias do modulo LVGL): cada slot aparece em uma categoria
+  const CATS = [
+    { name: 'Batalha',   ic: '\u{1F500}', slots: [1, 7, 6, 8] },
+    { name: 'Cura',      ic: '➕',     slots: [15, 16] },
+    { name: 'Movimento', ic: '⏩',     slots: [10, 11, 14] },
+    { name: 'Farm',      ic: '\u{1F504}', slots: [3, 2, 9] },
+    { name: 'Sistema',   ic: '⚙',     slots: [12, 13, 4, 5, 0] }
+  ];
+  let curCat = -1;
 
   let active = -1, execs = 0, usb = null, online = false, lastMsg = '';
 
   const $ = (id) => document.getElementById(id);
 
+  function slotBtn(i) {
+    const s = SLOTS[i], b = document.createElement('button');
+    b.className = 'slot'; b.id = 'b' + i; b.onclick = () => macro(i);
+    b.innerHTML = `<span class='dot'></span><span class='ic'>${s.ic}</span><span>${s.name}${s.t ? " <span class='lp'>~</span>" : ''}</span>`;
+    return b;
+  }
+
   function buildGrid() {
     const g = $('grid'); g.innerHTML = '';
-    SLOTS.slice(curPage * PER_PAGE, (curPage + 1) * PER_PAGE).forEach((s, k) => {
-      const i = curPage * PER_PAGE + k;
-      const b = document.createElement('button');
-      b.className = 'slot'; b.id = 'b' + i;
-      b.onclick = () => macro(i);
-      b.innerHTML = `<span class='dot'></span><span class='ic'>${s.ic}</span><span>${s.name}${s.t ? " <span class='lp'>~</span>" : ''}</span>`;
-      g.appendChild(b);
-    });
-    $('pg').textContent = (curPage + 1) + '/' + PAGES;
+    if (curCat < 0) {                                   // menu: 5 categorias + PARAR TUDO
+      g.classList.remove('cat'); $('mhead').style.display = 'none';
+      CATS.forEach((c, k) => {
+        const b = document.createElement('button');
+        b.className = 'slot'; b.id = 'c' + k; b.onclick = () => { curCat = k; buildGrid(); };
+        b.innerHTML = `<span class='dot'></span><span class='ic'>${c.ic}</span><span>${c.name}</span><span class='sub'>${c.slots.length} macros</span>`;
+        g.appendChild(b);
+      });
+      const st = document.createElement('button');
+      st.className = 'slot stop'; st.onclick = stopAll;
+      st.innerHTML = `<span class='ic' style='color:#FF6E88'>&#9632;</span><span>PARAR TUDO</span>`;
+      g.appendChild(st);
+    } else {                                            // categoria: grade 3x2 + cabecalho
+      g.classList.add('cat'); $('mhead').style.display = 'flex'; $('mttl').textContent = CATS[curCat].name;
+      CATS[curCat].slots.forEach(i => g.appendChild(slotBtn(i)));
+    }
     render();
   }
-  function page(d) { curPage = (curPage + PAGES + d) % PAGES; buildGrid(); }
+  function backMenu() { curCat = -1; buildGrid(); }
+  async function stopAll() {
+    lastMsg = 'PARAR TUDO';
+    try { apply(await (await fetch('/api/stop', { cache: 'no-store' })).json()); }
+    catch (e) { online = false; render(); }
+  }
 
   // ---- Status: time (barras de vida) ----
   let partyBuilt = false;
@@ -220,6 +252,7 @@
 
   function render() {
     SLOTS.forEach((_, i) => { const el = $('b' + i); if (el) el.classList.toggle('on', i === active); });
+    CATS.forEach((c, k) => { const el = $('c' + k); if (el) el.classList.toggle('on', c.slots.includes(active)); });
     const act = (active >= 0 && SLOTS[active]) ? SLOTS[active].name : 'nenhuma';
     $('cfg-usb').innerHTML = usb === null ? `<span class='mu'>?</span>` : (usb ? `<span class='gr'>ON</span>` : `<span class='rd'>OFF</span>`);
     $('cfg-act').textContent = act; $('cfg-exe').textContent = execs;

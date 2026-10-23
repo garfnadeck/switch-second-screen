@@ -211,6 +211,16 @@ public:
         }
     }
 
+    // PARAR TUDO: cancela a fila e os toggles e solta todos os botoes/analogicos
+    void stopAll(GameState &state) {
+        clearQueue();
+        loop_mode = false;
+        active_slot = -1;
+        state.generic.turbo_enabled = false;
+        state.active_macro_slot = -1;
+        sendUsbReport(SW_BTN_NONE, 0x08);
+    }
+
     void triggerAction(ActionMacro action, GameState &state) override {
         int clicked_slot = static_cast<int>(action);
 
