@@ -12,6 +12,7 @@
 #include "../games/mariokart_8_module.h"
 #include "../games/mariokart_world_module.h"
 #include "../games/generic_module.h"
+#include "../games/pokemon_firered_module.h"
 #include <string.h>
 
 class UIManager {
@@ -29,6 +30,7 @@ private:
     MarioKart8Module mk8_mod;
     MarioKartWorldModule mkw_mod;
     GenericModule generic_mod;
+    PokemonFireRedModule firered_mod;
 
     IGameModule* modules[NUM_MODULES];
 
@@ -71,6 +73,7 @@ public:
         modules[5] = &mk8_mod;
         modules[6] = &mkw_mod;
         modules[7] = &generic_mod;
+        modules[8] = &firered_mod;
     }
 
     void refreshActiveProfile() {
@@ -136,12 +139,24 @@ public:
         lv_label_set_text_fmt(status_footer, "Modo: %s (%s)", getModeName(), state.switch_ip);
     }
 
+    // Botoes do painel FireRed (contador e insignias)
+    void frAction(uint8_t code) {
+        FireRedStats & f = state.fr;
+        if (code >= FR_CODE_BADGE0 && code < FR_CODE_BADGE0 + 8) f.badges ^= (1u << (code - FR_CODE_BADGE0));
+        else if (code == FR_CODE_ENC_INC) f.encounters++;
+        else if (code == FR_CODE_ENC_DEC) { if (f.encounters) f.encounters--; }
+        else if (code == FR_CODE_ENC_RST) f.encounters = 0;
+        f.dirty = true; f.urgent = true;
+        f.evaluate();
+    }
+
     void onMacroClicked(uint8_t slot) {
         if (slot == MACRO_STOP) {
             router.stopAll(state);
             lv_label_set_text_fmt(status_footer, "[%s] PARAR TUDO", getModeName());
             return;
         }
+        if (slot >= FR_CODE_BADGE0 && slot <= FR_CODE_ENC_INC) { frAction(slot); return; }
         router.triggerAction(static_cast<ActionMacro>(slot), state);
         lv_label_set_text_fmt(status_footer, "[%s] Macro: %s",
                               getModeName(),
@@ -178,7 +193,8 @@ public:
             "Zelda BOTW\n"
             "Mario Kart 8D\n"
             "Mario Kart World\n"
-            "Generic Hub"
+            "Generic Hub\n"
+            "Pokemon FireRed"
         );
         // O dropdown precisa comecar no jogo que o provider realmente ativou
         if (static_cast<uint8_t>(state.profile) < NUM_MODULES) {
