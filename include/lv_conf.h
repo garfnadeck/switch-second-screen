@@ -8,8 +8,18 @@
 #define LV_COLOR_16_SWAP 0
 
 /* Memory settings - Pool interno seguro para Mac, ESP32-S3 e RP2040 (Pico W) */
-#define LV_MEM_CUSTOM 0
-#define LV_MEM_SIZE (160U * 1024U) /* ESP32-S3 tem 512KB SRAM. 8 modulos + Z-A (17 macros em mini menus) usam ~80-100 KB em teste */
+#if defined(ARDUINO) && defined(BOARD_HAS_PSRAM)
+    /* ESP32-S3 N16R8: o pool do LVGL vai para a PSRAM (8 MB) -> sem limite apertado de RAM interna.
+       9 jogos (Z-A + FireRed com 41 botoes de macro) usam ~140 KB. */
+    #define LV_MEM_CUSTOM 1
+    #define LV_MEM_CUSTOM_INCLUDE <esp_heap_caps.h>
+    #define LV_MEM_CUSTOM_ALLOC(size)       heap_caps_malloc((size), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
+    #define LV_MEM_CUSTOM_FREE(p)           heap_caps_free(p)
+    #define LV_MEM_CUSTOM_REALLOC(p, size)  heap_caps_realloc((p), (size), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
+#else
+    #define LV_MEM_CUSTOM 0
+    #define LV_MEM_SIZE (256U * 1024U) /* simulador / boards sem PSRAM: 9 jogos usam ~140 KB */
+#endif
 
 /* HAL settings */
 #define LV_TICK_CUSTOM 1
@@ -29,6 +39,7 @@
 #define LV_FONT_MONTSERRAT_12 1
 #define LV_FONT_MONTSERRAT_14 1
 #define LV_FONT_MONTSERRAT_16 1
+#define LV_FONT_MONTSERRAT_28 1
 #define LV_FONT_DEFAULT &lv_font_montserrat_14
 
 /* Widgets */

@@ -3,7 +3,7 @@
 <head>
   <meta charset='UTF-8'>
   <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-  <title>Switch HUD - Z-A (MVP)</title>
+  <title>Switch HUD (MVP)</title>
   <style>
     /* Espelho do layout da tela fisica 480x320 (LVGL). Mesma paleta do ui_manager.h */
     * { box-sizing: border-box; }
@@ -89,6 +89,62 @@
     #cfg button { margin-top: 8px; background: #B71C1C; color: #fff; border: 1px solid #FF6E88; border-radius: 8px;
       padding: 10px 14px; font: inherit; font-size: 12px; cursor: pointer; }
 
+    /* Seletor de jogo + tema FireRed */
+    #gamesel { width: 185px; height: 30px; background: #0F3460; color: #fff; border-radius: 6px; border: 1px solid #2D3E66;
+      font: inherit; font-size: 12px; padding: 0 6px; cursor: pointer; }
+    body.fr #top .title { color: #FF8A3D; }
+    body.fr .tab.active { color: #FF8A3D; box-shadow: inset 0 -3px 0 #FF8A3D; background: #2A160A; }
+    body.fr .slot .ic { color: #FF8A3D; }
+
+    /* Painel FireRed (Status) */
+    #frdash { position: absolute; inset: 0; display: none; }
+    #frdash .cap { position: absolute; left: 8px; font-size: 12px; color: #FF8A3D; }
+    #frcount { position: absolute; left: 8px; top: 12px; width: 210px; font-size: 28px; line-height: 36px; white-space: nowrap; overflow: hidden; }
+    .fbtn { position: absolute; top: 4px; height: 44px; border-radius: 8px; border: 2px solid #2D3E66; background: #1F1F38;
+      color: #fff; font: inherit; font-size: 13px; cursor: pointer; line-height: 1.2; }
+    .fbtn.pl { background: #0F3460; border-color: #1F4E8C; color: #00F5D4; }
+    .fbtn.rs { background: #3A1424; border-color: #8C2B3F; }
+    #frshiny { position: absolute; left: 8px; top: 54px; font-size: 12px; color: #CCCCDD; white-space: nowrap; }
+    #frbar { position: absolute; left: 8px; top: 72px; width: 464px; height: 10px; background: #1F1F38; border-radius: 4px; overflow: hidden; }
+    #frbar div { height: 100%; width: 0; border-radius: 4px; background: #4C8DFF; transition: width .3s; }
+    #frstats { position: absolute; left: 8px; top: 90px; font-size: 12px; color: #9AA3C7; white-space: nowrap; }
+    .badge { position: absolute; top: 130px; width: 55px; height: 34px; border-radius: 8px; border: 2px solid #2D3E66; background: #1F1F38;
+      color: #777799; font: inherit; font-size: 11px; cursor: pointer; padding: 0; }
+    .badge.on { background: #6B4E00; border-color: #FFC400; color: #FFE27A; }
+    #frach { position: absolute; left: 8px; top: 176px; font-size: 14px; white-space: nowrap; }
+
+    /* Criar (macros do usuario) */
+    #um { position: absolute; left: 10px; right: 10px; top: 6px; font-size: 12px; }
+    .umrow { display: flex; align-items: center; gap: 6px; height: 30px; margin-bottom: 4px; background: #181830;
+      border: 1px solid #2D3E66; border-radius: 8px; padding: 0 6px; }
+    .umrow .no { color: #00F5D4; width: 14px; } .umrow .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .umrow.on { border-color: #00E676; background: #133E35; }
+    .mini { height: 24px; min-width: 34px; border-radius: 6px; border: 1px solid #1F4E8C; background: #0F3460; color: #fff;
+      font: inherit; font-size: 12px; cursor: pointer; padding: 0 8px; white-space: nowrap; }
+    .mini.go { border-color: #00E676; color: #00E676; } .mini.rd { border-color: #FF1744; color: #FF6E88; background: #3A1424; }
+    .mini:disabled { opacity: .35; cursor: default; }
+    body.fr .umrow .no { color: #FF8A3D; }
+
+    /* Editor de macro (cobre o palco 480x320) */
+    #ed { position: absolute; left: 0; top: 0; width: 480px; height: 320px; background: #12121F; z-index: 20; display: none; font-size: 12px; }
+    #ed input { height: 26px; background: #1E1E36; color: #fff; border: 1px solid #2D3E66; border-radius: 6px; padding: 0 6px;
+      font: inherit; font-size: 12px; user-select: text; -webkit-user-select: text; min-width: 0; }
+    #ed .bar { position: absolute; left: 6px; right: 6px; display: flex; align-items: center; gap: 5px; }
+    #steps { position: absolute; left: 6px; right: 6px; top: 66px; height: 106px; overflow-y: auto; background: #0E0E1A;
+      border: 1px solid #2D3E66; border-radius: 6px; }
+    .st { display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 6px; border-bottom: 1px solid #1B1B30; cursor: pointer; white-space: nowrap; }
+    .st .k { color: #8888AA; width: 20px; } .st .t { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .st.sel { background: #1F3A66; } .st.run { background: #133E35; box-shadow: inset 3px 0 #00E676; }
+    .st.next { background: #4A3A10; box-shadow: inset 3px 0 #FFC400; }
+    .st button { height: 18px; min-width: 20px; font-size: 11px; border-radius: 4px; border: 1px solid #2D3E66; background: #1F1F38; color: #fff; padding: 0 4px; cursor: pointer; }
+    #pad { position: absolute; left: 6px; right: 6px; top: 192px; }
+    #pad .r { display: flex; gap: 4px; margin-bottom: 4px; }
+    .pb { flex: 1; height: 32px; border-radius: 7px; border: 2px solid #2D3E66; background: #1F1F38; color: #fff; font: inherit;
+      font-size: 12px; cursor: pointer; padding: 0; touch-action: none; }
+    .pb.on { background: #0F5E8C; border-color: #00F5D4; color: #00F5D4; }
+    #ed.rec .pb { border-color: #8C2B3F; } #ed.rec .pb.on { background: #8C1F3A; border-color: #FF6E88; color: #fff; }
+    #recdot { color: #FF1744; }
+
     /* Rodape */
     #foot { position: absolute; left: 0; bottom: 0; width: 480px; height: 26px; display: flex; align-items: center;
       justify-content: space-between; padding: 0 8px; font-size: 10px; color: #8888AA; }
@@ -99,7 +155,10 @@
   <div id='stage'>
     <div id='top'>
       <div class='title'>SWITCH HUD</div>
-      <div class='game'><span>Pokemon Legends ZA</span><span>&#8964;</span></div>
+      <select id='gamesel' onchange='pickGame(this.value)'>
+        <option value='pkmn_za'>Pokemon Legends ZA</option>
+        <option value='pkmn_fr'>Pokemon FireRed</option>
+      </select>
     </div>
 
     <div id='tabs'>
@@ -107,10 +166,26 @@
       <div class='tab active' id='t-macros' onclick='tab("macros")'>Macros</div>
       <div class='tab' id='t-mapa' onclick='tab("mapa")'>Mapa</div>
       <div class='tab' id='t-rede' onclick='tab("rede")'>Rede</div>
+      <div class='tab' id='t-criar' onclick='tab("criar")'>Criar</div>
       <div class='tab' id='t-config' onclick='tab("config")'>Config</div>
     </div>
 
-    <div class='page' id='p-status'><div id='zone'>Zona: -</div><div id='party'></div></div>
+    <div class='page' id='p-status'>
+      <div id='zdash'><div id='zone'>Zona: -</div><div id='party'></div></div>
+      <div id='frdash'>
+        <div class='cap' style='top:2px'>ENCONTROS</div>
+        <div id='frcount'>0</div>
+        <button class='fbtn' style='left:226px;width:70px' onclick='frOp("dec")'>-1</button>
+        <button class='fbtn pl' style='left:302px;width:90px' onclick='frOp("inc")'>+1</button>
+        <button class='fbtn rs' style='left:398px;width:74px' id='frrst'>Zerar<br><span class='mu'>segure</span></button>
+        <div id='frshiny'>Chance de shiny acumulada: 0.0%</div>
+        <div id='frbar'><div id='frbarf'></div></div>
+        <div id='frstats'></div>
+        <div class='cap' style='top:112px'>INSIGNIAS DE KANTO (toque para marcar)</div>
+        <div id='frbadges'></div>
+        <div id='frach'></div>
+      </div>
+    </div>
     <div class='page active' id='p-macros'>
       <div id='mhead'><button class='hbtn' onclick='backMenu()'>&#8249; Voltar</button><span class='ttl' id='mttl'></span><button class='hbtn stop' onclick='stopAll()'>&#9632; PARAR</button></div>
       <div id='grid'></div>
@@ -136,6 +211,7 @@
         <div class='hint'>Sem Wi-Fi? Ligue o Switch e o celular na rede <b>SwitchHUD</b> (senha switchhud1) e toque em Detectar.</div>
       </div>
     </div>
+    <div class='page' id='p-criar'><div id='um'></div></div>
     <div class='page' id='p-config'>
       <div id='cfg'>
         <div><span class='cy'>Firmware:</span> <span id='cfg-fw'>?</span></div>
@@ -149,16 +225,44 @@
       </div>
     </div>
 
+    <div id='ed'>
+      <div class='bar' style='top:4px'>
+        <button class='mini' onclick='edClose()'>&#8249; Voltar</button>
+        <input id='edname' maxlength='16' placeholder='nome do macro' style='flex:1'>
+        <span class='mu'>Repetir</span><input id='edrep' type='number' min='0' max='65000' value='1' style='width:54px' title='0 = infinito'>
+        <button class='mini go' onclick='edSave()'>Salvar</button>
+      </div>
+      <div class='bar' style='top:36px'>
+        <button class='mini rd' id='edrec' onclick='recToggle()'><span id='recdot'>&#9679;</span> Gravar</button>
+        <button class='mini' onclick='umRun("test")'>&#9654; Testar</button>
+        <button class='mini' onclick='umRun("step")'>&#9197; Passo a passo</button>
+        <button class='mini go' id='ednext' onclick='umNext()' disabled>Próximo &#9654;</button>
+        <button class='mini rd' onclick='stopAll()'>&#9632;</button>
+        <button class='mini' onclick='edClear()'>Limpar</button>
+      </div>
+      <div id='steps'></div>
+      <div id='edinfo' class='mu' style='position:absolute;left:8px;top:174px;font-size:11px;white-space:nowrap'></div>
+      <div id='pad'>
+        <div class='r' id='padr1'></div>
+        <div class='r' id='padr2'></div>
+        <div class='r'>
+          <input id='edms' type='number' min='20' max='60000' value='200' style='width:70px' title='tempo em ms'><span class='mu' style='align-self:center'>ms</span>
+          <button class='mini' style='flex:1' onclick='stepAdd(false)'>+ Passo</button>
+          <button class='mini' style='flex:1' onclick='stepAdd(true)'>+ Espera</button>
+          <button class='mini' style='flex:1' id='edupd' onclick='stepUpdate()' disabled>Atualizar</button>
+        </div>
+      </div>
+    </div>
     <div id='foot'><span id='foot-l'>[USB-HID] aguardando placa...</span><span id='foot-r'></span></div>
   </div>
 </div>
 
 <script>
-  const PAGE_VERSION = 'mvp-2026-10-23a';   // muda a cada versao: confere se o uploadfs gravou esta pagina
+  const PAGE_VERSION = 'mvp-2026-10-23d';   // muda a cada versao: confere se o uploadfs gravou esta pagina
 
   // Mesmos 6 slots do UIManager / modulo Z-A / usb_hid_provider.h
   // 17 macros = slots do usb_hid_provider.h (0..16). t = toggle (liga/desliga). 12 por pagina (4x3).
-  const SLOTS = [
+  const ZA_SLOTS = [
     { ic: '\u{1F3AE}', name: 'Parear L+R' },
     { ic: '\u{1F500}', name: 'Combo Esq+Y' },
     { ic: '⚡', name: 'Turbo A', t: 1 },
@@ -178,21 +282,120 @@
     { ic: '✔', name: 'Curar Status' }
   ];
   // Mini menus (mesmas categorias do modulo LVGL): cada slot aparece em uma categoria
-  const CATS = [
-    { name: 'Batalha',   ic: '\u{1F500}', slots: [1, 7, 6, 8] },
-    { name: 'Cura',      ic: '➕',     slots: [15, 16] },
+  const ZA_CATS = [
+    { name: 'Batalha/Cura', ic: '\u{1F500}', slots: [1, 7, 6, 8, 15, 16] },
     { name: 'Movimento', ic: '⏩',     slots: [10, 11, 14] },
     { name: 'Farm',      ic: '\u{1F504}', slots: [3, 2, 9] },
     { name: 'Sistema',   ic: '⚙',     slots: [12, 13, 4, 5, 0] }
   ];
+
+  // ---- Pokemon FireRed: mesmos slots/categorias do modulo LVGL e de usb_hid_provider.h (frTrigger) ----
+  const FR_SLOTS = [
+    { ic: '\u23FB', name: 'Soft Reset' }, { ic: '\u{1F504}', name: 'Caça Reset', t: 1 },
+    { ic: '\u{1F33F}', name: 'Grama <->', t: 1 }, { ic: '⚡', name: 'Spam A', t: 1 },
+    { ic: '\u{1F501}', name: 'Spam B', t: 1 }, { ic: '▶', name: 'Avançar texto' },
+    { ic: '☰', name: 'Menu (+)' }, { ic: '\u{1F392}', name: 'Bolsa' },
+    { ic: '\u{1F4BE}', name: 'Salvar' }, { ic: '✖', name: 'Fechar menus' },
+    { ic: '➕', name: 'Poção' }, { ic: '\u{1F3E5}', name: 'Centro Pokémon' },
+    { ic: '⬆', name: 'Correr cima', t: 1 }, { ic: '⬇', name: 'Correr baixo', t: 1 },
+    { ic: '⬅', name: 'Correr esq', t: 1 }, { ic: '➡', name: 'Correr dir', t: 1 },
+    { ic: '\u{1F504}', name: 'Patrulha <->', t: 1 }, { ic: '\u{1F504}', name: 'Patrulha ^v', t: 1 },
+    { ic: '▶', name: 'Golpe 1' }, { ic: '▶', name: 'Golpe 2' }, { ic: '▶', name: 'Golpe 3' }, { ic: '▶', name: 'Golpe 4' },
+    { ic: '\u{1F500}', name: 'Trocar' }, { ic: '\u{1F3C3}', name: 'Fugir' },
+    { ic: '\u{1F9EA}', name: 'Testar 1 ciclo' }
+  ];
+  const FR_CATS = [
+    { name: 'Caça',      ic: '\u{1F441}', slots: [0, 24, 1, 2, 3, 5] },
+    { name: 'Menu/Cura', ic: '☰',     slots: [6, 7, 8, 9, 10, 11] },
+    { name: 'Movimento', ic: '⏩',     slots: [12, 13, 14, 15, 16, 17] },
+    { name: 'Batalha',   ic: '\u{1F500}', slots: [18, 19, 20, 21, 22, 23] }
+  ];
+  const BADGES = ['Pedra', 'Cascata', 'Trovão', 'Arco-íris', 'Alma', 'Pântano', 'Vulcão', 'Terra'];
+  let SLOTS = ZA_SLOTS, CATS = ZA_CATS, game = 'pkmn_za';
+  // Macros do usuario: slots 100..105, nomes vem da placa (aba Criar)
+  const UM_BASE = 100;
+  let UM = Array.from({ length: 6 }, (_, i) => ({ i, name: '', repeat: 1, n: 0, steps: '' }));
+  let umIdx = -1, umPos = 0, umWait = false, umCyc = 0;
+  ZA_CATS.push({ name: 'Meus macros', ic: '✎', slots: [100, 101, 102, 103, 104, 105] });
+  FR_CATS.push({ name: 'Meus macros', ic: '✎', slots: [100, 101, 102, 103, 104, 105] });
   let curCat = -1;
 
   let active = -1, execs = 0, usb = null, online = false, lastMsg = '';
 
   const $ = (id) => document.getElementById(id);
 
+  // Troca o jogo na pagina (sync=true: tambem avisa a placa)
+  async function setGame(g, sync) {
+    if (g !== 'pkmn_za' && g !== 'pkmn_fr') return;
+    game = g; const fr = (g === 'pkmn_fr');
+    SLOTS = fr ? FR_SLOTS : ZA_SLOTS; CATS = fr ? FR_CATS : ZA_CATS;
+    document.body.classList.toggle('fr', fr);
+    $('gamesel').value = g;
+    $('zdash').style.display = fr ? 'none' : 'block';
+    $('frdash').style.display = fr ? 'block' : 'none';
+    $('t-mapa').style.display = fr ? 'none' : 'flex';
+    if (fr && $('p-mapa').classList.contains('active')) tab('status');
+    curCat = -1; buildGrid();
+    if (fr) pollFr();
+    if (sync) { try { apply(await (await fetch('/api/profile?game=' + g, { cache: 'no-store' })).json()); } catch (e) { online = false; render(); } }
+  }
+  function pickGame(g) { setGame(g, true); }
+
+  // ---- FireRed: painel divertido ----
+  let frBuilt = false, frHold = null;
+  function buildFr() {
+    const bx = $('frbadges');
+    BADGES.forEach((n, i) => {
+      const b = document.createElement('button');
+      b.className = 'badge'; b.id = 'bd' + i; b.style.left = (6 + i * 58) + 'px'; b.textContent = n;
+      b.onclick = () => frOp('badge&i=' + i);
+      bx.appendChild(b);
+    });
+    const r = $('frrst');   // segurar ~0,8 s para zerar
+    const start = () => { frHold = setTimeout(() => { frHold = null; frOp('reset'); }, 800); };
+    const stop = () => { if (frHold) { clearTimeout(frHold); frHold = null; } };
+    r.onmousedown = start; r.ontouchstart = start; r.onmouseup = stop; r.onmouseleave = stop; r.ontouchend = stop;
+    frBuilt = true;
+  }
+  function fmtT(s) { const p = n => String(n).padStart(2, '0'); return `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`; }
+  function paintFr(d) {
+    if (!frBuilt) buildFr();
+    $('frcount').textContent = d.enc;
+    const pct = d.shiny * 100;
+    $('frshiny').textContent = `Chance de shiny acumulada: ${pct.toFixed(1)}%  (1/8192 por encontro)`;
+    const f = $('frbarf'); f.style.width = Math.min(100, pct) + '%';
+    f.style.background = pct >= 63 ? '#FFC400' : pct >= 30 ? '#00F5D4' : '#4C8DFF';
+    $('frstats').textContent = `Resets ${d.resets}  |  Passos ~${d.steps}  |  Caça ${fmtT(d.hunt)}  |  Macros ${d.runs}`;
+    BADGES.forEach((_, i) => $('bd' + i).classList.toggle('on', !!(d.badges & (1 << i))));
+    let n = 0; for (let i = 0; i < 13; i++) if (d.ach & (1 << i)) n++;
+    $('frach').innerHTML = d.last >= 0 ? `<span style='color:#FFC400'>✔ ${n}/13</span>  Última: ${d.names[d.last]}`
+            : `<span class='mu'>Conquistas 0/13 - comece a jogar!</span>`;
+    const ach = d.ach | 0;
+    if (frSeen !== null && ach !== frSeen && d.last >= 0) toast('\u{1F3C6} ' + d.names[d.last]);
+    frSeen = ach;
+  }
+  let frSeen = null;
+  function toast(t) {
+    const el = document.createElement('div');
+    el.textContent = t;
+    el.style.cssText = 'position:absolute;left:50%;bottom:30px;pointer-events:none;transform:translateX(-50%);background:#6B4E00;border:2px solid #FFC400;color:#FFE27A;padding:8px 14px;border-radius:10px;font-size:13px;z-index:9;white-space:nowrap';
+    $('stage').appendChild(el); setTimeout(() => el.remove(), 3500);
+  }
+  async function pollFr() {
+    if (game !== 'pkmn_fr') return;
+    try { paintFr(await (await fetch('/api/fr', { cache: 'no-store' })).json()); } catch (e) {}
+  }
+  async function frOp(op) {
+    try { paintFr(await (await fetch('/api/fr?op=' + op, { cache: 'no-store' })).json()); } catch (e) { online = false; render(); }
+  }
+
+  function slotInfo(i) {
+    if (i >= UM_BASE) { const u = UM[i - UM_BASE]; return { ic: '✎', name: u && u.name ? u.name : '(vazio)', t: u && u.repeat === 0 }; }
+    return SLOTS[i];
+  }
+
   function slotBtn(i) {
-    const s = SLOTS[i], b = document.createElement('button');
+    const s = slotInfo(i), b = document.createElement('button');
     b.className = 'slot'; b.id = 'b' + i; b.onclick = () => macro(i);
     b.innerHTML = `<span class='dot'></span><span class='ic'>${s.ic}</span><span>${s.name}${s.t ? " <span class='lp'>~</span>" : ''}</span>`;
     return b;
@@ -251,9 +454,9 @@
   }
 
   function render() {
-    SLOTS.forEach((_, i) => { const el = $('b' + i); if (el) el.classList.toggle('on', i === active); });
+    document.querySelectorAll('.slot[id^=b]').forEach(el => el.classList.toggle('on', +el.id.slice(1) === active));
     CATS.forEach((c, k) => { const el = $('c' + k); if (el) el.classList.toggle('on', c.slots.includes(active)); });
-    const act = (active >= 0 && SLOTS[active]) ? SLOTS[active].name : 'nenhuma';
+    const act = active >= 0 ? (slotInfo(active) || { name: '?' }).name : 'nenhuma';
     $('cfg-usb').innerHTML = usb === null ? `<span class='mu'>?</span>` : (usb ? `<span class='gr'>ON</span>` : `<span class='rd'>OFF</span>`);
     $('cfg-act').textContent = act; $('cfg-exe').textContent = execs;
     $('foot-l').textContent = online ? `[USB-HID] ${lastMsg || 'online'}` : '[USB-HID] SEM CONEXAO COM A PLACA';
@@ -263,12 +466,14 @@
     active = (d.active_slot === undefined) ? -1 : d.active_slot;
     execs = d.executions || 0;
     if (d.usb !== undefined) usb = d.usb;
+    if (d.um_idx !== undefined) { umIdx = d.um_idx; umPos = d.um_pos; umWait = d.um_wait; umCyc = d.um_cyc; umRender(); }
+    if (d.game && d.game !== game && (d.game === 'pkmn_za' || d.game === 'pkmn_fr')) setGame(d.game, false);
     online = true;
     render();
   }
 
   async function macro(slot) {
-    lastMsg = 'Macro: ' + SLOTS[slot].name;
+    lastMsg = 'Macro: ' + slotInfo(slot).name;
     try { apply(await (await fetch('/api/macro?slot=' + slot, { cache: 'no-store' })).json()); }
     catch (e) { online = false; render(); }
   }
@@ -277,6 +482,203 @@
     try { apply(await (await fetch('/api/macro_status', { cache: 'no-store' })).json()); }
     catch (e) { online = false; render(); }
   }
+
+
+  // ======================= CRIAR MACROS =======================
+  const BN = [['ZL', 64], ['L', 16], ['R', 32], ['ZR', 128], ['−', 256], ['+', 512], ['HOME', 4096]];
+  const BN2 = [['◀', 'd4'], ['▲', 'd1'], ['▼', 'd2'], ['▶', 'd8'], ['Y', 1], ['X', 8], ['B', 2], ['A', 4]];
+  const NAMES = { 1: 'Y', 2: 'B', 4: 'A', 8: 'X', 16: 'L', 32: 'R', 64: 'ZL', 128: 'ZR', 256: '−', 512: '+', 4096: 'HOME' };
+  const ARROW = ['▲', '▲▶', '▶', '▼▶', '▼', '▼◀', '◀', '▲◀'];
+  let ed = { idx: -1, steps: [], sel: -1, rec: false, raw: [], t0: null };
+  let padMask = 0, padDirs = 0, padBeat = null;
+
+  function hatFrom(d) {
+    const u = d & 1, dn = d & 2, l = d & 4, r = d & 8;
+    if (u && r) return 1; if (dn && r) return 3; if (dn && l) return 5; if (u && l) return 7;
+    if (u) return 0; if (r) return 2; if (dn) return 4; if (l) return 6; return 8;
+  }
+  function dirsFromHat(h) { return [1, 9, 8, 10, 2, 6, 4, 5][h] || 0; }
+  function cleanName(n) { return n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 _.+-]/g, '').slice(0, 16); }
+  function parseSteps(t) {
+    return t ? t.split(';').map(x => { const [b, h, ms] = x.split(':').map(Number); return { b, h, ms }; }) : [];
+  }
+  function stepsTxt(a) { return a.map(s => `${s.b}:${s.h}:${s.ms}`).join(';'); }
+  function stepLabel(s) {
+    const n = Object.keys(NAMES).filter(k => s.b & k).map(k => NAMES[k]);
+    if (s.h < 8) n.push(ARROW[s.h]);
+    return n.length ? n.join('+') : '— espera';
+  }
+
+  // ---- lista de macros ----
+  function umRender() {
+    const el = $('um'); if (!el) return;
+    if (!el.dataset.built || el.dataset.ver !== JSON.stringify(UM.map(u => [u.name, u.n, u.repeat]))) {
+      el.dataset.built = 1; el.dataset.ver = JSON.stringify(UM.map(u => [u.name, u.n, u.repeat]));
+      el.innerHTML = '<div class="mu" style="margin-bottom:4px">Macros criados por voce (valem para qualquer jogo)</div>';
+      UM.forEach((u, i) => {
+        const d = document.createElement('div'); d.className = 'umrow'; d.id = 'ur' + i;
+        d.innerHTML = `<span class='no'>${i + 1}</span><span class='nm'>${u.n ? u.name || '(sem nome)' : '<span class="mu">(vazio)</span>'}` +
+                `${u.n ? ` <span class='mu'>${u.n} passos ${u.repeat === 0 ? '∞' : '×' + u.repeat}</span>` : ''}</span>` +
+                `<button class='mini go' ${u.n ? '' : 'disabled'} onclick='macro(${UM_BASE + i})'>&#9654;</button>` +
+                `<button class='mini' onclick='edOpen(${i})'>${u.n ? 'Editar' : 'Criar'}</button>` +
+                `<button class='mini rd' ${u.n ? '' : 'disabled'} onclick='umDelete(${i})'>✕</button>`;
+        el.appendChild(d);
+      });
+    }
+    UM.forEach((_, i) => { const r = $('ur' + i); if (r) r.classList.toggle('on', umIdx === i); });
+    // editor: destaca o passo em execucao
+    if (ed.idx >= 0) {
+      document.querySelectorAll('#steps .st').forEach((r, k) => {
+        r.classList.toggle('run', umIdx === ed.idx && k === umPos && !umWait);
+        r.classList.toggle('next', umIdx === ed.idx && k === umPos && umWait);
+      });
+      $('ednext').disabled = !(umIdx === ed.idx && umWait);
+      if (umIdx === ed.idx && umCyc) $('edinfo').textContent = infoTxt() + `  |  ciclo ${umCyc}`;
+    }
+  }
+  async function loadUM() {
+    try { UM = (await (await fetch('/api/um', { cache: 'no-store' })).json()).slots; } catch (e) { return; }
+    $('um').dataset.built = ''; umRender(); buildGrid();
+  }
+  async function umDelete(i) {
+    if (!confirm('Excluir o macro ' + (i + 1) + '?')) return;
+    try { UM = (await post('/api/um', { i, clear: 1 })).slots; } catch (e) {}
+    $('um').dataset.built = ''; umRender(); buildGrid();
+  }
+
+  // ---- editor ----
+  function infoTxt() {
+    const tot = ed.steps.reduce((a, s) => a + s.ms, 0);
+    return `${ed.steps.length}/64 passos · ${(tot / 1000).toFixed(1)} s por ciclo`;
+  }
+  function edOpen(i) {
+    const u = UM[i];
+    ed = { idx: i, steps: parseSteps(u.steps), sel: -1, rec: false, raw: [], t0: null };
+    $('edname').value = u.name; $('edrep').value = u.repeat;
+    padMask = 0; padDirs = 0; buildPad(); stepsRender(); $('ed').style.display = 'block'; $('ed').classList.remove('rec');
+  }
+  function edClose() { if (ed.rec) finishRec(); ed.idx = -1; $('ed').style.display = 'none'; }
+  function edClear() { ed.steps = []; ed.sel = -1; stepsRender(); }
+
+  function stepsRender() {
+    const box = $('steps'); box.innerHTML = '';
+    ed.steps.forEach((s, k) => {
+      const r = document.createElement('div'); r.className = 'st' + (k === ed.sel ? ' sel' : '');
+      r.innerHTML = `<span class='k'>${k + 1}</span><span class='t'>${stepLabel(s)}</span><span class='mu'>${s.ms} ms</span>` +
+              `<button title='subir'>↑</button><button title='excluir'>✕</button>`;
+      r.onclick = () => stepSelect(k);
+      const [up, del] = r.querySelectorAll('button');
+      up.onclick = (e) => { e.stopPropagation(); if (k > 0) { [ed.steps[k - 1], ed.steps[k]] = [ed.steps[k], ed.steps[k - 1]]; ed.sel = k - 1; stepsRender(); } };
+      del.onclick = (e) => { e.stopPropagation(); ed.steps.splice(k, 1); ed.sel = -1; stepsRender(); };
+      box.appendChild(r);
+    });
+    box.scrollTop = box.scrollHeight;
+    $('edinfo').textContent = infoTxt(); $('edupd').disabled = ed.sel < 0;
+  }
+  function stepSelect(k) {
+    ed.sel = k; const s = ed.steps[k];
+    padMask = s.b; padDirs = dirsFromHat(s.h); $('edms').value = s.ms; padUI();
+    const rows = document.querySelectorAll('#steps .st'); rows.forEach((r, j) => r.classList.toggle('sel', j === k)); $('edupd').disabled = false;
+  }
+  function curStep(wait) {
+    const ms = Math.max(20, Math.min(60000, parseInt($('edms').value) || 200));
+    return wait ? { b: 0, h: 8, ms } : { b: padMask, h: hatFrom(padDirs), ms };
+  }
+  function stepAdd(wait) {
+    if (ed.steps.length >= 64) { alert('Limite de 64 passos'); return; }
+    ed.steps.push(curStep(wait)); ed.sel = -1; stepsRender();
+  }
+  function stepUpdate() { if (ed.sel >= 0) { ed.steps[ed.sel] = curStep(false); stepsRender(); stepSelect(ed.sel); } }
+
+  // ---- controle virtual (editar = alterna; gravar = momentaneo + envia ao vivo) ----
+  function buildPad() {
+    ['padr1', 'padr2'].forEach(id => $(id).innerHTML = '');
+    const mk = (row, [t, v]) => {
+      const b = document.createElement('button'); b.className = 'pb'; b.textContent = t; b.dataset.v = v;
+      const set = (down) => {
+        const dir = typeof v === 'string';
+        const bit = dir ? +v.slice(1) : v;
+        const cur = dir ? padDirs : padMask;
+        let nv;
+        if (ed.rec) nv = down ? (cur | bit) : (cur & ~bit);          // gravando: segura enquanto toca
+        else if (down) nv = cur ^ bit; else return;                  // editando: cada toque alterna
+        if (dir) padDirs = nv; else padMask = nv;
+        padChanged();
+      };
+      b.onpointerdown = (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); set(true); };
+      b.onpointerup = () => set(false); b.onpointercancel = () => set(false);
+      $(row).appendChild(b);
+    };
+    BN.forEach(x => mk('padr1', x)); BN2.forEach(x => mk('padr2', x));
+    padUI();
+  }
+  function padUI() {
+    document.querySelectorAll('#pad .pb').forEach(b => {
+      const v = b.dataset.v, dir = v[0] === 'd' && v.length === 2 && isNaN(+v);
+      const on = dir ? (padDirs & +v.slice(1)) : (padMask & +v);
+      b.classList.toggle('on', !!on);
+    });
+  }
+  function padSend() { fetch(`/api/pad?b=${padMask}&h=${hatFrom(padDirs)}`, { cache: 'no-store' }).catch(() => {}); }
+  function padChanged() {
+    padUI();
+    if (!ed.rec) return;
+    const now = performance.now();
+    if (ed.t0 === null) { if (!padMask && !padDirs) return; ed.t0 = now; }
+    ed.raw.push({ t: now - ed.t0, b: padMask, h: hatFrom(padDirs) });
+    padSend();
+    if (padMask || padDirs) { if (!padBeat) padBeat = setInterval(padSend, 800); }
+    else if (padBeat) { clearInterval(padBeat); padBeat = null; }
+  }
+
+  // ---- gravador ----
+  async function recToggle() {
+    if (ed.rec) { finishRec(); return; }
+    try { await fetch('/api/stop', { cache: 'no-store' }); } catch (e) {}
+    ed.rec = true; ed.raw = []; ed.t0 = null; padMask = 0; padDirs = 0; padUI();
+    $('ed').classList.add('rec'); $('edrec').innerHTML = '&#9632; Parar gravação';
+    $('edinfo').textContent = 'Gravando: aperte os botões (a contagem começa no 1º toque)';
+  }
+  function finishRec() {
+    const now = performance.now();
+    ed.rec = false; $('ed').classList.remove('rec'); $('edrec').innerHTML = '<span id="recdot">&#9679;</span> Gravar';
+    if (padBeat) { clearInterval(padBeat); padBeat = null; }
+    padMask = 0; padDirs = 0; padSend(); padUI();
+    const ev = ed.raw;
+    if (ev.length) {
+      const end = now - ed.t0;
+      ev.forEach((e, k) => {
+        const next = k + 1 < ev.length ? ev[k + 1].t : end;
+        const ms = Math.max(20, Math.min(60000, Math.round((next - e.t) / 10) * 10));
+        if (ed.steps.length < 64) ed.steps.push({ b: e.b, h: e.h, ms });
+      });
+      if (ed.steps.length >= 64) alert('Limite de 64 passos atingido: os demais foram descartados');
+      const last = ed.steps[ed.steps.length - 1];
+      if (last && last.b === 0 && last.h === 8 && ev.length) ed.steps.pop();   // tira a espera final (tempo ate tocar em Parar)
+    }
+    ed.raw = []; stepsRender();
+  }
+
+  // ---- salvar / executar ----
+  async function edSave() {
+    if (ed.rec) finishRec();
+    const name = cleanName($('edname').value.trim()) || ('Macro ' + (ed.idx + 1));
+    $('edname').value = name;
+    const rep = Math.max(0, Math.min(65000, parseInt($('edrep').value) || 0));
+    if (!ed.steps.length) { alert('Adicione ao menos um passo'); return false; }
+    try {
+      const d = await post('/api/um', { i: ed.idx, name, repeat: rep, steps: stepsTxt(ed.steps) });
+      if (!d.slots) { alert('Erro ao salvar: ' + (d.err || '?')); return false; }
+      UM = d.slots; $('um').dataset.built = ''; umRender(); buildGrid();
+      lastMsg = 'Macro salvo: ' + name; render();
+      return true;
+    } catch (e) { alert('Sem conexão com a placa'); return false; }
+  }
+  async function umRun(mode) {
+    if (!(await edSave())) return;
+    try { apply(await (await fetch(`/api/um_run?i=${ed.idx}&mode=${mode}`, { cache: 'no-store' })).json()); } catch (e) {}
+  }
+  async function umNext() { try { apply(await (await fetch('/api/um_run?mode=next', { cache: 'no-store' })).json()); } catch (e) {} }
 
   async function loadVersion() {
     try {
@@ -291,7 +693,7 @@
   }
 
   function tab(id) {
-    ['status', 'macros', 'mapa', 'rede', 'config'].forEach(t => {
+    ['status', 'macros', 'mapa', 'rede', 'criar', 'config'].forEach(t => {
       $('t-' + t).classList.toggle('active', t === id);
       $('p-' + t).classList.toggle('active', t === id);
     });
@@ -425,8 +827,8 @@
   }
 
   $('cfg-page').textContent = PAGE_VERSION;
-  buildParty(); buildGrid(); loadMaps(); loadNet(); fit(); loadVersion(); poll(); pollParty();
-  setInterval(poll, 350); setInterval(pollParty, 1500);
+  buildParty(); buildGrid(); loadMaps(); loadNet(); loadUM(); fit(); loadVersion(); poll(); pollParty();
+  setInterval(poll, 350); setInterval(pollParty, 1500); setInterval(pollFr, 1000);
 </script>
 </body>
 </html>

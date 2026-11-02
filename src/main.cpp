@@ -9,6 +9,7 @@
 #include "core/game_state.h"
 #include "core/asset_manager.h"
 #include "providers/provider_router.h"
+#include "../include/core/user_macros.h"
 
 // Tela fisica (LVGL) so existe na placa ESP32-S3 3.5" -> build com -DHAS_DISPLAY.
 // No Pico W de teste (sem tela) o MVP roda so com USB HID + pagina web.
@@ -30,6 +31,7 @@ UIManager ui(state, router);    // tela fisica 480x320 (abas Status/Mapa/Macros/
 
 GameProfile mapStringToProfile(const String &gameStr) {
     if (gameStr == "pkmn_za")    return GameProfile::POKEMON_LEGENDS_ZA;
+    if (gameStr == "pkmn_fr")    return GameProfile::POKEMON_FIRERED;
     if (gameStr == "pkmn_sv")    return GameProfile::POKEMON_SV;
     if (gameStr == "zelda_totk") return GameProfile::ZELDA_TOTK;
     if (gameStr == "zelda_botw") return GameProfile::ZELDA_BOTW;
@@ -43,6 +45,9 @@ static String statusJson(bool withOk) {
     json += "\"active_slot\":" + String(router.usb().getActiveSlot());
     json += ",\"executions\":" + String(state.generic.macro_executions);
     json += ",\"usb\":" + String(state.connected ? "true" : "false");
+    json += ",\"um_idx\":" + String(router.usb().userIdx()) + ",\"um_pos\":" + String(router.usb().userPos()) +
+            ",\"um_cyc\":" + String((unsigned int)router.usb().userCycles()) + ",\"um_wait\":" + String(router.usb().userWaiting() ? "true" : "false");
+    json += ",\"game\":\"" + String(state.profile == GameProfile::POKEMON_FIRERED ? "pkmn_fr" : state.profile == GameProfile::POKEMON_LEGENDS_ZA ? "pkmn_za" : "other") + "\"";
     json += "}";
     return json;
 }
@@ -109,6 +114,108 @@ static bool saveSettings() {
     return true;
 }
 
+// ---------------- Estatisticas do FireRed (LittleFS /fr_stats.txt) ----------------
+// Gravacao espacada (a cada 20 s, ou na hora quando o usuario toca num botao) para poupar a flash.
+static void loadFrStats() {
+    File f = LittleFS.open("/fr_stats.txt", "r");
+    if (!f) return;
+    FireRedStats &s = state.fr;
+    while (f.available()) {
+        String l = f.readStringUntil('\n'); l.trim();
+        int e = l.indexOf('='); if (e < 0) continue;
+        String k = l.substring(0, e); uint32_t v = (uint32_t)l.substring(e + 1).toInt();
+        if (k == "enc") s.encounters = v; else if (k == "resets") s.soft_resets = v;
+        else if (k == "steps") s.steps_est = v; else if (k == "hunt") s.hunt_s = v;
+        else if (k == "runs") s.runs = v; else if (k == "badges") s.badges = (uint8_t)v;
+        else if (k == "ach") s.ach_mask = v;
+    }
+    f.close();
+}
+
+static void saveFrStats() {
+    File f = LittleFS.open("/fr_stats.txt", "w");
+    if (!f) return;
+    const FireRedStats &s = state.fr;
+    f.print("enc=");    f.print((unsigned long)s.encounters);   f.print("\n");
+    f.print("resets="); f.print((unsigned long)s.soft_resets); f.print("\n");
+    f.print("steps=");  f.print((unsigned long)s.steps_est);    f.print("\n");
+    f.print("hunt=");   f.print((unsigned long)s.hunt_s);       f.print("\n");
+    f.print("runs=");   f.print((unsigned long)s.runs);         f.print("\n");
+    f.print("badges="); f.print((int)s.badges);                 f.print("\n");
+    f.print("ach=");    f.print((unsigned long)s.ach_mask);     f.print("\n");
+    f.close();
+}
+
+static void frPersistTick() {
+    static unsigned long last_save = 0;
+    FireRedStats &s = state.fr;
+    if (!s.dirty) return;
+    unsigned long now = millis();
+    if (s.urgent || now - last_save >= 20000) {
+        last_save = now; s.dirty = false; s.urgent = false;
+        saveFrStats();
+    }
+}
+
+static String frJson() {
+    const FireRedStats &s = state.fr;
+    char shiny[16]; snprintf(shiny, sizeof(shiny), "%.4f", s.shinyChance());
+    String j = "{\"enc\":" + String((unsigned int)s.encounters) + ",\"resets\":" + String((unsigned int)s.soft_resets) +
+               ",\"steps\":" + String((unsigned int)s.steps_est) + ",\"hunt\":" + String((unsigned int)s.hunt_s) +
+               ",\"runs\":" + String((unsigned int)s.runs) + ",\"badges\":" + String((int)s.badges) +
+               ",\"ach\":" + String((unsigned int)s.ach_mask) + ",\"last\":" + String((int)s.last_ach) +
+               ",\"shiny\":" + String(shiny) + ",\"names\":[";
+    for (uint8_t i = 0; i < FireRedStats::ACH_COUNT; i++) { if (i) j += ","; j += "\"" + String(FireRedStats::achName(i)) + "\""; }
+    j += "]}";
+    return j;
+}
+
+// ---------------- Macros do usuario (LittleFS /macros.txt) ----------------
+// Uma linha por macro: indice|nome|repeticoes|passos   (passos = "botoes:direcional:ms;...")
+static void loadUserMacros() {
+    File f = LittleFS.open("/macros.txt", "r");
+    if (!f) return;
+    while (f.available()) {
+        String l = f.readStringUntil('\n'); l.trim();
+        char line[UM_MAX_STEPS * 20 + 64];
+        snprintf(line, sizeof(line), "%s", l.c_str());
+        char * p1 = strchr(line, '|');           if (!p1) continue;
+        char * p2 = strchr(p1 + 1, '|');         if (!p2) continue;
+        char * p3 = strchr(p2 + 1, '|');         if (!p3) continue;
+        *p1 = 0; *p2 = 0; *p3 = 0;
+        state.um.set((uint8_t)atoi(line), p1 + 1, (uint16_t)atoi(p2 + 1), p3 + 1);
+    }
+    f.close();
+}
+
+static bool saveUserMacros() {
+    File f = LittleFS.open("/macros.txt", "w");
+    if (!f) return false;
+    static char buf[UM_MAX_STEPS * 20];
+    for (uint8_t i = 0; i < UM_COUNT; i++) {
+        if (state.um.m[i].n == 0 && !state.um.m[i].name[0]) continue;
+        state.um.stepsText(i, buf, sizeof(buf));
+        f.print((int)i); f.print("|"); f.print(state.um.m[i].name); f.print("|");
+        f.print((int)state.um.m[i].repeat); f.print("|"); f.print(buf); f.print("\n");
+    }
+    f.close();
+    return true;
+}
+
+static String umJson() {
+    static char buf[UM_MAX_STEPS * 20];
+    String j = "{\"max_steps\":" + String(UM_MAX_STEPS) + ",\"slots\":[";
+    for (uint8_t i = 0; i < UM_COUNT; i++) {
+        const UserMacro &u = state.um.m[i];
+        state.um.stepsText(i, buf, sizeof(buf));
+        if (i) j += ",";
+        j += "{\"i\":" + String(i) + ",\"name\":\"" + String(u.name) + "\",\"repeat\":" + String(u.repeat) +
+             ",\"n\":" + String(u.n) + ",\"steps\":\"" + String(buf) + "\"}";
+    }
+    j += "]}";
+    return j;
+}
+
 static void rebootBoard() {
     delay(200);
 #if defined(ARDUINO_ARCH_RP2040)
@@ -125,6 +232,8 @@ void setup() {
 
     LittleFS.begin();
     loadSettings();
+    loadFrStats();
+    loadUserMacros();
 
     // 2. Tela fisica + UI (so ESP32-S3 com tela)
 #ifdef HAS_DISPLAY
@@ -204,11 +313,67 @@ void setup() {
     server.on("/api/macro", HTTP_GET, []() {
         if (server.hasArg("slot")) {
             int slotVal = server.arg("slot").toInt();
-            if (slotVal >= 0 && slotVal < MACRO_COUNT) {
+            if (slotVal >= 0 && (slotVal < MACRO_COUNT || (slotVal >= USER_MACRO_BASE && slotVal < USER_MACRO_BASE + UM_COUNT))) {
                 router.triggerAction(static_cast<ActionMacro>(slotVal), state);
             }
         }
         server.send(200, "application/json", statusJson(true));
+    });
+
+    // FireRed: estatisticas e operacoes do contador / insignias
+    server.on("/api/fr", HTTP_GET, []() {
+        if (server.hasArg("op")) {
+            String op = server.arg("op");
+            FireRedStats &f = state.fr;
+            if (op == "inc") f.encounters++;
+            else if (op == "dec") { if (f.encounters) f.encounters--; }
+            else if (op == "reset") f.encounters = 0;
+            else if (op == "badge" && server.hasArg("i")) { int i = server.arg("i").toInt(); if (i >= 0 && i < 8) f.badges ^= (1u << i); }
+            f.dirty = true; f.urgent = true;
+            f.evaluate();
+        }
+        server.send(200, "application/json", frJson());
+    });
+
+    // ---- Macros do usuario ----
+    server.on("/api/um", HTTP_GET, []() { server.send(200, "application/json", umJson()); });
+
+    server.on("/api/um", HTTP_POST, []() {
+        if (!server.hasArg("i")) { server.send(400, "application/json", "{\"ok\":false,\"err\":\"sem indice\"}"); return; }
+        int i = server.arg("i").toInt();
+        if (i < 0 || i >= UM_COUNT) { server.send(400, "application/json", "{\"ok\":false,\"err\":\"indice\"}"); return; }
+        if (server.hasArg("clear")) {
+            state.um.clear((uint8_t)i);
+        } else {
+            int rep = server.hasArg("repeat") ? server.arg("repeat").toInt() : 1;
+            if (rep < 0) rep = 0; if (rep > 65000) rep = 65000;
+            if (!state.um.set((uint8_t)i, server.arg("name").c_str(), (uint16_t)rep, server.arg("steps").c_str())) {
+                server.send(400, "application/json", "{\"ok\":false,\"err\":\"passos invalidos\"}"); return;
+            }
+        }
+        bool ok = saveUserMacros();
+        server.send(ok ? 200 : 500, "application/json", umJson());
+    });
+
+    // run = executa com a repeticao salva | test = 1 vez | step = passo a passo | next = proximo passo | (stop = /api/stop)
+    server.on("/api/um_run", HTTP_GET, []() {
+        String mode = server.hasArg("mode") ? server.arg("mode") : "run";
+        if (mode == "next") router.usb().userNext();
+        else if (server.hasArg("i")) {
+            int i = server.arg("i").toInt();
+            uint8_t m = (mode == "test") ? 1 : (mode == "step") ? 2 : 0;
+            if (i >= 0 && i < UM_COUNT) router.usb().startUser((uint8_t)i, m, state);
+        }
+        server.send(200, "application/json", statusJson(true));
+    });
+
+    // Controle ao vivo (gravador): b = mascara de botoes, h = direcional (0..7, 8 = neutro)
+    server.on("/api/pad", HTTP_GET, []() {
+        uint16_t b = (uint16_t)(server.arg("b").toInt() & 0x3FFF);
+        int h = server.hasArg("h") ? server.arg("h").toInt() : 8;
+        if (h < 0 || h > 8) h = 8;
+        router.usb().livePad(b, (uint8_t)h, state);
+        server.send(200, "application/json", "{\"ok\":true}");
     });
 
     server.on("/api/stop", HTTP_GET, []() {
@@ -306,6 +471,7 @@ void setup() {
 
 void loop() {
     server.handleClient();
+    frPersistTick();
     pump();   // router.update a cada volta (timing das macros) + LVGL se houver tela
 
     if (apMode) {   // LED piscando lento = modo AP de emergencia

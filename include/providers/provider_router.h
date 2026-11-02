@@ -75,9 +75,16 @@ public:
         }
     }
 
+    unsigned long last_eval_ms = 0;
+
     void update(GameState &state) override {
         active_prov->update(state);
         if (telemetry && active_prov != &tcp_prov) tcp_prov.pollTelemetry(state);
+        // FireRed: avalia conquistas ~1x por segundo
+        if (state.profile == GameProfile::POKEMON_FIRERED) {
+            unsigned long now = millis();
+            if (now - last_eval_ms >= 1000) { last_eval_ms = now; state.fr.evaluate(); }
+        }
     }
 
     void triggerAction(ActionMacro action, GameState &state) override {
