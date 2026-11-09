@@ -790,10 +790,26 @@
             </table></div>
             <div class="callout"><strong>Ponto de risco:</strong> em modo AP o rádio do Pico W pode não aceitar varredura. Se isso acontecer, a busca precisa de um ajuste (derrubar o AP por alguns segundos, varrer e subir o AP de novo). Só o teste na placa confirma.</div>
 
+            <h2>🖥️ Porte da tela para Arduino (ESP32-S3)</h2>
+            <p>Decidido: Arduino + PlatformIO (D6). O driver oficial <code>espressif/esp_lcd_st77922</code> 2.1.1 foi copiado sem alterações para <code>lib/esp_lcd_st77922/</code>. A sequência de init do teste de bancada (63 comandos) virou <code>src/hardware/st77922_init_table.c</code>, e o módulo <code>src/hardware/es3c35p_display.cpp</code> sobe o barramento QSPI em 80 MHz e desenha o texto TESTE na PSRAM.</p>
+            <div class="callout"><strong>Correção:</strong> a sequência tem 63 comandos, e não 79 como estava escrito antes em <code>PORTAS.md</code> e no relatório. A tabela foi conferida linha a linha contra o código que funcionou na bancada.</div>
+            <div class="tbl-wrap"><table>
+                <thead><tr><th>Arquivo</th><th>O que mudou</th><th>Gravar com</th></tr></thead>
+                <tbody>
+                    <tr><td><code>lib/esp_lcd_st77922/</code></td><td>Novo. Componente oficial 2.1.1 (licença incluída).</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>src/hardware/st77922_init_table.c</code></td><td>Novo. 63 comandos de init do fabricante.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>src/hardware/es3c35p_display.cpp</code></td><td>Novo. Backlight, barramento QSPI, painel e teste de texto.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>src/main.cpp</code></td><td>Chama o teste de tela só com <code>-DES3C35P_TELA_TESTE</code>.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>platformio.ini</code></td><td>Ambiente <code>esp32-s3-tela</code> (mesmo do <code>esp32-s3-web</code> + teste de tela).</td><td>—</td></tr>
+                </tbody>
+            </table></div>
+            <div class="callout"><strong>Ainda não compilado:</strong> o componente de terceiros foi colocado no Arduino sem build. Se a compilação falhar, o erro vai apontar o arquivo.</div>
+
             <h2>✅ Próximos passos</h2>
             <ul class="todo-list">
-                <li><input type="checkbox" disabled><label>Compilar com <code>pio run -e pico_w</code><small>corrigir o que o compilador apontar</small></label></li>
-                <li><input type="checkbox" disabled><label>Testar a busca com a placa no Wi-Fi e no modo SwitchHUD<small>é aqui que aparece o ponto de risco</small></label></li>
+                <li><input type="checkbox" disabled><label>Compilar e gravar <code>pio run -e esp32-s3-tela -t upload</code><small>a tela deve mostrar TESTE; corrigir o que o compilador apontar</small></label></li>
+                <li><input type="checkbox" disabled><label>Testar a busca de redes no modo SwitchHUD<small>validada na web com a placa no Wi-Fi do usuário; falta o modo AP</small></label></li>
+                <li><input type="checkbox" disabled><label>Ligar o LVGL ao flush da tela<small>primeiro com a HUD simples; depois o restante da UI</small></label></li>
                 <li><input type="checkbox" disabled><label>Tornar a senha do SwitchHUD configurável<small>hoje está fixa em <code>main.cpp</code></small></label></li>
                 <li><input type="checkbox" disabled><label>Definir se o Switch precisa de internet pela placa<small>exige NAT ou ponte; fica para depois da busca</small></label></li>
             </ul>
