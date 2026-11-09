@@ -7,8 +7,12 @@
 
 #include <stdint.h>
 
+enum { HID_ITF_PROTOCOL_NONE = 0 };
+
 class ShimUsbHid {
 public:
+    ShimUsbHid() {}
+    ShimUsbHid(const uint8_t *, uint16_t, uint8_t, uint8_t, bool) {}
     void setPollInterval(uint8_t) {}
     void setReportDescriptor(const uint8_t *, uint16_t) {}
     bool begin() { return false; }
