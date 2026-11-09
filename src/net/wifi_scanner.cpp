@@ -4,6 +4,13 @@
 // Tempo maximo de uma varredura antes de desistir (ms)
 static constexpr uint32_t SCAN_TIMEOUT_MS = 15000;
 
+// Valor "rede aberta" varia entre os cores: arduino-pico usa ENC_TYPE_NONE, arduino-esp32 usa WIFI_AUTH_OPEN
+#if defined(ARDUINO_ARCH_ESP32)
+    #define SCAN_OPEN_TYPE WIFI_AUTH_OPEN
+#else
+    #define SCAN_OPEN_TYPE ENC_TYPE_NONE
+#endif
+
 WifiScanner wifiScanner;
 
 static const char * stateName(WifiScanner::State s) {
@@ -64,7 +71,7 @@ void WifiScanner::collect(int found) {
         String ssid = WiFi.SSID(i);
         if (ssid.length() == 0 || ssid.length() > 32) continue;
         int16_t rssi = (int16_t)WiFi.RSSI(i);
-        bool secure = WiFi.encryptionType(i) != ENC_TYPE_NONE;
+        bool secure = WiFi.encryptionType(i) != SCAN_OPEN_TYPE;
 
         int dup = -1;
         for (uint8_t k = 0; k < _count; k++) {

@@ -276,6 +276,14 @@ void setup() {
     // IP/porta: salvos pela pagina (aba Rede) ou, na falta, os de wifi_config.h.
     if (validIp(cfg.sw_ip)) router.setSwitchTarget(state, cfg.sw_ip, cfg.sw_port);
 
+    // Endereco da pagina no monitor serial (so ESP32; no Pico o CDC conflita com o HID)
+#if !defined(ARDUINO_ARCH_RP2040)
+    Serial.begin(115200);
+    delay(300);
+    if (apMode) Serial.printf("[rede] SwitchHUD (senha switchhud1): pagina em http://%s/\n", WiFi.softAPIP().toString().c_str());
+    else        Serial.printf("[rede] Wi-Fi conectado: pagina em http://%s/\n", WiFi.localIP().toString().c_str());
+#endif
+
     server.on("/", HTTP_GET, []() {
         File file = LittleFS.open("/index.html", "r");
         if (!file) {
