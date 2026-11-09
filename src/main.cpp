@@ -11,6 +11,7 @@
 #include "providers/provider_router.h"
 #include "../include/core/user_macros.h"
 #include "net/wifi_scanner.h"
+#include "hardware/es3c35p_display.h"
 
 // Tela fisica (LVGL) so existe na placa ESP32-S3 3.5" -> build com -DHAS_DISPLAY.
 // No Pico W de teste (sem tela) o MVP roda so com USB HID + pagina web.
@@ -241,6 +242,11 @@ void setup() {
 #ifdef HAS_DISPLAY
     init_hardware_display_touch();
     ui.buildUI();
+#endif
+
+    // Teste de bancada da tela ST77922 (so com -DES3C35P_TELA_TESTE): mostra "TESTE" e segue o firmware
+#ifdef ES3C35P_TELA_TESTE
+    if (es3c35p_display::init()) es3c35p_display::drawTestText("TESTE");
 #endif
 
     // 3. Wi-Fi (pagina web de teste / BOOTSEL)
