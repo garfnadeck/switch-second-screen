@@ -17,6 +17,8 @@
 #include "hardware/es3c35p_pins.h"
 #include "hardware/st77922_init_table.h"
 
+using es3c35p_display::DrawDoneFn;
+
 static const char * TAG = "es3c35p-lcd";
 
 #define LCD_HOST        SPI2_HOST
