@@ -128,7 +128,8 @@ bool init()
 
     esp_lcd_panel_dev_config_t panel_cfg = {};
     panel_cfg.reset_gpio_num = -1;          // RST da tela esta no EN do ESP32
-    panel_cfg.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+    // BGR: no teste de 09/11 o ciano do texto saiu amarelo-esverdeado (R e B trocados), entao o painel usa BGR
+    panel_cfg.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
     panel_cfg.bits_per_pixel = 16;
     panel_cfg.vendor_config = &vendor;
 

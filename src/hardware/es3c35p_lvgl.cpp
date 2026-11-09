@@ -3,6 +3,8 @@
 #if defined(ARDUINO_ARCH_ESP32)
 
 #include <lvgl.h>
+#include "esp_cache.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "hardware/es3c35p_display.h"
 
@@ -12,43 +14,40 @@ static const char * TAG = "es3c35p-hud";
 #define HUD_H       320
 #define PANEL_W     320     // painel nativo: retrato
 #define PANEL_H     480
-#define BUF_LINHAS  25      // linhas por flush: 480 * 25 * 2 = 24 KB em RAM interna (DMA)
 
-static lv_color_t s_buf[HUD_W * BUF_LINHAS];
-static uint16_t   s_girado[HUD_W * BUF_LINHAS];     // area girada e com byte trocado, pronta para o SPI
+// Quadros na PSRAM (8 MB). A tela e enviada inteira de uma vez, como no teste de bancada
+// (que funcionou com faixas de largura total). O LVGL redesenha a tela inteira a cada quadro.
+static lv_color_t * s_lvgl = NULL;      // 480x320, o que o LVGL desenha
+static uint16_t   * s_nativo = NULL;    // 320x480, girado e com byte trocado, o que vai para o SPI
 static lv_disp_draw_buf_t s_draw;
 static lv_disp_drv_t      s_disp;
 static lv_indev_drv_t     s_indev;
 
-// Roda quando o SPI termina o envio: libera o LVGL para a proxima area
-static void flushPronto(void * ctx)
+// Roda quando o SPI termina o envio: libera o LVGL para o proximo quadro
+static void quadroPronto(void * ctx)
 {
     lv_disp_flush_ready((lv_disp_drv_t *)ctx);
 }
 
-// Area logica (lx, ly) -> nativa (x = 319 - ly, y = lx). Com i = coluna nativa e j = linha nativa:
-// lx = x1 + j, ly = y2 - i. Ver tests/rot_test.py.
+// Logico (lx, ly) -> nativo (x = 319 - ly, y = lx). Conferido em tests/rot_test.py.
 static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
 {
-    const int lw = a->x2 - a->x1 + 1;
-    const int lh = a->y2 - a->y1 + 1;
-    const int nx1 = (PANEL_W - 1) - a->y2;
-    const int nx2 = (PANEL_W - 1) - a->y1;
-    const int ny1 = a->x1;
-    const int ny2 = a->x2;
-    const int nw = nx2 - nx1 + 1;       // == lh
-    const int nh = ny2 - ny1 + 1;       // == lw
+    (void)a; (void)cor;                 // full_refresh: a area e a tela inteira, o buffer e s_lvgl
+    const uint16_t * origem = (const uint16_t *)s_lvgl;
 
-    const uint16_t * origem = (const uint16_t *)cor;
-    for (int j = 0; j < nh; j++) {
-        for (int i = 0; i < nw; i++) {
-            uint16_t c = origem[(lh - 1 - i) * lw + j];
-            s_girado[j * nw + i] = (uint16_t)((c >> 8) | (c << 8));   // painel quer o byte alto primeiro
+    for (int ly = 0; ly < HUD_H; ly++) {
+        for (int lx = 0; lx < HUD_W; lx++) {
+            uint16_t c = origem[ly * HUD_W + lx];
+            int x = (PANEL_W - 1) - ly;
+            int y = lx;
+            s_nativo[y * PANEL_W + x] = (uint16_t)((c >> 8) | (c << 8));   // painel quer o byte alto primeiro
         }
     }
-    if (!es3c35p_display::drawRect(nx1, ny1, nx2 + 1, ny2 + 1, s_girado, flushPronto, drv)) {
-        ESP_LOGE(TAG, "envio da area falhou");
-        lv_disp_flush_ready(drv);     // nao trava o LVGL
+    esp_cache_msync(s_nativo, PANEL_W * PANEL_H * sizeof(uint16_t), ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+
+    if (!es3c35p_display::drawRect(0, 0, PANEL_W, PANEL_H, s_nativo, quadroPronto, drv)) {
+        ESP_LOGE(TAG, "envio do quadro falhou");
+        lv_disp_flush_ready(drv);       // nao trava o LVGL
     }
 }
 
@@ -66,14 +65,24 @@ void es3c35p_lvgl_init()
         return;
     }
 
+    s_lvgl = (lv_color_t *)heap_caps_aligned_alloc(64, HUD_W * HUD_H * sizeof(lv_color_t),
+                                                   MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    s_nativo = (uint16_t *)heap_caps_aligned_alloc(64, PANEL_W * PANEL_H * sizeof(uint16_t),
+                                                   MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_lvgl || !s_nativo) {
+        ESP_LOGE(TAG, "sem PSRAM para os quadros: HUD desligada");
+        return;
+    }
+
     lv_init();
-    lv_disp_draw_buf_init(&s_draw, s_buf, NULL, HUD_W * BUF_LINHAS);
+    lv_disp_draw_buf_init(&s_draw, s_lvgl, NULL, HUD_W * HUD_H);
 
     lv_disp_drv_init(&s_disp);
     s_disp.hor_res = HUD_W;
     s_disp.ver_res = HUD_H;
     s_disp.flush_cb = flush;
     s_disp.draw_buf = &s_draw;
+    s_disp.full_refresh = 1;
     lv_disp_drv_register(&s_disp);
 
     lv_indev_drv_init(&s_indev);
@@ -81,7 +90,7 @@ void es3c35p_lvgl_init()
     s_indev.read_cb = toqueLer;
     lv_indev_drv_register(&s_indev);
 
-    ESP_LOGI(TAG, "LVGL ligado: %dx%d (girado no envio)", HUD_W, HUD_H);
+    ESP_LOGI(TAG, "LVGL ligado: %dx%d, quadro inteiro na PSRAM", HUD_W, HUD_H);
 }
 
 #endif  // ARDUINO_ARCH_ESP32
