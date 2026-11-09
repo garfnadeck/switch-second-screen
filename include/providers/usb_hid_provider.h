@@ -7,7 +7,11 @@
 
 #ifdef ARDUINO
     #include <Arduino.h>
-    #include <Adafruit_TinyUSB.h>
+    #if defined(ARDUINO_ARCH_RP2040)
+        #include <Adafruit_TinyUSB.h>
+    #else
+        #include "usb_tinyusb_shim.h"   // ESP32-S3: USB HID ainda nao portado (F3)
+    #endif
 #endif
 
 enum SwitchButton : uint16_t {
