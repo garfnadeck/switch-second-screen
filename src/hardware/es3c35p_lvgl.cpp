@@ -28,6 +28,12 @@ static lv_disp_drv_t      s_disp;
 static lv_indev_drv_t     s_indev;
 static SemaphoreHandle_t  s_sem = NULL;   // sinaliza o fim de cada faixa enviada pelo SPI
 
+// Diagnostico do toque na propria tela (o serial desta placa nao mostra os logs).
+// Rotulo fixo no canto inferior esquerdo, sobre a HUD.
+static lv_obj_t * s_dbg = NULL;
+static bool       s_estavaPressionado = false;
+static bool       s_touchOk = false;
+
 // Roda quando o SPI termina uma faixa (contexto de interrupcao): so sinaliza
 static void bandaPronta(void * ctx)
 {
@@ -82,8 +88,12 @@ static void toqueLer(lv_indev_drv_t * drv, lv_indev_data_t * data)
         data->point.x = lx;
         data->point.y = ly;
         data->state = LV_INDEV_STATE_PR;
+        if (s_dbg) lv_label_set_text_fmt(s_dbg, "toque %d,%d (bruto %u,%u)", lx, ly, tx, ty);
+        s_estavaPressionado = true;
     } else {
         data->state = LV_INDEV_STATE_REL;
+        if (s_dbg && s_estavaPressionado) lv_label_set_text(s_dbg, "solto");
+        s_estavaPressionado = false;
     }
 }
 
@@ -109,7 +119,8 @@ void es3c35p_lvgl_init()
         return;
     }
 
-    if (!es3c35p_touch::init()) {
+    s_touchOk = es3c35p_touch::init();
+    if (!s_touchOk) {
         ESP_LOGW(TAG, "touch nao iniciado: HUD sem toque");
     }
 
@@ -128,6 +139,12 @@ void es3c35p_lvgl_init()
     s_indev.type = LV_INDEV_TYPE_POINTER;
     s_indev.read_cb = toqueLer;
     lv_indev_drv_register(&s_indev);
+
+    // Rotulo de diagnostico do toque (fica na camada de cima, sobre a HUD)
+    s_dbg = lv_label_create(lv_layer_top());
+    lv_obj_set_style_text_color(s_dbg, lv_color_hex(0xFFFF00), 0);
+    lv_obj_align(s_dbg, LV_ALIGN_BOTTOM_LEFT, 4, -4);
+    lv_label_set_text(s_dbg, s_touchOk ? "touch: pronto, aguardando toque" : "touch: NAO iniciou");
 
     ESP_LOGI(TAG, "LVGL ligado: %dx%d, quadro inteiro na PSRAM", HUD_W, HUD_H);
 }
