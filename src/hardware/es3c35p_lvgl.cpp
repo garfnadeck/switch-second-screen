@@ -6,6 +6,8 @@
 #include "esp_cache.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "hardware/es3c35p_display.h"
 
 static const char * TAG = "es3c35p-hud";
@@ -14,6 +16,7 @@ static const char * TAG = "es3c35p-hud";
 #define HUD_H       320
 #define PANEL_W     320     // painel nativo: retrato
 #define PANEL_H     480
+#define BANDA       40      // linhas por envio: 320 * 40 * 2 = 25600 bytes = max_transfer_sz do barramento
 
 // Quadros na PSRAM (8 MB). A tela e enviada inteira de uma vez, como no teste de bancada
 // (que funcionou com faixas de largura total). O LVGL redesenha a tela inteira a cada quadro.
@@ -22,11 +25,15 @@ static uint16_t   * s_nativo = NULL;    // 320x480, girado e com byte trocado, o
 static lv_disp_draw_buf_t s_draw;
 static lv_disp_drv_t      s_disp;
 static lv_indev_drv_t     s_indev;
+static SemaphoreHandle_t  s_sem = NULL;   // sinaliza o fim de cada faixa enviada pelo SPI
 
-// Roda quando o SPI termina o envio: libera o LVGL para o proximo quadro
-static void quadroPronto(void * ctx)
+// Roda quando o SPI termina uma faixa (contexto de interrupcao): so sinaliza
+static void bandaPronta(void * ctx)
 {
-    lv_disp_flush_ready((lv_disp_drv_t *)ctx);
+    (void)ctx;
+    BaseType_t acordar = pdFALSE;
+    xSemaphoreGiveFromISR(s_sem, &acordar);
+    if (acordar == pdTRUE) portYIELD_FROM_ISR();
 }
 
 // Logico (lx, ly) -> nativo (x = 319 - ly, y = lx). Conferido em tests/rot_test.py.
@@ -45,10 +52,18 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     }
     esp_cache_msync(s_nativo, PANEL_W * PANEL_H * sizeof(uint16_t), ESP_CACHE_MSYNC_FLAG_DIR_C2M);
 
-    if (!es3c35p_display::drawRect(0, 0, PANEL_W, PANEL_H, s_nativo, quadroPronto, drv)) {
-        ESP_LOGE(TAG, "envio do quadro falhou");
-        lv_disp_flush_ready(drv);       // nao trava o LVGL
+    // Faixas de 40 linhas, uma de cada vez: espera o SPI terminar cada uma
+    for (int y = 0; y < PANEL_H; y += BANDA) {
+        if (!es3c35p_display::drawRect(0, y, PANEL_W, y + BANDA, s_nativo + y * PANEL_W, bandaPronta, NULL)) {
+            ESP_LOGE(TAG, "envio da faixa %d falhou", y);
+            break;
+        }
+        if (xSemaphoreTake(s_sem, pdMS_TO_TICKS(200)) != pdTRUE) {
+            ESP_LOGE(TAG, "faixa %d nao terminou a tempo", y);
+            break;
+        }
     }
+    lv_disp_flush_ready(drv);           // libera o LVGL mesmo se algo falhou (nao trava)
 }
 
 // Toque ainda nao ligado: sempre "solto"
@@ -71,6 +86,12 @@ void es3c35p_lvgl_init()
                                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!s_lvgl || !s_nativo) {
         ESP_LOGE(TAG, "sem PSRAM para os quadros: HUD desligada");
+        return;
+    }
+
+    s_sem = xSemaphoreCreateBinary();
+    if (!s_sem) {
+        ESP_LOGE(TAG, "sem memoria para o semaforo: HUD desligada");
         return;
     }
 
