@@ -10,6 +10,7 @@
 #include "core/asset_manager.h"
 #include "providers/provider_router.h"
 #include "../include/core/user_macros.h"
+#include "net/wifi_scanner.h"
 
 // Tela fisica (LVGL) so existe na placa ESP32-S3 3.5" -> build com -DHAS_DISPLAY.
 // No Pico W de teste (sem tela) o MVP roda so com USB HID + pagina web.
@@ -55,6 +56,7 @@ static String statusJson(bool withOk) {
 // Mantem USB (timing das macros) e, se houver tela, o LVGL rodando
 static void pump() {
     router.update(state);
+    wifiScanner.poll();
 #ifdef HAS_DISPLAY
     #if !LV_TICK_CUSTOM
     static uint32_t last_tick = millis();
@@ -430,6 +432,16 @@ void setup() {
         bool ok = saveSettings();
         server.send(200, "application/json", String("{\"ok\":") + (ok ? "true" : "false") + ",\"reboot\":" + (reboot ? "true" : "false") + "}");
         if (reboot) rebootBoard();
+    });
+
+    // ---- Busca de redes Wi-Fi ao redor (a pagina escolhe a rede e grava a senha em /api/config) ----
+    server.on("/api/wifi/scan", HTTP_POST, []() {
+        bool started = wifiScanner.begin();
+        server.send(200, "application/json", String("{\"ok\":") + (started ? "true" : "false") + "}");
+    });
+
+    server.on("/api/wifi/results", HTTP_GET, []() {
+        server.send(200, "application/json", wifiScanner.toJson());
     });
 
     // Procura o Switch (porta do sys-botbase aberta) na propria sub-rede da placa

@@ -699,13 +699,22 @@
             <summary><span>📅 2026</span><span class="chev"></span></summary>
 
             <details class="month" open>
+                <summary><span>Novembro</span><span class="count">1</span></summary>
+                <div class="date-list">
+                    <button class="date-btn" data-date="2026-11-09" onclick="selectDate('2026-11-09', this)">
+                        <span>09/11/2026</span><span class="tag-version new">Atual</span>
+                    </button>
+                </div>
+            </details>
+
+            <details class="month" open>
                 <summary><span>Outubro</span><span class="count">2</span></summary>
                 <div class="date-list">
                     <button class="date-btn" data-date="2026-10-23" onclick="selectDate('2026-10-23', this)">
-                        <span>23/10/2026</span><span class="tag-version new">Atual</span>
+                        <span>23/10/2026</span><span class="tag-version">Anterior</span>
                     </button>
                     <button class="date-btn" data-date="2026-10-22" onclick="selectDate('2026-10-22', this)">
-                        <span>22/10/2026</span><span class="tag-version">Anterior</span>
+                        <span>22/10/2026</span><span class="tag-version">Histórico</span>
                     </button>
                 </div>
             </details>
@@ -726,11 +735,69 @@
 
     <main class="content-area">
         <select id="mobile-date" class="sidebar-mobile" aria-label="Data" onchange="selectDate(this.value)" style="margin-bottom:14px;">
-            <option value="2026-10-23">23/10/2026 · Atual</option>
+            <option value="2026-11-09">09/11/2026 · Atual</option>
+            <option value="2026-10-23">23/10/2026 · Anterior</option>
             <option value="2026-10-22">22/10/2026 · Anterior</option>
             <option value="2026-04-15">15/04/2026 · Atualizado</option>
             <option value="2026-04-14">14/04/2026 · Base</option>
         </select>
+
+        <!-- CONTEÚDO: 09/11/2026 -->
+        <div id="content-2026-11-09" class="date-content-view">
+            <div class="hero">
+                <div class="eyebrow">REGISTRO DE 09/11/2026 // VERSÃO ATUAL (branch feature/busca-wifi)</div>
+                <h2>Busca de redes Wi-Fi na própria placa</h2>
+                <p>Antes, para trocar de rede era preciso digitar o nome exato do Wi-Fi. Agora a placa lista as redes ao redor, ordenadas pelo sinal. Basta tocar numa delas e digitar a senha.</p>
+            </div>
+
+            <h2>🧭 Decisões de hoje</h2>
+            <div class="grid-2">
+                <div class="card"><h2>📡 Switch fala com a placa</h2><p>O Switch conversa com a placa dentro da rede dela (<code>SwitchHUD</code>), e não com o roteador. Escolhido pelo dono do projeto.</p></div>
+                <div class="card"><h2>🔎 Busca assíncrona</h2><p>A varredura roda em segundo plano (<code>WiFi.scanNetworks(true)</code>) e a página consulta o resultado a cada segundo. Tempo máximo de 15 s.</p></div>
+            </div>
+
+            <h2>📁 Arquivos alterados</h2>
+            <div class="tbl-wrap"><table>
+                <thead><tr><th>Arquivo</th><th>O que mudou</th><th>Gravar com</th></tr></thead>
+                <tbody>
+                    <tr><td><code>src/net/wifi_scanner.cpp</code></td><td>Novo. Varredura assíncrona, remove SSID vazio e repetido, ordena pelo sinal e escapa o JSON.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>include/net/wifi_scanner.h</code></td><td>Novo. Classe <code>WifiScanner</code> com estados idle, running, done e failed.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>src/main.cpp</code></td><td>Inclui o módulo, chama <code>poll()</code> dentro do <code>pump()</code> e registra as duas rotas.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>data/index.html</code></td><td>Botão <em>Buscar redes</em>, lista de redes na aba Rede e estilos da lista.</td><td>Página (uploadfs)</td></tr>
+                </tbody>
+            </table></div>
+
+            <h2>🔌 Endpoints novos</h2>
+            <div class="tbl-wrap"><table>
+                <thead><tr><th>Rota</th><th>Método</th><th>Função</th></tr></thead>
+                <tbody>
+                    <tr><td><code>/api/wifi/scan</code></td><td>POST</td><td>Inicia a busca. Responde <code>{"ok":true}</code>, ou <code>false</code> se já estiver rodando.</td></tr>
+                    <tr><td><code>/api/wifi/results</code></td><td>GET</td><td>Estado (<code>idle</code>, <code>running</code>, <code>done</code>, <code>failed</code>) e lista de redes com SSID, sinal em dBm e se tem senha.</td></tr>
+                </tbody>
+            </table></div>
+            <p>Para salvar a rede escolhida continua valendo <code>/api/config</code> (campos <code>ssid</code> e <code>pass</code>), que reinicia a placa.</p>
+
+            <h2>🧪 O que foi testado (e o que não foi)</h2>
+            <div class="tbl-wrap"><table>
+                <thead><tr><th>Item</th><th>Como</th><th>Resultado</th></tr></thead>
+                <tbody>
+                    <tr><td>Sintaxe do JavaScript da página</td><td><code>node --check</code> no script extraído</td><td>OK</td></tr>
+                    <tr><td>Sintaxe do módulo C++</td><td><code>g++ -fsyntax-only</code> com cabeçalhos de simulação do Arduino e do WiFi</td><td>OK (sem o core real)</td></tr>
+                    <tr><td>Compilação com o core do Pico W</td><td><code>pio run -e pico_w</code></td><td>Não testado</td></tr>
+                    <tr><td>Busca com a placa conectada ao Wi-Fi</td><td>Pagina em <code>http://IP-da-placa/</code>, aba Rede, Buscar redes</td><td>Não testado</td></tr>
+                    <tr><td>Busca no modo SwitchHUD (AP)</td><td>Celular na rede <code>SwitchHUD</code>, mesma busca</td><td>Não testado (ponto de risco)</td></tr>
+                </tbody>
+            </table></div>
+            <div class="callout"><strong>Ponto de risco:</strong> em modo AP o rádio do Pico W pode não aceitar varredura. Se isso acontecer, a busca precisa de um ajuste (derrubar o AP por alguns segundos, varrer e subir o AP de novo). Só o teste na placa confirma.</div>
+
+            <h2>✅ Próximos passos</h2>
+            <ul class="todo-list">
+                <li><input type="checkbox" disabled><label>Compilar com <code>pio run -e pico_w</code><small>corrigir o que o compilador apontar</small></label></li>
+                <li><input type="checkbox" disabled><label>Testar a busca com a placa no Wi-Fi e no modo SwitchHUD<small>é aqui que aparece o ponto de risco</small></label></li>
+                <li><input type="checkbox" disabled><label>Tornar a senha do SwitchHUD configurável<small>hoje está fixa em <code>main.cpp</code></small></label></li>
+                <li><input type="checkbox" disabled><label>Definir se o Switch precisa de internet pela placa<small>exige NAT ou ponte; fica para depois da busca</small></label></li>
+            </ul>
+        </div>
 
         <!-- CONTEÚDO: 23/10/2026 -->
         <div id="content-2026-10-23" class="date-content-view">

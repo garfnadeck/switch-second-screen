@@ -83,6 +83,12 @@
     #net button { height: 28px; background: #0F3460; color: #fff; border: 1px solid #1F4E8C; border-radius: 6px;
       padding: 0 10px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
     #net .hint { margin-top: 8px; color: #8888AA; font-size: 11px; }
+    #net .netlist { margin-top: 6px; max-height: 74px; overflow-y: auto; display: none; }
+    #net .netlist.on { display: block; }
+    #net .netlist button { display: flex; width: 100%; justify-content: space-between; margin-top: 3px;
+                           background: #1E1E36; border-color: #2D3E66; }
+    #net .netlist button.sel { border-color: #00F5D4; color: #00F5D4; }
+    #net .netlist .sig { color: #8888AA; }
 
     /* Config */
     #cfg { position: absolute; left: 14px; top: 8px; right: 14px; font-size: 12px; line-height: 1.5; }
@@ -205,7 +211,9 @@
         <div class='row'><label>IP do Switch</label><input id='swip' inputmode='decimal' placeholder='192.168.x.x'>
           <button onclick='saveSwitch()'>Salvar</button><button onclick='scan()'>Detectar</button></div>
         <div id='swmsg' class='hint'>&nbsp;</div>
-        <div class='row'><label>Wi-Fi</label><input id='ssid' placeholder='nome da rede (vazio = rede da placa)' autocapitalize='off'></div>
+        <div class='row'><label>Wi-Fi</label><input id='ssid' placeholder='nome da rede (vazio = rede da placa)' autocapitalize='off'>
+          <button onclick='wifiScan()'>Buscar redes</button></div>
+        <div id='wifilist' class='netlist'></div>
         <div class='row'><label>Senha</label><input id='pass' type='password' placeholder='(manter a atual)'>
           <button onclick='saveWifi()'>Salvar e reiniciar</button></div>
         <div class='hint'>Sem Wi-Fi? Ligue o Switch e o celular na rede <b>SwitchHUD</b> (senha switchhud1) e toque em Detectar.</div>
@@ -756,6 +764,49 @@
         }
       } catch (e) { /* a placa fica ocupada durante a varredura: tenta de novo */ }
     }, 1200);
+  }
+
+  // ---------------- Busca de redes Wi-Fi ao redor ----------------
+  // Toque numa rede: o nome vai para o campo Wi-Fi e o cursor para a senha.
+  function sinal(rssi) { return rssi >= -60 ? 'forte' : rssi >= -75 ? 'medio' : 'fraco'; }
+  function drawNets(d) {
+    const box = $('wifilist');
+    box.textContent = '';
+    d.nets.forEach((n) => {
+      const b = document.createElement('button');
+      const nome = document.createElement('span');
+      nome.textContent = (n.secure ? '🔒 ' : '') + n.ssid;
+      const sig = document.createElement('span');
+      sig.className = 'sig';
+      sig.textContent = `${n.rssi} dBm · ${sinal(n.rssi)}`;
+      b.append(nome, sig);
+      if ($('ssid').value === n.ssid) b.classList.add('sel');
+      b.onclick = () => {
+        $('ssid').value = n.ssid;
+        box.querySelectorAll('button').forEach((x) => x.classList.remove('sel'));
+        b.classList.add('sel');
+        $('pass').focus();
+      };
+      box.appendChild(b);
+    });
+    box.classList.add('on');
+  }
+  let wifiTimer = null;
+  async function wifiScan() {
+    try { await post('/api/wifi/scan', {}); } catch (e) { msg('Erro: placa nao respondeu'); return; }
+    msg('Procurando redes Wi-Fi...');
+    clearInterval(wifiTimer);
+    wifiTimer = setInterval(async () => {
+      try {
+        const d = await (await fetch('/api/wifi/results', { cache: 'no-store' })).json();
+        if (d.state === 'running') return;
+        clearInterval(wifiTimer);
+        if (d.state === 'done') {
+          drawNets(d);
+          msg(d.count ? `${d.count} rede(s) encontrada(s). Escolha uma e digite a senha.` : 'Nenhuma rede encontrada. Tente de novo.');
+        } else msg('A busca de redes falhou. Tente de novo.');
+      } catch (e) { /* o radio pode estar ocupado: tenta de novo no proximo ciclo */ }
+    }, 1000);
   }
 
   // ---------------- Mapa (Lumiose) ----------------
