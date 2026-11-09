@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pinagem ES3C35P</title>
+<style>
+:root {
+  --bg: #f6f5f1; --fg: #1d1f1c; --muted: #5d6258; --card: #ffffff; --line: #d9dcd2;
+  --ok: #2f7d4a; --ok-bg: #e4f2e8; --warn: #9a6a00; --warn-bg: #fbf1d6; --accent: #2f5fa8;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171a; --fg: #eceee9; --muted: #a2a89b; --card: #1d2024; --line: #33383f;
+    --ok: #7fd197; --ok-bg: #173123; --warn: #e8c46a; --warn-bg: #33290f; --accent: #8db4f0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171a; --fg: #eceee9; --muted: #a2a89b; --card: #1d2024; --line: #33383f;
+  --ok: #7fd197; --ok-bg: #173123; --warn: #e8c46a; --warn-bg: #33290f; --accent: #8db4f0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.55 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 880px; margin: 0 auto; padding-block: 32px 56px; }
+h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; text-wrap: balance; }
+h2 { font-size: 18px; margin: 32px 0 12px; }
+p { margin: 0 0 12px; max-width: 65ch; }
+.sub { color: var(--muted); margin-bottom: 20px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.toolbar input { flex: 1 1 220px; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); font: inherit; }
+.toolbar button { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--fg); font: inherit; cursor: pointer; }
+.toolbar button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 13px; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; }
+.ok { color: var(--ok); background: var(--ok-bg); }
+.warn { color: var(--warn); background: var(--warn-bg); }
+code { font: 13px/1.4 ui-monospace, "SF Mono", Menlo, monospace; background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+.note { border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; color: var(--muted); margin: 14px 0; max-width: 65ch; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>Pinagem da placa ES3C35P</h1>
+  <p class="sub">ESP32-S3 N16R8, tela 3.5" 320x480. Validada na bancada em 9 de novembro de 2026. Header: <code>include/hardware/es3c35p_pins.h</code>.</p>
+
+  <div class="toolbar" role="search">
+    <input id="busca" type="search" placeholder="Filtrar por função ou GPIO (ex.: touch, IO41)" aria-label="Filtrar pinagem">
+    <button id="so-validados" type="button" aria-pressed="false">Só validados</button>
+  </div>
+
+  <h2>Tela ST77922 (QSPI)</h2>
+  <div class="table-wrap">
+    <table data-grupo>
+      <thead><tr><th>Função</th><th class="num">GPIO</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr data-ok="1"><td>CS</td><td class="num">IO10</td><td><span class="pill ok">Validado</span></td></tr>
+        <tr data-ok="1"><td>CLK</td><td class="num">IO12</td><td><span class="pill ok">Validado</span></td></tr>
+        <tr data-ok="1"><td>D0 / D1 / D2 / D3</td><td class="num">IO11 / IO13 / IO14 / IO9</td><td><span class="pill ok">Validado</span></td></tr>
+        <tr data-ok="1"><td>RST</td><td class="num">EN</td><td><span class="pill ok">Validado</span> reset por software</td></tr>
+        <tr data-ok="1"><td>Backlight</td><td class="num">IO41</td><td><span class="pill ok">Validado</span> alto liga</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Módulo HMX035CTFT-001: IM2 = GND, IM1 = 3,3 V, IM0 sem ligação. Modo QSPI = <code>0 1 1</code>. Funciona sem jumper com a sequência de init do fabricante (79 comandos, clock 80 MHz). Formato RGB565 com byte alto primeiro (o ESP32 é little-endian, então os bytes são trocados antes do envio).</p>
+
+  <h2>Touch capacitivo (I2C0)</h2>
+  <div class="table-wrap">
+    <table data-grupo>
+      <thead><tr><th>Função</th><th class="num">GPIO</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr data-ok="1"><td>SDA / SCL</td><td class="num">IO38 / IO39</td><td><span class="pill ok">Validado</span></td></tr>
+        <tr data-ok="1"><td>RST</td><td class="num">IO48</td><td><span class="pill ok">Validado</span> nível baixo</td></tr>
+        <tr><td>INT</td><td class="num">IO47</td><td><span class="pill warn">Não usado</span> não confiável</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Endereço do chip: <strong>0x55</strong>, registradores de 16 bits (não é o FT6336G 0x38 citado em documentos antigos). Outros endereços no barramento: 0x18 (codec ES8311) e 0x28 (não identificado).</p>
+  <p class="note"><strong>Comportamento:</strong> o primeiro toque é reportado; depois o chip para e o INT fica em 0. <strong>Workaround validado:</strong> se o INT ficar baixo por mais de 30 ms sem novos dados, pulso de RST (10 ms baixo, 100 ms alto). Cada reset leva ~110 ms. Causa raiz não identificada.</p>
+
+  <h2>Cartão microSD (SDIO 4 bits)</h2>
+  <div class="table-wrap">
+    <table data-grupo>
+      <thead><tr><th>Função</th><th class="num">GPIO</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr data-ok="1"><td>CLK / CMD</td><td class="num">IO5 / IO4</td><td><span class="pill ok">Validado</span></td></tr>
+        <tr data-ok="1"><td>D0 / D1 / D2 / D3</td><td class="num">IO6 / IO7 / IO2 / IO3</td><td><span class="pill ok">Validado</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Cartão de 14,8 GB testado a 20 MHz. Sem pino de detecção (CD/DAT3 é o DATA3).</p>
+
+  <h2>Áudio I2S</h2>
+  <div class="table-wrap">
+    <table data-grupo>
+      <thead><tr><th>Função</th><th class="num">GPIO</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Habilita amplificador (ativo baixo)</td><td class="num">IO1</td><td><span class="pill warn">Não testado</span></td></tr>
+        <tr><td>MCLK / BCLK / LRCK</td><td class="num">IO17 / IO18 / IO21</td><td><span class="pill warn">Não testado</span></td></tr>
+        <tr><td>DOUT / DIN</td><td class="num">IO15 / IO16</td><td><span class="pill warn">Não testado</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Outros</h2>
+  <div class="table-wrap">
+    <table data-grupo>
+      <thead><tr><th>Função</th><th class="num">GPIO</th><th>Observação</th></tr></thead>
+      <tbody>
+        <tr><td>LED RGB</td><td class="num">IO40</td><td>controle por IC interno</td></tr>
+        <tr><td>BOOT</td><td class="num">IO0</td><td>segurar ao ligar para gravar</td></tr>
+        <tr><td>Bateria (ADC)</td><td class="num">IO8</td><td>divisor 100k/100k</td></tr>
+        <tr><td>UART0 RX / TX</td><td class="num">IO43 / IO44</td><td>serial de depuração</td></tr>
+        <tr><td>Extensão livre</td><td class="num">IO45, IO46</td><td>livres</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Pinos a evitar</h2>
+  <p>IO26 a IO32: flash interna. IO33 a IO37: PSRAM octal. IO19 e IO20: USB nativo, conflita com a porta usada para gravar.</p>
+</main>
+<script>
+(function () {
+  const busca = document.getElementById('busca');
+  const soValidados = document.getElementById('so-validados');
+  const linhas = () => Array.from(document.querySelectorAll('tbody tr'));
+
+  function aplicar() {
+    const termo = busca.value.trim().toLowerCase();
+    const filtrarOk = soValidados.getAttribute('aria-pressed') === 'true';
+    linhas().forEach(function (tr) {
+      const texto = tr.textContent.toLowerCase();
+      const casaTermo = termo === '' || texto.indexOf(termo) !== -1;
+      const casaOk = !filtrarOk || tr.dataset.ok === '1';
+      tr.classList.toggle('hidden', !(casaTermo && casaOk));
+    });
+  }
+
+  busca.addEventListener('input', aplicar);
+  soValidados.addEventListener('click', function () {
+    const ativo = soValidados.getAttribute('aria-pressed') === 'true';
+    soValidados.setAttribute('aria-pressed', ativo ? 'false' : 'true');
+    aplicar();
+  });
+})();
+</script>
+</body>
+</html>
