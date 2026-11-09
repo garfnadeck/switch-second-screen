@@ -17,6 +17,8 @@
 #include "hardware/es3c35p_pins.h"
 #include "hardware/st77922_init_table.h"
 
+using es3c35p_display::DrawDoneFn;
+
 static const char * TAG = "es3c35p-lcd";
 
 #define LCD_HOST        SPI2_HOST
@@ -31,6 +33,20 @@ static const char * TAG = "es3c35p-lcd";
 
 static esp_lcd_panel_handle_t s_panel = NULL;
 static uint16_t * s_quadro = NULL;          // quadro inteiro na PSRAM, nunca liberado (DMA assincrono)
+static DrawDoneFn s_done = NULL;            // quem espera o fim do envio (ex.: flush do LVGL)
+static void * s_done_ctx = NULL;
+
+// Roda quando um envio de cor termina no SPI (contexto de interrupcao)
+static bool onColorTransDone(esp_lcd_panel_io_handle_t io, esp_lcd_panel_io_event_data_t * edata, void * user_ctx)
+{
+    (void)io; (void)edata; (void)user_ctx;
+    if (s_done) {
+        DrawDoneFn f = s_done;
+        s_done = NULL;
+        f(s_done_ctx);
+    }
+    return false;
+}
 
 // Glifo 5x7: uma linha por byte, bit 4 = pixel da esquerda.
 static uint8_t glifoLinha(char c, int linha)
@@ -102,6 +118,7 @@ bool init()
     io_cfg.lcd_cmd_bits = 32;
     io_cfg.lcd_param_bits = 8;
     io_cfg.flags.quad_mode = 1;
+    io_cfg.on_color_trans_done = onColorTransDone;
     if (esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_HOST, &io_cfg, &io) != ESP_OK) return false;
 
     st77922_vendor_config_t vendor = {};
@@ -111,7 +128,8 @@ bool init()
 
     esp_lcd_panel_dev_config_t panel_cfg = {};
     panel_cfg.reset_gpio_num = -1;          // RST da tela esta no EN do ESP32
-    panel_cfg.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+    // BGR: no teste de 09/11 o ciano do texto saiu amarelo-esverdeado (R e B trocados), entao o painel usa BGR
+    panel_cfg.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
     panel_cfg.bits_per_pixel = 16;
     panel_cfg.vendor_config = &vendor;
 
@@ -126,6 +144,20 @@ bool init()
     esp_err_t err = esp_lcd_panel_io_rx_param(io, 0x04, rddid, sizeof(rddid));
     ESP_LOGI(TAG, "RDDID: err=%s  %02X %02X %02X", esp_err_to_name(err), rddid[0], rddid[1], rddid[2]);
     ESP_LOGI(TAG, "Tela inicializada (%dx%d)", LCD_H_RES, LCD_V_RES);
+    return true;
+}
+
+bool drawRect(int x1, int y1, int x2, int y2, const void * pixels, DrawDoneFn done, void * ctx)
+{
+    if (!s_panel) return false;
+    s_done = done;
+    s_done_ctx = ctx;
+    esp_err_t err = esp_lcd_panel_draw_bitmap(s_panel, x1, y1, x2, y2, pixels);
+    if (err != ESP_OK) {
+        s_done = NULL;
+        ESP_LOGE(TAG, "draw_bitmap falhou: %s", esp_err_to_name(err));
+        return false;
+    }
     return true;
 }
 
@@ -164,6 +196,7 @@ bool drawTestText(const char * texto)
 namespace es3c35p_display {
 bool init() { return false; }
 bool drawTestText(const char *) { return false; }
+bool drawRect(int, int, int, int, const void *, DrawDoneFn, void *) { return false; }
 }  // namespace es3c35p_display
 
 #endif
