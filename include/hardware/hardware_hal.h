@@ -5,81 +5,20 @@
 
 #ifdef ARDUINO
     #include <Arduino.h>
-    #define LGFX_USE_V1
-    #include <LovyanGFX.hpp>
 
     // =========================================================================
-    // PERFIL 1: ESP32-S3 (Com PSRAM / SPI2_HOST)
+    // ESP32-S3 (ES3C35P): tela ST77922 via esp_lcd, ver hardware/es3c35p_lvgl.h
     // =========================================================================
     #if defined(ARDUINO_ARCH_ESP32)
-    class LGFX_Display : public lgfx::LGFX_Device {
-        lgfx::Panel_ST7796  _panel_instance;
-        lgfx::Bus_SPI       _bus_instance;
-        lgfx::Light_PWM     _light_instance;
-        lgfx::Touch_FT5x06  _touch_instance;
-
-    public:
-        LGFX_Display(void) {
-            auto cfg_bus = _bus_instance.config();
-            cfg_bus.spi_host = SPI2_HOST;
-            cfg_bus.spi_mode = 0;
-            cfg_bus.freq_write = 40000000;
-            cfg_bus.freq_read  = 16000000;
-            cfg_bus.spi_3wire  = false;
-            cfg_bus.use_lock   = true;
-            cfg_bus.dma_channel = SPI_DMA_CH_AUTO;
-            cfg_bus.pin_sclk = 48;
-            cfg_bus.pin_mosi = 1;
-            cfg_bus.pin_miso = 2;
-            cfg_bus.pin_dc   = 40;
-            _bus_instance.config(cfg_bus);
-            _panel_instance.setBus(&_bus_instance);
-
-            auto cfg_panel = _panel_instance.config();
-            cfg_panel.pin_cs   = 5;
-            cfg_panel.pin_rst  = 41;
-            cfg_panel.pin_busy = -1;
-            cfg_panel.memory_width  = 320;
-            cfg_panel.memory_height = 480;
-            cfg_panel.panel_width   = 320;
-            cfg_panel.panel_height  = 480;
-            cfg_panel.offset_x      = 0;
-            cfg_panel.offset_y      = 0;
-            cfg_panel.readable      = true;
-            cfg_panel.invert        = false;
-            cfg_panel.rgb_order     = false;
-            _panel_instance.config(cfg_panel);
-
-            auto cfg_light = _light_instance.config();
-            cfg_light.pin_bl = 38;
-            cfg_light.invert = false;
-            cfg_light.freq   = 44100;
-            cfg_light.pwm_channel = 7;
-            _light_instance.config(cfg_light);
-            _panel_instance.setLight(&_light_instance);
-
-            auto cfg_touch = _touch_instance.config();
-            cfg_touch.x_min      = 0;
-            cfg_touch.x_max      = 480;
-            cfg_touch.y_min      = 0;
-            cfg_touch.y_max      = 320;
-            cfg_touch.pin_int    = 9;
-            cfg_touch.pin_sda    = 6;
-            cfg_touch.pin_scl    = 7;
-            cfg_touch.freq       = 400000;
-            cfg_touch.i2c_port   = 0;
-            cfg_touch.i2c_addr   = 0x38;
-            _touch_instance.config(cfg_touch);
-            _panel_instance.setTouch(&_touch_instance);
-
-            setPanel(&_panel_instance);
-        }
-    };
+        #include "hardware/es3c35p_lvgl.h"
+        inline void init_hardware_display_touch() { es3c35p_lvgl_init(); }
 
     // =========================================================================
-    // PERFIL 2: RASPBERRY PI PICO W (RP2040 - SPI0 e I2C0)
+    // RASPBERRY PI PICO W (RP2040 - SPI0 e I2C0). Legado: sai com o Pico na F3.
     // =========================================================================
     #elif defined(ARDUINO_ARCH_RP2040)
+        #define LGFX_USE_V1
+        #include <LovyanGFX.hpp>
     class LGFX_Display : public lgfx::LGFX_Device {
         lgfx::Panel_ST7796  _panel_instance;
         lgfx::Bus_SPI       _bus_instance;
@@ -139,8 +78,6 @@
             setPanel(&_panel_instance);
         }
     };
-    #endif
-
     static LGFX_Display lcd;
 
     // Alocação inteligente de Buffer:
@@ -202,6 +139,8 @@
         lv_indev_drv_register(&indev_drv);
     }
 
+
+    #endif
 #else
     inline void init_hardware_display_touch() {}
 #endif
