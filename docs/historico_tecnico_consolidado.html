@@ -805,6 +805,20 @@
             </table></div>
             <div class="callout"><strong>Ainda não compilado:</strong> o componente de terceiros foi colocado no Arduino sem build. Se a compilação falhar, o erro vai apontar o arquivo.</div>
 
+            <h2>🎮 HUD na tela (LVGL)</h2>
+            <p>O LVGL agora desenha na tela da ES3C35P. A HUD é 480×320 (paisagem), e o painel é 320×480 (retrato), então cada área é girada 90° no envio, com o byte trocado. O envio é assíncrono: a área só é liberada para o LVGL quando o SPI termina, pelo callback <code>on_color_trans_done</code>.</p>
+            <div class="tbl-wrap"><table>
+                <thead><tr><th>Arquivo</th><th>O que mudou</th><th>Gravar com</th></tr></thead>
+                <tbody>
+                    <tr><td><code>include/hardware/hardware_hal.h</code></td><td>Perfil ESP32 (LovyanGFX/ST7796, pinos errados) removido. ESP32 usa <code>es3c35p_lvgl_init()</code>. RP2040 segue como legado.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>src/hardware/es3c35p_lvgl.cpp</code></td><td>Novo. Buffer de 25 linhas, rotação no flush e toque provisório (sempre solto).</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>src/hardware/es3c35p_display.cpp</code></td><td>Callback de fim de envio e <code>drawRect()</code>.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>tests/rot_test.py</code></td><td>Novo. Confere a conta da rotação em 2000 áreas aleatórias.</td><td>—</td></tr>
+                    <tr><td><code>platformio.ini</code></td><td>Ambiente <code>esp32-s3-hud</code> (com <code>HAS_DISPLAY</code>).</td><td>—</td></tr>
+                </tbody>
+            </table></div>
+            <div class="callout"><strong>Não compilado ainda:</strong> o LVGL e a UI nunca foram compilados para o ESP32 neste projeto. A orientação (paisagem sem espelhamento) também precisa ser confirmada na placa: se a imagem vier invertida, a troca é de uma linha.</div>
+
             <h2>✅ Próximos passos</h2>
             <ul class="todo-list">
                 <li><input type="checkbox" disabled><label>Compilar e gravar <code>pio run -e esp32-s3-tela -t upload</code><small>a tela deve mostrar TESTE; corrigir o que o compilador apontar</small></label></li>
