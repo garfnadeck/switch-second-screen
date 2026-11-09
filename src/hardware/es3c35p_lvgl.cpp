@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "hardware/es3c35p_display.h"
+#include "hardware/es3c35p_touch.h"
 
 static const char * TAG = "es3c35p-hud";
 
@@ -66,11 +67,24 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     lv_disp_flush_ready(drv);           // libera o LVGL mesmo se algo falhou (nao trava)
 }
 
-// Toque ainda nao ligado: sempre "solto"
+// Toque: nativo (x, y) -> logico (lx = y, ly = 319 - x), inverso da rotacao do envio
 static void toqueLer(lv_indev_drv_t * drv, lv_indev_data_t * data)
 {
     (void)drv;
-    data->state = LV_INDEV_STATE_REL;
+    uint16_t tx = 0, ty = 0;
+    if (es3c35p_touch::read(&tx, &ty)) {
+        int lx = ty;
+        int ly = (PANEL_W - 1) - tx;
+        if (lx < 0) lx = 0;
+        if (lx >= HUD_W) lx = HUD_W - 1;
+        if (ly < 0) ly = 0;
+        if (ly >= HUD_H) ly = HUD_H - 1;
+        data->point.x = lx;
+        data->point.y = ly;
+        data->state = LV_INDEV_STATE_PR;
+    } else {
+        data->state = LV_INDEV_STATE_REL;
+    }
 }
 
 void es3c35p_lvgl_init()
@@ -93,6 +107,10 @@ void es3c35p_lvgl_init()
     if (!s_sem) {
         ESP_LOGE(TAG, "sem memoria para o semaforo: HUD desligada");
         return;
+    }
+
+    if (!es3c35p_touch::init()) {
+        ESP_LOGW(TAG, "touch nao iniciado: HUD sem toque");
     }
 
     lv_init();
