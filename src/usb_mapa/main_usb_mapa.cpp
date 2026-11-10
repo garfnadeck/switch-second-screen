@@ -139,7 +139,8 @@ void loop()
         return;
     }
 
-    if (!pressionado && agora - ultimo >= 1000) {
+    // Intervalo de 10 s entre um input e o proximo, para dar tempo de anotar
+    if (!pressionado && agora - ultimo >= 10000) {
         rel.botoes = (uint16_t)(1u << indice);
         hid.SendReport(0, &rel, sizeof(rel));
         usbSerial.printf("bit %u\n", indice);
