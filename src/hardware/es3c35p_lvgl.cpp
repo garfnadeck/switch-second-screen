@@ -46,29 +46,40 @@ static void bandaPronta(void * ctx)
 }
 
 // Logico (lx, ly) -> nativo (x = 319 - ly, y = lx). Conferido em tests/rot_test.py.
+// Envia so a area que mudou (partial refresh): gira essa area para o buffer nativo e manda em blocos.
 static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
 {
-    (void)a; (void)cor;                 // full_refresh: a area e a tela inteira, o buffer e s_lvgl
+    (void)cor;                          // o buffer cheio fica em s_lvgl (a tela logica inteira)
     const uint16_t * origem = (const uint16_t *)s_lvgl;
 
-    for (int ly = 0; ly < HUD_H; ly++) {
-        for (int lx = 0; lx < HUD_W; lx++) {
+    // Area logica -> area nativa (inclusiva)
+    int nx1 = (PANEL_W - 1) - a->y2, nx2 = (PANEL_W - 1) - a->y1;
+    int ny1 = a->x1,                 ny2 = a->x2;
+    int w = nx2 - nx1 + 1;
+    int h = ny2 - ny1 + 1;
+    if (w <= 0 || h <= 0 || w * h > PANEL_W * PANEL_H) { lv_disp_flush_ready(drv); return; }
+
+    for (int y = ny1; y <= ny2; y++) {
+        for (int x = nx1; x <= nx2; x++) {
+            int lx = y;
+            int ly = (PANEL_W - 1) - x;
             uint16_t c = origem[ly * HUD_W + lx];
-            int x = (PANEL_W - 1) - ly;
-            int y = lx;
-            s_nativo[y * PANEL_W + x] = (uint16_t)((c >> 8) | (c << 8));   // painel quer o byte alto primeiro
+            s_nativo[(y - ny1) * w + (x - nx1)] = (uint16_t)((c >> 8) | (c << 8));   // painel quer o byte alto primeiro
         }
     }
-    esp_cache_msync(s_nativo, PANEL_W * PANEL_H * sizeof(uint16_t), ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    esp_cache_msync(s_nativo, w * h * sizeof(uint16_t), ESP_CACHE_MSYNC_FLAG_DIR_C2M);
 
-    // Faixas de 40 linhas, uma de cada vez: espera o SPI terminar cada uma
-    for (int y = 0; y < PANEL_H; y += BANDA) {
-        if (!es3c35p_display::drawRect(0, y, PANEL_W, y + BANDA, s_nativo + y * PANEL_W, bandaPronta, NULL)) {
-            ESP_LOGE(TAG, "envio da faixa %d falhou", y);
+    // Blocos de no maximo 25600 bytes (limite do barramento SPI), um de cada vez
+    int linhasPorBloco = 12800 / w;     // 12800 pixels de 2 bytes = 25600 bytes
+    if (linhasPorBloco < 1) linhasPorBloco = 1;
+    for (int r = 0; r < h; r += linhasPorBloco) {
+        int n = (r + linhasPorBloco > h) ? (h - r) : linhasPorBloco;
+        if (!es3c35p_display::drawRect(nx1, ny1 + r, nx2 + 1, ny1 + r + n, s_nativo + r * w, bandaPronta, NULL)) {
+            ESP_LOGE(TAG, "envio do bloco falhou");
             break;
         }
         if (xSemaphoreTake(s_sem, pdMS_TO_TICKS(200)) != pdTRUE) {
-            ESP_LOGE(TAG, "faixa %d nao terminou a tempo", y);
+            ESP_LOGE(TAG, "bloco nao terminou a tempo");
             break;
         }
     }
@@ -146,13 +157,14 @@ void es3c35p_lvgl_init()
     s_disp.ver_res = HUD_H;
     s_disp.flush_cb = flush;
     s_disp.draw_buf = &s_draw;
-    s_disp.full_refresh = 1;
+    s_disp.full_refresh = 0;            // so a area que mudou e redesenhada e enviada
     lv_disp_drv_register(&s_disp);
 
     lv_indev_drv_init(&s_indev);
     s_indev.type = LV_INDEV_TYPE_POINTER;
     s_indev.read_cb = toqueLer;
-    lv_indev_drv_register(&s_indev);
+    lv_indev_t * indev = lv_indev_drv_register(&s_indev);
+    lv_timer_set_period(lv_indev_get_read_timer(indev), 10);   // leitura do toque a cada 10 ms (padrao 30)
 
     // Rotulo de diagnostico do toque (fica na camada de cima, sobre a HUD)
     s_dbg = lv_label_create(lv_layer_top());

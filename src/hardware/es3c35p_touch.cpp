@@ -90,7 +90,7 @@ bool read(uint16_t * x, uint16_t * y)
 {
     if (!s_dev) return false;
 
-    // Mesmo ritmo da bancada (30 ms entre leituras): ler mais rapido deixa o barramento em estado invalido
+    // Intervalo minimo entre leituras de 10 ms (a bancada usava 30 ms; 10 ms ja funcionou com o LED corrigido)
     static int64_t s_proxima = 0;
     static bool    s_ultimo = false;
     static uint16_t s_ux = 0, s_uy = 0;
@@ -99,7 +99,7 @@ bool read(uint16_t * x, uint16_t * y)
         if (s_ultimo) { *x = s_ux; *y = s_uy; }
         return s_ultimo;
     }
-    s_proxima = agora + 30000;
+    s_proxima = agora + 10000;
 
     uint8_t info = 0;
     s_erro = regLer(REG_TOUCH_INFO, &info, 1);
