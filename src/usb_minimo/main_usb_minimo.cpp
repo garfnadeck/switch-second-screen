@@ -56,25 +56,36 @@ void setup() {
 }
 
 void loop() {
+    // Teste de mapeamento: percorre os 16 bits, um por segundo, e loga qual bit foi enviado.
     static uint32_t ultimo = 0;
+    static uint32_t inicio = 0;
+    static bool pressionado = false;
+    static uint8_t indice = 0;
     static uint32_t ultimoPisca = 0;
+    static uint32_t ultimoLog = 0;
     uint32_t agora = millis();
+
     if (agora - ultimoPisca >= 500) {
         ultimoPisca = agora;
         digitalWrite(PINO_BACKLIGHT, !digitalRead(PINO_BACKLIGHT));
     }
-    static uint32_t ultimoLog = 0;
     if (agora - ultimoLog >= 1000) {
         ultimoLog = agora;
         usbSerial.printf("minimo rodando: %lu ms\n", (unsigned long)agora);
     }
-    if (agora - ultimo >= 2000) {
-        ultimo = agora;
-        rel.botoes = 1;          // botao A
+
+    if (!pressionado && agora - ultimo >= 1000) {
+        rel.botoes = (uint16_t)(1u << indice);
         hid.SendReport(0, &rel, sizeof(rel));
-    } else if (agora - ultimo >= 150) {
+        usbSerial.printf("bit %u\n", indice);
+        pressionado = true;
+        inicio = agora;
+    } else if (pressionado && agora - inicio >= 700) {
         rel.botoes = 0;
         hid.SendReport(0, &rel, sizeof(rel));
+        pressionado = false;
+        indice = (uint8_t)((indice + 1) % 16);
+        ultimo = agora;
     }
     delay(10);
 }
