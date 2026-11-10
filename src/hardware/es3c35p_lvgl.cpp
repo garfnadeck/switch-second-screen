@@ -70,13 +70,22 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     int h = ny2 - ny1 + 1;
     if (w <= 0 || h <= 0 || w * h > PANEL_W * PANEL_H) { lv_disp_flush_ready(drv); return; }
 
+    // Rotacao em blocos de 16x16: as leituras e escritas de cada bloco ficam nas mesmas linhas de cache
+    // (rotacao pixel a pixel na PSRAM levava ~67 ms; o gargalo era a falta de cache)
     int64_t t0 = esp_timer_get_time();
-    for (int y = ny1; y <= ny2; y++) {
-        for (int x = nx1; x <= nx2; x++) {
-            int lx = y;
-            int ly = (PANEL_W - 1) - x;
-            uint16_t c = origem[ly * HUD_W + lx];
-            s_nativo[(y - ny1) * w + (x - nx1)] = (uint16_t)((c >> 8) | (c << 8));   // painel quer o byte alto primeiro
+    const int T = 16;
+    for (int by = ny1; by <= ny2; by += T) {
+        int yFim = (by + T - 1 < ny2) ? (by + T - 1) : ny2;
+        for (int bx = nx1; bx <= nx2; bx += T) {
+            int xFim = (bx + T - 1 < nx2) ? (bx + T - 1) : nx2;
+            for (int y = by; y <= yFim; y++) {
+                for (int x = bx; x <= xFim; x++) {
+                    int lx = y;
+                    int ly = (PANEL_W - 1) - x;
+                    uint16_t c = origem[ly * HUD_W + lx];
+                    s_nativo[(y - ny1) * w + (x - nx1)] = (uint16_t)((c >> 8) | (c << 8));   // painel quer o byte alto primeiro
+                }
+            }
         }
     }
     esp_cache_msync(s_nativo, w * h * sizeof(uint16_t), ESP_CACHE_MSYNC_FLAG_DIR_C2M);
