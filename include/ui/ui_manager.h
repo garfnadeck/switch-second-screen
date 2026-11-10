@@ -225,6 +225,35 @@ public:
         lv_obj_t * tab_map    = lv_tabview_add_tab(tabview, "Mapa");
         lv_obj_t * tab_macros = lv_tabview_add_tab(tabview, "Macros");
         lv_obj_t * tab_config = lv_tabview_add_tab(tabview, "Config");
+
+        // Aba 5: Botoes — toque envia o bit ao Switch pelo USB HID (mapeamento medido no NS2)
+        // Segurar = manter pressionado. Bits 14 e 15 nao tem botao.
+        lv_obj_t * tab_botoes = lv_tabview_add_tab(tabview, "Botoes");
+        lv_obj_set_style_pad_all(tab_botoes, 4, LV_PART_MAIN);
+        static const char * nomesBotoes[16] = {
+            "Y", "B", "A", "X", "L", "R", "ZL", "ZR",
+            "-", "+", "L3", "R3", "Home", "Captura", "-", "-"
+        };
+        for (int i = 0; i < 16; i++) {
+            lv_obj_t * btn = lv_btn_create(tab_botoes);
+            lv_obj_set_size(btn, 110, 48);
+            lv_obj_set_pos(btn, (i % 4) * 116, (i / 4) * 52);
+            lv_obj_set_style_bg_color(btn, lv_color_hex(0x2A2A44), LV_PART_MAIN);
+            lv_obj_set_user_data(btn, (void *)(intptr_t)i);
+            lv_obj_add_event_cb(btn, [](lv_event_t * e) {
+                auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+                int bit = (int)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
+                mgr->router.usb().livePad((uint16_t)(1u << bit), 0x08, mgr->state);
+            }, LV_EVENT_PRESSED, this);
+            lv_obj_add_event_cb(btn, [](lv_event_t * e) {
+                auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+                mgr->router.usb().livePad(0, 0x08, mgr->state);
+            }, LV_EVENT_RELEASED, this);
+            lv_obj_t * txt = lv_label_create(btn);
+            lv_label_set_text_fmt(txt, "%s (%d)", nomesBotoes[i], i);
+            lv_obj_set_style_text_color(txt, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+            lv_obj_center(txt);
+        }
         lv_obj_set_style_pad_all(tab_status, 6, LV_PART_MAIN);
         lv_obj_set_style_pad_all(tab_macros, 0, LV_PART_MAIN);   // grade 4x3 + pager usam a aba inteira (480x224)
 

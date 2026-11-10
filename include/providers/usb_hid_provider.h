@@ -9,8 +9,10 @@
     #include <Arduino.h>
     #if defined(ARDUINO_ARCH_RP2040)
         #include <Adafruit_TinyUSB.h>
+    #elif defined(USB_HID_ESP32)
+        #include "hardware/usb_hid_backend_esp32.h"   // ESP32-S3: USB HID real pelo USB OTG
     #else
-        #include "usb_tinyusb_shim.h"   // ESP32-S3: USB HID ainda nao portado (F3)
+        #include "usb_tinyusb_shim.h"   // ESP32-S3 sem o backend USB HID: stub, nao enumera
     #endif
 #endif
 
