@@ -111,6 +111,12 @@ static void toqueLer(lv_indev_drv_t * drv, lv_indev_data_t * data)
 
 void es3c35p_lvgl_init()
 {
+    // Toque antes da tela, na mesma ordem da bancada que funcionou
+    s_touchOk = es3c35p_touch::init();
+    if (!s_touchOk) {
+        ESP_LOGW(TAG, "touch nao iniciado: HUD sem toque");
+    }
+
     if (!es3c35p_display::init()) {
         ESP_LOGE(TAG, "tela nao inicializada: HUD desligada");
         return;
@@ -131,10 +137,6 @@ void es3c35p_lvgl_init()
         return;
     }
 
-    s_touchOk = es3c35p_touch::init();
-    if (!s_touchOk) {
-        ESP_LOGW(TAG, "touch nao iniciado: HUD sem toque");
-    }
 
     lv_init();
     lv_disp_draw_buf_init(&s_draw, s_lvgl, NULL, HUD_W * HUD_H);

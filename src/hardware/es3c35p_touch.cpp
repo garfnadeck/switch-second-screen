@@ -90,9 +90,24 @@ bool read(uint16_t * x, uint16_t * y)
 {
     if (!s_dev) return false;
 
+    // Mesmo ritmo da bancada (30 ms entre leituras): ler mais rapido deixa o barramento em estado invalido
+    static int64_t s_proxima = 0;
+    static bool    s_ultimo = false;
+    static uint16_t s_ux = 0, s_uy = 0;
+    int64_t agora = esp_timer_get_time();
+    if (agora < s_proxima) {
+        if (s_ultimo) { *x = s_ux; *y = s_uy; }
+        return s_ultimo;
+    }
+    s_proxima = agora + 30000;
+
     uint8_t info = 0;
     s_erro = regLer(REG_TOUCH_INFO, &info, 1);
     s_status = info;
+    if (s_erro != ESP_OK) {          // sem status nao le os pontos (igual a bancada)
+        s_ultimo = false;
+        return false;
+    }
 
     // Os pontos sao lidos em todo ciclo, sem depender do bit de status (como na bancada)
     uint8_t ponto[7] = { 0 };
@@ -116,9 +131,10 @@ bool read(uint16_t * x, uint16_t * y)
         }
     }
 
-    if (err != ESP_OK || !(ponto[0] & 0x80)) return false;     // bit 7 = ponto valido
-    *x = ((ponto[0] & 0x3F) << 8) | ponto[1];
-    *y = ((ponto[2] & 0x3F) << 8) | ponto[3];
+    if (err != ESP_OK || !(ponto[0] & 0x80)) { s_ultimo = false; return false; }     // bit 7 = ponto valido
+    s_ux = *x = ((ponto[0] & 0x3F) << 8) | ponto[1];
+    s_uy = *y = ((ponto[2] & 0x3F) << 8) | ponto[3];
+    s_ultimo = true;
     return true;
 }
 
