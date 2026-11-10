@@ -151,10 +151,10 @@ private:
     }
 
     void requestNext(GameState &state) {
-        // Sem enderecos configurados (ou jogo diferente do Z-A): so confirma o link com getTitleId
+        // Sem enderecos configurados (ou jogo diferente do Z-A): so confirma o link com getTitleID
         bool za = (state.profile == GameProfile::POKEMON_LEGENDS_ZA);
         if (!za || (map.party.count == 0 && map.pos.count == 0)) {
-            sendRaw("getTitleId\r\n"); next_req = 0; awaiting = true; sent_ms = millis(); return;
+            sendRaw("getTitleID\r\n"); next_req = 0; awaiting = true; sent_ms = millis(); return;
         }
         if (next_req == 0 && map.party.count) {
             sendChain("pointerPeek", (uint16_t)(map.party_stride * map.party_count), map.party);

@@ -20,6 +20,12 @@ Na 1.0.2 o time e o "shiny stash" usam a mesma base (`0x5F0C250`). Na versão de
 Isso é inferência, não valor publicado. Não se sabe se os valores de outubro são da 1.0.0 (cartucho)
 ou da 1.0.1 (atualização do dia do lançamento).
 
+## Teste no console (10/11/2026)
+
+- sys-botbase instalado (pasta `430000000000000B`), porta 6000 respondendo em 192.168.15.9.
+- `getBuildID` do jogo do usuário: `7222E13ECF6ADB32` (versão a identificar; jogo base, sem updates).
+- O comando correto é `getTitleID` (com ID maiúsculo). `getTitleId` não é reconhecido e fica sem resposta.
+
 ## Formato dos dados
 
 - Cada Pokémon: bloco de `0x148` bytes no formato PA9 (cifrado e embaralhado, como no PKHeX).
