@@ -38,7 +38,12 @@ static USBHID hid;
 static ControleMinimo controle;
 static RelatorioSwitch rel = { 0, 8, 128, 128, 128, 128, 0 };
 
+// Sinal visivel sem display: o backlight (GPIO 41) pisca a cada 500 ms se o loop estiver rodando.
+static const int PINO_BACKLIGHT = 41;
+
 void setup() {
+    pinMode(PINO_BACKLIGHT, OUTPUT);
+    digitalWrite(PINO_BACKLIGHT, HIGH);
     usbSerial.begin();
     hid.addDevice(&controle, sizeof(DESCRITOR));
     hid.begin();
@@ -52,7 +57,12 @@ void setup() {
 
 void loop() {
     static uint32_t ultimo = 0;
+    static uint32_t ultimoPisca = 0;
     uint32_t agora = millis();
+    if (agora - ultimoPisca >= 500) {
+        ultimoPisca = agora;
+        digitalWrite(PINO_BACKLIGHT, !digitalRead(PINO_BACKLIGHT));
+    }
     static uint32_t ultimoLog = 0;
     if (agora - ultimoLog >= 1000) {
         ultimoLog = agora;
