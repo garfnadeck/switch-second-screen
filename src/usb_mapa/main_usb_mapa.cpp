@@ -125,6 +125,20 @@ void loop()
         usbSerial.printf("mapa rodando: %lu ms\n", (unsigned long)agora);
     }
 
+    // Espera 30 s antes de enviar qualquer input, para dar tempo de abrir a tela de teste no console
+    static const uint32_t ATRASO_INICIO_MS = 30000;
+    if (agora < ATRASO_INICIO_MS) {
+        static uint32_t ultimaContagem = 0xFFFFFFFF;
+        uint32_t restante = (ATRASO_INICIO_MS - agora + 999) / 1000;
+        if (restante != ultimaContagem) {
+            ultimaContagem = restante;
+            lv_label_set_text_fmt(s_status, "inicia em %lu s", (unsigned long)restante);
+            usbSerial.printf("aguardando inicio: %lu s\n", (unsigned long)restante);
+        }
+        delay(5);
+        return;
+    }
+
     if (!pressionado && agora - ultimo >= 1000) {
         rel.botoes = (uint16_t)(1u << indice);
         hid.SendReport(0, &rel, sizeof(rel));
