@@ -6,6 +6,9 @@
     #include "hardware/watchdog.h"   // reset_usb_boot (BOOTSEL)
 #endif
 #include "wifi_config.h"
+#ifdef TOUCH_ISOLADO
+    #include "hardware/touch_isolado.h"
+#endif
 #include "core/game_state.h"
 #include "core/asset_manager.h"
 #include "providers/provider_router.h"
@@ -229,6 +232,9 @@ static void rebootBoard() {
 }
 
 void setup() {
+#ifdef TOUCH_ISOLADO
+    touchIsoladoRun();   // teste isolado do toque: nao retorna
+#endif
     // 1. USB HID sobe primeiro (o Switch precisa enumerar o controle logo)
     router.setBootMode(SwitchMode::LOCKED_USB_MACRO);
     router.init(state);
