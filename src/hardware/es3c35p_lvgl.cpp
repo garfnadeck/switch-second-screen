@@ -6,6 +6,7 @@
 #include "esp_cache.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include <string.h>
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
@@ -39,6 +40,7 @@ static char       s_toqueTxt[32] = "";      // estado do toque mostrado no rotul
 static char       s_msgMostrada[120] = "";  // ultimo texto colocado no rotulo (evita redesenhar a toa)
 // Diagnostico do flush: quantas vezes foi chamado e qual area logica foi enviada por ultimo
 static unsigned long s_nFlush = 0;
+static unsigned long s_msGira = 0, s_msEnvio = 0;   // tempo (ms) da rotacao e do envio SPI no ultimo flush
 static int        s_fx1 = 0, s_fx2 = 0, s_fy1 = 0, s_fy2 = 0;
 
 // Roda quando o SPI termina uma faixa (contexto de interrupcao): so sinaliza
@@ -68,6 +70,7 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     int h = ny2 - ny1 + 1;
     if (w <= 0 || h <= 0 || w * h > PANEL_W * PANEL_H) { lv_disp_flush_ready(drv); return; }
 
+    int64_t t0 = esp_timer_get_time();
     for (int y = ny1; y <= ny2; y++) {
         for (int x = nx1; x <= nx2; x++) {
             int lx = y;
@@ -77,6 +80,7 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
         }
     }
     esp_cache_msync(s_nativo, w * h * sizeof(uint16_t), ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    int64_t t1 = esp_timer_get_time();
 
     // Blocos de no maximo 25600 bytes (limite do barramento SPI), um de cada vez
     int linhasPorBloco = 12800 / w;     // 12800 pixels de 2 bytes = 25600 bytes
@@ -92,6 +96,8 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
             break;
         }
     }
+    s_msGira = (unsigned long)((t1 - t0) / 1000);
+    s_msEnvio = (unsigned long)((esp_timer_get_time() - t1) / 1000);
     lv_disp_flush_ready(drv);           // libera o LVGL mesmo se algo falhou (nao trava)
 }
 
@@ -121,9 +127,9 @@ static void toqueLer(lv_indev_drv_t * drv, lv_indev_data_t * data)
     // Rotulo de diagnostico: erro do I2C, toque e o ultimo flush (so redesenha se o texto mudou)
     if (s_dbg) {
         char msg[120];
-        snprintf(msg, sizeof(msg), "i2c=%d st=0x%02X %s | fl#%lu x%d-%d y%d-%d",
+        snprintf(msg, sizeof(msg), "i2c=%d st=0x%02X %s | fl#%lu gira%lums env%lums",
                  es3c35p_touch::ultimoErro(), es3c35p_touch::ultimoStatus(), s_toqueTxt,
-                 s_nFlush, s_fx1, s_fx2, s_fy1, s_fy2);
+                 s_nFlush, s_msGira, s_msEnvio);
         if (strcmp(msg, s_msgMostrada) != 0) {
             snprintf(s_msgMostrada, sizeof(s_msgMostrada), "%s", msg);
             lv_label_set_text(s_dbg, msg);
