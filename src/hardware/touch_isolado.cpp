@@ -7,6 +7,9 @@
 #include "freertos/task.h"
 #include "hardware/es3c35p_display.h"
 #include "hardware/es3c35p_touch.h"
+#ifdef TOUCH_ISOLADO_WIFI
+    #include <WiFi.h>
+#endif
 
 // Cores em RGB565 com os bytes trocados (o driver envia assim)
 static uint16_t cor(uint16_t rgb565) { return (uint16_t)((rgb565 >> 8) | (rgb565 << 8)); }
@@ -55,6 +58,13 @@ void touchIsoladoRun()
         while (1) vTaskDelay(pdMS_TO_TICKS(1000));   // sem tela nao ha o que mostrar
     }
     limpar();
+
+#ifdef TOUCH_ISOLADO_WIFI
+    // Teste de bisseccao: liga o radio Wi-Fi (como o firmware principal faz) antes do toque
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP("SwitchHUD", "switchhud1");
+    vTaskDelay(pdMS_TO_TICKS(500));
+#endif
 
     bool toqueOk = es3c35p_touch::init();
     preencher(s_quad, 16 * 16, COR_VERDE);
