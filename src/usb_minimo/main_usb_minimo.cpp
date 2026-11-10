@@ -42,8 +42,11 @@ void setup() {
     usbSerial.begin();
     hid.addDevice(&controle, sizeof(DESCRITOR));
     hid.begin();
-    USB.productName("Switch Minimo");
-    USB.manufacturerName("garfnadeck");
+    // Identidade de controle HORI (VID 0x0F0D; PID 0x0092 = HORIPAD/Pokken Pro Pad, a confirmar).
+    USB.VID(0x0F0D);
+    USB.PID(0x0092);
+    USB.productName("HORI Pro Pad (teste)");
+    USB.manufacturerName("HORI");
     USB.begin();
 }
 
