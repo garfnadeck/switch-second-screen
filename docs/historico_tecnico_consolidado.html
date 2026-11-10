@@ -819,8 +819,23 @@
             </table></div>
             <div class="callout"><strong>Não compilado ainda:</strong> o LVGL e a UI nunca foram compilados para o ESP32 neste projeto. A orientação (paisagem sem espelhamento) também precisa ser confirmada na placa: se a imagem vier invertida, a troca é de uma linha.</div>
 
+            <h2>👆 Toque capacitivo (ES3C35P)</h2>
+            <p>O toque entra no LVGL como um ponteiro de 1 ponto. O chip (endereço <code>0x55</code>, barramento I2C0 nos pinos 38 e 39) usa endereço de 16 bits. A sequência é a mesma que funcionou no teste de bancada: lê o status em <code>0x0010</code>, lê o ponto em <code>0x0014</code> e confirma com ACK.</p>
+            <div class="callout"><strong>Causa ainda aberta:</strong> depois do primeiro toque o chip trava e para de responder. O contorno é pulsar o reset (IO48) quando o INT fica baixo por mais de 30 ms. Esse reset leva cerca de 110 ms e pode fazer a HUD engasgar nesse instante.</div>
+            <div class="tbl-wrap"><table>
+                <thead><tr><th>Arquivo</th><th>O que mudou</th><th>Gravar com</th></tr></thead>
+                <tbody>
+                    <tr><td><code>include/hardware/es3c35p_touch.h</code></td><td>Novo. Interface <code>init()</code> e <code>read()</code>.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>src/hardware/es3c35p_touch.cpp</code></td><td>Novo. I2C, leitura de 7 bytes por ponto, ACK e contorno de reset.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>src/hardware/es3c35p_lvgl.cpp</code></td><td>Toque real no lugar do provisório. Converte nativo para lógico: lx = ty, ly = 319 − tx.</td><td>Firmware (upload)</td></tr>
+                </tbody>
+            </table></div>
+            <div class="callout"><strong>Não compilado nem testado na placa ainda.</strong> Pelo PR #11 (branch <code>feature/touch-es3c35p</code>), o teste é <code>pio run -e esp32-s3-hud -t upload</code>, tocar nas abas e nos botões e conferir se a aba muda. Se o toque aparecer espelhado ou girado, a conversão está em <code>toqueLer()</code>.</div>
+
             <h2>✅ Próximos passos</h2>
             <ul class="todo-list">
+                <li><input type="checkbox" disabled><label>Validar o toque na placa (PR #11)<small>as abas e os botões devem responder; conferir orientação e o efeito do reset</small></label></li>
+                <li><input type="checkbox" disabled><label>Encontrar a causa do travamento do toque<small>hoje o contorno é o reset pelo INT; o INT da placa não é confiável</small></label></li>
                 <li><input type="checkbox" disabled><label>Compilar e gravar <code>pio run -e esp32-s3-tela -t upload</code><small>a tela deve mostrar TESTE; corrigir o que o compilador apontar</small></label></li>
                 <li><input type="checkbox" disabled><label>Testar a busca de redes no modo SwitchHUD<small>validada na web com a placa no Wi-Fi do usuário; falta o modo AP</small></label></li>
                 <li><input type="checkbox" disabled><label>Ligar o LVGL ao flush da tela<small>primeiro com a HUD simples; depois o restante da UI</small></label></li>
