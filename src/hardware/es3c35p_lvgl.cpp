@@ -6,6 +6,8 @@
 #include "esp_cache.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include <string.h>
+#include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "hardware/es3c35p_display.h"
@@ -33,8 +35,11 @@ static SemaphoreHandle_t  s_sem = NULL;   // sinaliza o fim de cada faixa enviad
 static lv_obj_t * s_dbg = NULL;
 static bool       s_estavaPressionado = false;
 static bool       s_touchOk = false;
-static int        s_ultErro = -2;
-static uint8_t    s_ultStatus = 0xFE;
+static char       s_toqueTxt[32] = "";      // estado do toque mostrado no rotulo
+static char       s_msgMostrada[120] = "";  // ultimo texto colocado no rotulo (evita redesenhar a toa)
+// Diagnostico do flush: quantas vezes foi chamado e qual area logica foi enviada por ultimo
+static unsigned long s_nFlush = 0;
+static int        s_fx1 = 0, s_fx2 = 0, s_fy1 = 0, s_fy2 = 0;
 
 // Roda quando o SPI termina uma faixa (contexto de interrupcao): so sinaliza
 static void bandaPronta(void * ctx)
@@ -51,6 +56,8 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
 {
     (void)cor;                          // o buffer cheio fica em s_lvgl (a tela logica inteira)
     const uint16_t * origem = (const uint16_t *)s_lvgl;
+    s_nFlush++;
+    s_fx1 = a->x1; s_fx2 = a->x2; s_fy1 = a->y1; s_fy2 = a->y2;
 
     // Area logica -> area nativa (inclusiva). A altura logica vai inteira: assim a janela nativa tem
     // a largura do painel (320), que e o formato validado na bancada. Janelas estreitas deram listras.
@@ -103,21 +110,23 @@ static void toqueLer(lv_indev_drv_t * drv, lv_indev_data_t * data)
         data->point.x = lx;
         data->point.y = ly;
         data->state = LV_INDEV_STATE_PR;
-        if (s_dbg) lv_label_set_text_fmt(s_dbg, "toque %d,%d (bruto %u,%u)", lx, ly, tx, ty);
+        snprintf(s_toqueTxt, sizeof(s_toqueTxt), "toque %d,%d", lx, ly);
         s_estavaPressionado = true;
     } else {
         data->state = LV_INDEV_STATE_REL;
-        if (s_dbg && s_estavaPressionado) lv_label_set_text(s_dbg, "solto");
+        if (s_estavaPressionado) snprintf(s_toqueTxt, sizeof(s_toqueTxt), "solto");
         s_estavaPressionado = false;
-        // Sem toque: mostra erro do I2C e status, so quando mudam (evita redesenhar o rotulo a cada leitura)
-        if (s_dbg) {
-            int err = es3c35p_touch::ultimoErro();
-            uint8_t st = es3c35p_touch::ultimoStatus();
-            if (err != s_ultErro || st != s_ultStatus) {
-                s_ultErro = err;
-                s_ultStatus = st;
-                lv_label_set_text_fmt(s_dbg, "touch: i2c=%d status=0x%02X", err, st);
-            }
+    }
+
+    // Rotulo de diagnostico: erro do I2C, toque e o ultimo flush (so redesenha se o texto mudou)
+    if (s_dbg) {
+        char msg[120];
+        snprintf(msg, sizeof(msg), "i2c=%d st=0x%02X %s | fl#%lu x%d-%d y%d-%d",
+                 es3c35p_touch::ultimoErro(), es3c35p_touch::ultimoStatus(), s_toqueTxt,
+                 s_nFlush, s_fx1, s_fx2, s_fy1, s_fy2);
+        if (strcmp(msg, s_msgMostrada) != 0) {
+            snprintf(s_msgMostrada, sizeof(s_msgMostrada), "%s", msg);
+            lv_label_set_text(s_dbg, msg);
         }
     }
 }
