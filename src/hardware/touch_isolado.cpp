@@ -10,6 +10,10 @@
 #ifdef TOUCH_ISOLADO_WIFI
     #include <WiFi.h>
 #endif
+#ifdef TOUCH_ISOLADO_LVGL
+    #include <lvgl.h>
+    #include "hardware/es3c35p_lvgl.h"
+#endif
 
 // Cores em RGB565 com os bytes trocados (o driver envia assim)
 static uint16_t cor(uint16_t rgb565) { return (uint16_t)((rgb565 >> 8) | (rgb565 << 8)); }
@@ -53,6 +57,15 @@ static void preencher(uint16_t * buf, int n, uint16_t c)
 
 void touchIsoladoRun()
 {
+#ifdef TOUCH_ISOLADO_LVGL
+    // Teste de bisseccao: o caminho exato da HUD (LVGL + toque), sem interface e sem Wi-Fi.
+    // O rotulo amarelo do canto inferior mostra o estado do toque.
+    es3c35p_lvgl_init();
+    while (1) {
+        lv_timer_handler();
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+#endif
     s_fim = xSemaphoreCreateBinary();
     if (!es3c35p_display::init()) {
         while (1) vTaskDelay(pdMS_TO_TICKS(1000));   // sem tela nao ha o que mostrar
