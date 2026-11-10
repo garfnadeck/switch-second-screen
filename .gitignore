@@ -1,2 +1,5 @@
 .pio
 /include/wifi_config.h
+
+# Cache do Python
+__pycache__/
