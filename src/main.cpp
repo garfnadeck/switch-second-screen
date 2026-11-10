@@ -231,6 +231,17 @@ static void rebootBoard() {
 #endif
 }
 
+
+// LED de status. No ESP32-S3 DevKitC o LED_BUILTIN e o GPIO 48, que e o RST do touch da ES3C35P:
+// piscar o LED resetava o touch sem parar. Na placa ESP32 o LED fica desligado (sem LED de usuario).
+#if defined(ARDUINO_ARCH_ESP32)
+    static inline void ledInit() {}
+    static inline void ledWrite(bool) {}
+#else
+    static inline void ledInit() { pinMode(LED_BUILTIN, OUTPUT); }
+    static inline void ledWrite(bool on) { digitalWrite(LED_BUILTIN, on ? HIGH : LOW); }
+#endif
+
 void setup() {
 #ifdef TOUCH_ISOLADO
     touchIsoladoRun();   // teste isolado do toque: nao retorna
@@ -259,7 +270,7 @@ void setup() {
     //    Diagnostico sem Serial (o CDC atrapalharia o HID):
     //      LED piscando rapido = tentando conectar | LED aceso fixo = conectou na sua rede
     //      LED piscando lento  = falhou: criou a rede propria "SwitchHUD" (senha: switchhud1)
-    pinMode(LED_BUILTIN, OUTPUT);
+    ledInit();
     unsigned long start = millis(), lastBlink = 0;
     bool led = false;
     if (cfg.ssid[0]) {                       // sem SSID salvo -> vai direto para a rede propria (uso na rua)
@@ -269,13 +280,13 @@ void setup() {
             if (millis() - lastBlink >= 150) {
                 lastBlink = millis();
                 led = !led;
-                digitalWrite(LED_BUILTIN, led);
+                ledWrite(led);
             }
             delay(5);
         }
     }
     if (WiFi.status() == WL_CONNECTED) {
-        digitalWrite(LED_BUILTIN, HIGH);
+        ledWrite(true);
     } else {
         // Sem roteador: a placa cria a rede "SwitchHUD". Ligue o Switch (Configuracoes > Internet)
         // e o celular nela; a pagina fica em http://192.168.42.1/  (IP padrao do modo AP no arduino-pico)
@@ -512,7 +523,7 @@ void loop() {
         if (millis() - t >= 1000) {
             t = millis();
             on = !on;
-            digitalWrite(LED_BUILTIN, on);
+            ledWrite(on);
         }
     }
 }
