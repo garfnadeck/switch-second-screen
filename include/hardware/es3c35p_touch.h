@@ -15,4 +15,8 @@ bool init();
 // true se houver toque. x/y: coordenadas nativas do painel (x: 0..319, y: 0..479).
 bool read(uint16_t * x, uint16_t * y);
 
+// Diagnostico: ultimo erro do I2C (esp_err_t, 0 = ok) e ultimo byte de status lido.
+int      ultimoErro();
+uint8_t  ultimoStatus();
+
 }  // namespace es3c35p_touch

@@ -20,6 +20,8 @@ static const char * TAG = "es3c35p-touch";
 static i2c_master_bus_handle_t s_bus = NULL;
 static i2c_master_dev_handle_t s_dev = NULL;
 static int64_t s_int_baixo_desde = 0;   // us, 0 = INT esta alto
+static int      s_erro = -1;            // ultimo esp_err_t da leitura (-1 = ainda nao leu)
+static uint8_t  s_status = 0xFF;        // ultimo byte de status (0xFF = ainda nao leu)
 
 static esp_err_t regLer(uint16_t reg, uint8_t * buf, size_t len)
 {
@@ -74,6 +76,12 @@ bool init()
         return false;
     }
 
+    // add_device nao checa o chip: o probe confirma que ele responde (ACK) no endereco
+    if (i2c_master_probe(s_bus, ES3C35P_TOUCH_ADDR, 100) != ESP_OK) {
+        ESP_LOGE(TAG, "chip nao respondeu (ACK) em 0x%02X", ES3C35P_TOUCH_ADDR);
+        return false;
+    }
+
     ESP_LOGI(TAG, "touch iniciado (0x%02X, 1 ponto)", ES3C35P_TOUCH_ADDR);
     return true;
 }
@@ -83,7 +91,8 @@ bool read(uint16_t * x, uint16_t * y)
     if (!s_dev) return false;
 
     uint8_t info = 0;
-    regLer(REG_TOUCH_INFO, &info, 1);
+    s_erro = regLer(REG_TOUCH_INFO, &info, 1);
+    s_status = info;
 
     // Os pontos sao lidos em todo ciclo, sem depender do bit de status (como na bancada)
     uint8_t ponto[7] = { 0 };
@@ -113,6 +122,9 @@ bool read(uint16_t * x, uint16_t * y)
     return true;
 }
 
+int     ultimoErro()   { return s_erro; }
+uint8_t ultimoStatus() { return s_status; }
+
 }  // namespace es3c35p_touch
 
 #else  // fora do ESP32: sem toque
@@ -120,6 +132,8 @@ bool read(uint16_t * x, uint16_t * y)
 namespace es3c35p_touch {
 bool init() { return false; }
 bool read(uint16_t *, uint16_t *) { return false; }
+int     ultimoErro()   { return -1; }
+uint8_t ultimoStatus() { return 0; }
 }  // namespace es3c35p_touch
 
 #endif

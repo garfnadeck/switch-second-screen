@@ -33,6 +33,8 @@ static SemaphoreHandle_t  s_sem = NULL;   // sinaliza o fim de cada faixa enviad
 static lv_obj_t * s_dbg = NULL;
 static bool       s_estavaPressionado = false;
 static bool       s_touchOk = false;
+static int        s_ultErro = -2;
+static uint8_t    s_ultStatus = 0xFE;
 
 // Roda quando o SPI termina uma faixa (contexto de interrupcao): so sinaliza
 static void bandaPronta(void * ctx)
@@ -94,6 +96,16 @@ static void toqueLer(lv_indev_drv_t * drv, lv_indev_data_t * data)
         data->state = LV_INDEV_STATE_REL;
         if (s_dbg && s_estavaPressionado) lv_label_set_text(s_dbg, "solto");
         s_estavaPressionado = false;
+        // Sem toque: mostra erro do I2C e status, so quando mudam (evita redesenhar o rotulo a cada leitura)
+        if (s_dbg) {
+            int err = es3c35p_touch::ultimoErro();
+            uint8_t st = es3c35p_touch::ultimoStatus();
+            if (err != s_ultErro || st != s_ultStatus) {
+                s_ultErro = err;
+                s_ultStatus = st;
+                lv_label_set_text_fmt(s_dbg, "touch: i2c=%d status=0x%02X", err, st);
+            }
+        }
     }
 }
 
