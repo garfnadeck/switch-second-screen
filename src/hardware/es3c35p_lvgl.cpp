@@ -168,7 +168,7 @@ void es3c35p_lvgl_init()
     s_disp.ver_res = HUD_H;
     s_disp.flush_cb = flush;
     s_disp.draw_buf = &s_draw;
-    s_disp.full_refresh = 0;            // so a area que mudou e redesenhada e enviada
+    s_disp.full_refresh = 1;            // tela inteira a cada quadro: a atualizacao parcial deixou ruido no topo
     lv_disp_drv_register(&s_disp);
 
     lv_indev_drv_init(&s_indev);
