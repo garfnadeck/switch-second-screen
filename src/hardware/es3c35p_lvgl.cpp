@@ -1,5 +1,8 @@
 #include "hardware/es3c35p_lvgl.h"
 
+// A rotacao e o gargalo do quadro: compila este arquivo com otimizacao de velocidade (o projeto usa -Os)
+#pragma GCC optimize ("O2")
+
 #if defined(ARDUINO_ARCH_ESP32)
 
 #include <lvgl.h>
