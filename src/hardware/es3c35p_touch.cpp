@@ -118,6 +118,12 @@ bool read(uint16_t * x, uint16_t * y)
         i2c_master_transmit(s_dev, ack, sizeof(ack), pdMS_TO_TICKS(100));
     }
 
+// Contorno ligado por padrao: sem ele o chip trava depois de alguns toques (testado).
+// Para testar sem o contorno, compile com -DES3C35P_TOUCH_SEM_CONTORNO.
+#if !defined(ES3C35P_TOUCH_SEM_CONTORNO) && !defined(ES3C35P_TOUCH_CONTORNO_INT)
+    #define ES3C35P_TOUCH_CONTORNO_INT
+#endif
+#if defined(ES3C35P_TOUCH_CONTORNO_INT)
     // Workaround: INT baixo por mais de 30 ms sem dados novos -> reset do chip
     if (gpio_get_level((gpio_num_t)ES3C35P_TOUCH_INT) != 0) {
         s_int_baixo_desde = 0;
@@ -130,6 +136,8 @@ bool read(uint16_t * x, uint16_t * y)
             s_int_baixo_desde = 0;
         }
     }
+
+#endif  // ES3C35P_TOUCH_CONTORNO_INT
 
     if (err != ESP_OK || !(ponto[0] & 0x80)) { s_ultimo = false; return false; }     // bit 7 = ponto valido
     s_ux = *x = ((ponto[0] & 0x3F) << 8) | ponto[1];

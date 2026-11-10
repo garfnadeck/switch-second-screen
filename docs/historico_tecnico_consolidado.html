@@ -838,6 +838,7 @@
                 <div class="card"><h2>💡 LED de status no pino do touch</h2><p>No ESP32-S3 DevKitC o <code>LED_BUILTIN</code> é o GPIO 48, que é o RST do touch. O firmware piscava esse pino, mantendo o chip em reset. Agora o LED não é usado na placa ESP32 (no Pico continua).</p></div>
                 <div class="card"><h2>⏱️ Ritmo e ordem</h2><p>Toque inicializado depois do display, como na bancada que funcionou, e leitura a cada 10 ms (antes eram 30 ms).</p></div>
             </div>
+            <div class="callout"><strong>Teste sem o contorno de reset:</strong> com o contorno desligado, o toque parou de responder depois de alguns toques. Portanto o chip trava de fato, e o reset pelo INT continua ativo (flag <code>ES3C35P_TOUCH_SEM_CONTORNO</code> só para teste). Voltou a funcionar com o contorno.</div>
             <div class="callout"><strong>Diagnóstico:</strong> o serial desta placa não mostra os logs (a porta é a USB JTAG/serial). Por isso o estado do toque aparece num rótulo amarelo no canto da tela: erro do I2C, status, último toque, número do flush e tempos de rotação e envio.</div>
 
             <h2>🚀 Desempenho da HUD</h2>
@@ -884,7 +885,7 @@
             <ul class="todo-list">
                 <li><input type="checkbox" disabled><label>Abrir PR da branch <code>feature/hud-dois-nucleos</code><small>decidir se vai para a main ou para a branch do toque</small></label></li>
                 <li><input type="checkbox" disabled><label>Fazer o ruído do topo não voltar<small>confirmar em mais telas (Mapa, Macros, Config) com a troca rápida</small></label></li>
-                <li><input type="checkbox" disabled><label>Encontrar a causa do travamento do toque na raiz<small>o contorno com reset pelo INT ainda está ativo</small></label></li>
+                <li><input type="checkbox" disabled><label>Encontrar a causa do travamento do toque na raiz<small>sem o contorno o chip trava depois de alguns toques; o reset pelo INT continua necessário</small></label></li>
                 <li><input type="checkbox" disabled><label>Tornar a senha do SwitchHUD configurável<small>hoje está fixa em <code>main.cpp</code></small></label></li>
                 <li><input type="checkbox" disabled><label>Definir se o Switch precisa de internet pela placa<small>exige NAT ou ponte; fica para depois</small></label></li>
             </ul>
