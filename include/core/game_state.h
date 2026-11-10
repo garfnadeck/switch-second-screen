@@ -143,6 +143,7 @@ struct GameState {
     SwitchMode mode = SwitchMode::MOCK_SIMULATOR;
     GameProfile profile = GameProfile::POKEMON_SV;
     bool connected = false;
+    bool usb_online = false;               // USB HID enumerado (botoes); independe de connected
     int8_t active_macro_slot = -1; // -1 = nenhuma macro em execucao
     char link_status[24] = "desativado";   // estado da leitura de RAM (sys-botbase)
     char switch_ip[16] = "192.168.1.50";

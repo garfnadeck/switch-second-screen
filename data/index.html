@@ -211,6 +211,7 @@
         <div class='row'><label>IP do Switch</label><input id='swip' inputmode='decimal' placeholder='192.168.x.x'>
           <button onclick='saveSwitch()'>Salvar</button><button onclick='scan()'>Detectar</button></div>
         <div id='swmsg' class='hint'>&nbsp;</div>
+        <div id='scanmsg' class='hint'>&nbsp;</div>
         <div class='row'><label>Wi-Fi</label><input id='ssid' placeholder='nome da rede (vazio = rede da placa)' autocapitalize='off'>
           <button onclick='wifiScan()'>Buscar redes</button></div>
         <div id='wifilist' class='netlist'></div>
@@ -740,7 +741,7 @@
   async function saveSwitch() {
     try {
       const r = await post('/api/config', { switch_ip: $('swip').value.trim(), switch_port: swPort });
-      msg(r.ok ? 'IP salvo. Conectando ao Switch... (veja Config > Leitura RAM)' : 'Erro: ' + (r.err || 'falha ao salvar'));
+      msg(r.ok ? 'IP salvo: ' + $('swip').value.trim() + '. Conectando ao Switch...' : 'Erro: ' + (r.err || 'falha ao salvar'));
     } catch (e) { msg('Erro: placa nao respondeu'); }
   }
   async function saveWifi() {
@@ -750,17 +751,17 @@
   }
   let scanTimer = null;
   async function scan() {
-    try { await post('/api/scan', {}); } catch (e) { msg('Erro: placa nao respondeu'); return; }
-    msg('Procurando o Switch (0%)... precisa estar ligado com o sys-botbase');
+    try { await post('/api/scan', {}); } catch (e) { $('scanmsg').textContent = 'Erro: placa nao respondeu'; return; }
+    $('scanmsg').textContent = 'Procurando o Switch (0%)... precisa estar ligado com o sys-botbase';
     clearInterval(scanTimer);
     scanTimer = setInterval(async () => {
       try {
         const d = await (await fetch('/api/scan_status', { cache: 'no-store' })).json();
-        if (d.state === 'running') msg(`Procurando o Switch (${d.progress}%)...`);
+        if (d.state === 'running') $('scanmsg').textContent = `Procurando o Switch (${d.progress}%)...`;
         else {
           clearInterval(scanTimer);
-          if (d.state === 'found') { $('swip').value = d.ip; msg('Switch encontrado em ' + d.ip + ' (salvo).'); }
-          else msg('Nao encontrei. Confira: Switch na mesma rede, sys-botbase ativo.');
+          if (d.state === 'found') { $('swip').value = d.ip; $('scanmsg').textContent = 'Switch encontrado em ' + d.ip + ' (salvo).'; }
+          else $('scanmsg').textContent = 'Nao encontrei. Confira: Switch na mesma rede, sys-botbase ativo.';
         }
       } catch (e) { /* a placa fica ocupada durante a varredura: tenta de novo */ }
     }, 1200);

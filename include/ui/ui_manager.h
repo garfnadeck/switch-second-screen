@@ -44,6 +44,9 @@ private:
     lv_obj_t * ip_textarea = nullptr;
     lv_obj_t * lbl_diag = nullptr;        // Config: USB / macro ativa / execucoes
     lv_obj_t * lbl_board_ip = nullptr;    // Config: IP da placa
+    lv_obj_t * lbl_scan = nullptr;        // Config: progresso/resultado da busca do Switch
+    char scan_shown[48] = "";
+    char sw_ip_shown[16] = "";
     char board_ip_shown[24] = "";
     int8_t   diag_conn = -1, diag_active = -2;
     uint32_t diag_exec = 0xFFFFFFFF;
@@ -113,6 +116,26 @@ public:
         mod->formatMapCoordText(buf, sizeof(buf), state);
         lv_label_set_text(coord_label, buf);
 
+        // Config > IP do Switch: segue o estado (pode mudar pela pagina web ou pela busca)
+        if (ip_textarea && strncmp(sw_ip_shown, state.switch_ip, sizeof(sw_ip_shown)) != 0) {
+            snprintf(sw_ip_shown, sizeof(sw_ip_shown), "%s", state.switch_ip);
+            if (lv_obj_get_state(ip_textarea) & LV_STATE_FOCUSED) { /* nao sobrescreve enquanto digita */ }
+            else lv_textarea_set_text(ip_textarea, state.switch_ip);
+        }
+        // Config > busca do Switch (progresso e resultado)
+        if (lbl_scan) {
+            char txt[48];
+            uint8_t st = router.scanState();
+            if (st == 1)      snprintf(txt, sizeof(txt), "Procurando o Switch (%d%%)...", router.scanProgress());
+            else if (st == 2) snprintf(txt, sizeof(txt), "Switch encontrado: %s", state.switch_ip);
+            else if (st == 3) snprintf(txt, sizeof(txt), "Nao encontrei o Switch. Confira: mesma rede, sys-botbase ativo.");
+            else              snprintf(txt, sizeof(txt), "Detectar: procura o Switch na rede da placa");
+            if (strncmp(scan_shown, txt, sizeof(scan_shown)) != 0) {
+                snprintf(scan_shown, sizeof(scan_shown), "%s", txt);
+                lv_label_set_text(lbl_scan, txt);
+            }
+        }
+
         // Config > IP da placa (so redesenha quando muda)
         if (lbl_board_ip && strncmp(board_ip_shown, state.board_ip, sizeof(board_ip_shown)) != 0) {
             snprintf(board_ip_shown, sizeof(board_ip_shown), "%s", state.board_ip);
@@ -120,7 +143,7 @@ public:
         }
 
         // Config > diagnostico (so redesenha quando muda)
-        int8_t conn = state.connected ? 1 : 0;
+        int8_t conn = state.usb_online ? 1 : 0;
         if (lbl_diag && (conn != diag_conn || state.active_macro_slot != diag_active ||
                          state.generic.macro_executions != diag_exec ||
                          strncmp(state.link_status, diag_link, sizeof(diag_link)) != 0)) {
@@ -399,6 +422,35 @@ public:
         lv_obj_set_style_text_font(lbl_board_ip, &lv_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(lbl_board_ip, LV_ALIGN_TOP_LEFT, 235, 62);
         lv_label_set_text(lbl_board_ip, "IP da placa: -");
+
+        lv_obj_t * btn_detectar = lv_btn_create(tab_config);
+        lv_obj_set_size(btn_detectar, 110, 30);
+        lv_obj_align(btn_detectar, LV_ALIGN_TOP_LEFT, 235, 100);
+        lv_obj_set_style_bg_color(btn_detectar, lv_color_hex(0x2A2A44), LV_PART_MAIN);
+        lv_obj_add_event_cb(btn_detectar, [](lv_event_t * e) {
+            auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+            const char * ip = mgr->state.board_ip;
+            if (ip[0] < '0' || ip[0] > '9') return;          // placa sem IP ainda
+            char prefixo[20];
+            size_t n = 0; int pontos = 0;
+            for (; ip[n] && pontos < 3 && n < sizeof(prefixo) - 1; n++) {
+                prefixo[n] = ip[n];
+                if (ip[n] == '.') pontos++;
+            }
+            prefixo[n] = '\0';
+            mgr->router.scanForSwitch(mgr->state, prefixo);
+        }, LV_EVENT_CLICKED, this);
+        lv_obj_t * lbl_btn = lv_label_create(btn_detectar);
+        lv_label_set_text(lbl_btn, "Detectar");
+        lv_obj_center(lbl_btn);
+
+        lbl_scan = lv_label_create(tab_config);
+        lv_obj_set_width(lbl_scan, 240);
+        lv_label_set_long_mode(lbl_scan, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_color(lbl_scan, lv_color_hex(0xAAAACC), LV_PART_MAIN);
+        lv_obj_set_style_text_font(lbl_scan, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_obj_align(lbl_scan, LV_ALIGN_TOP_LEFT, 235, 136);
+        lv_label_set_text(lbl_scan, "Detectar: procura o Switch na rede da placa");
 
         // Rodapé
         status_footer = lv_label_create(scr);
