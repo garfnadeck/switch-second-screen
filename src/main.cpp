@@ -9,6 +9,7 @@
 #ifdef TOUCH_ISOLADO
     #include "hardware/touch_isolado.h"
 #endif
+#include "hardware/usb_hid_esp32.h"
 #include "core/game_state.h"
 #include "core/asset_manager.h"
 #include "providers/provider_router.h"
@@ -243,6 +244,9 @@ static void rebootBoard() {
 #endif
 
 void setup() {
+#ifdef USB_HID_ESP32_TESTE
+    usbHidEsp32Init();   // teste: aparece como controle USB e aperta A a cada 2 s (ver loop)
+#endif
 #ifdef TOUCH_ISOLADO
     touchIsoladoRun();   // teste isolado do toque: nao retorna
 #endif
@@ -513,6 +517,18 @@ void setup() {
 }
 
 void loop() {
+#ifdef USB_HID_ESP32_TESTE
+    {
+        static uint32_t ultimo = 0;
+        uint32_t agora = millis();
+        if (agora - ultimo >= 2000) {
+            ultimo = agora;
+            usbHidEsp32Press(USB_BTN_A);
+        } else if (agora - ultimo >= 150) {
+            usbHidEsp32Release();
+        }
+    }
+#endif
     server.handleClient();
     frPersistTick();
     pump();   // router.update a cada volta (timing das macros) + LVGL se houver tela
