@@ -52,9 +52,11 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     (void)cor;                          // o buffer cheio fica em s_lvgl (a tela logica inteira)
     const uint16_t * origem = (const uint16_t *)s_lvgl;
 
-    // Area logica -> area nativa (inclusiva)
-    int nx1 = (PANEL_W - 1) - a->y2, nx2 = (PANEL_W - 1) - a->y1;
-    int ny1 = a->x1,                 ny2 = a->x2;
+    // Area logica -> area nativa (inclusiva). A altura logica vai inteira: assim a janela nativa tem
+    // a largura do painel (320), que e o formato validado na bancada. Janelas estreitas deram listras.
+    int ly1 = 0, ly2 = HUD_H - 1;
+    int nx1 = (PANEL_W - 1) - ly2, nx2 = (PANEL_W - 1) - ly1;
+    int ny1 = a->x1,               ny2 = a->x2;
     int w = nx2 - nx1 + 1;
     int h = ny2 - ny1 + 1;
     if (w <= 0 || h <= 0 || w * h > PANEL_W * PANEL_H) { lv_disp_flush_ready(drv); return; }
