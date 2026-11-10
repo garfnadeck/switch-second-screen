@@ -163,8 +163,7 @@ void es3c35p_lvgl_init()
     lv_indev_drv_init(&s_indev);
     s_indev.type = LV_INDEV_TYPE_POINTER;
     s_indev.read_cb = toqueLer;
-    lv_indev_t * indev = lv_indev_drv_register(&s_indev);
-    lv_timer_set_period(lv_indev_get_read_timer(indev), 10);   // leitura do toque a cada 10 ms (padrao 30)
+    lv_indev_drv_register(&s_indev);
 
     // Rotulo de diagnostico do toque (fica na camada de cima, sobre a HUD)
     s_dbg = lv_label_create(lv_layer_top());
