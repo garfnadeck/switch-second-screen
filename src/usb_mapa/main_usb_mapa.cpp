@@ -1,6 +1,5 @@
-// Teste de mapeamento com tela: o LCD mostra os 16 bits do relatorio HID do controle HORI.
-// A cada 1 s o bit seguinte e enviado e fica destacado na tela; o terminal (USB OTG CDC) mostra o mesmo bit.
-// Assim, quando o botao do NS2 responder, da para ver na tela e no terminal qual bit era.
+// Teste de mapeamento manual: cada celula da grade (bit 0 a 15) envia o bit ao ser tocada.
+// O LCD destaca o ultimo bit enviado e o terminal (USB OTG CDC) registra o mesmo bit.
 
 #include <Arduino.h>
 #include <string.h>
@@ -41,9 +40,31 @@ static USBCDC usbSerial;
 static RelatorioSwitch rel = { 0, 8, 128, 128, 128, 128, 0 };
 
 static const int PINO_BACKLIGHT = 41;
+static const uint32_t DURACAO_PRESSAO_MS = 150;
 static lv_obj_t * s_celulas[16];
-static lv_obj_t * s_titulo = NULL;
 static lv_obj_t * s_status = NULL;
+static volatile bool s_soltarEm = false;
+static uint32_t s_pressionadoEm = 0;
+
+// Envia o bit tocado (pressao) e agenda a soltura
+static void enviarBit(int bit)
+{
+    rel.botoes = (uint16_t)(1u << bit);
+    hid.SendReport(0, &rel, sizeof(rel));
+    usbSerial.printf("bit %d\n", bit);
+    lv_label_set_text_fmt(s_status, "enviado: bit %d", bit);
+    for (int i = 0; i < 16; i++) {
+        lv_obj_set_style_bg_color(s_celulas[i], lv_color_hex(i == bit ? 0xE00000 : 0x333333), 0);
+    }
+    s_pressionadoEm = millis();
+    s_soltarEm = true;
+}
+
+static void aoTocar(lv_event_t * e)
+{
+    int bit = (int)(intptr_t)lv_event_get_user_data(e);
+    enviarBit(bit);
+}
 
 static void criarTela()
 {
@@ -51,10 +72,10 @@ static void criarTela()
     lv_obj_set_style_bg_color(tela, lv_color_hex(0x000000), 0);
     lv_obj_set_style_bg_opa(tela, LV_OPA_COVER, 0);
 
-    s_titulo = lv_label_create(tela);
-    lv_label_set_text(s_titulo, "Teste de botoes (bit)");
-    lv_obj_set_style_text_color(s_titulo, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_pos(s_titulo, 10, 6);
+    lv_obj_t * titulo = lv_label_create(tela);
+    lv_label_set_text(titulo, "Toque no bit para enviar");
+    lv_obj_set_style_text_color(titulo, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_set_pos(titulo, 10, 6);
 
     for (int i = 0; i < 16; i++) {
         int c = i % 4, r = i / 4;
@@ -65,6 +86,7 @@ static void criarTela()
         lv_obj_set_style_bg_opa(cel, LV_OPA_COVER, 0);
         lv_obj_set_style_border_width(cel, 0, 0);
         lv_obj_clear_flag(cel, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_event_cb(cel, aoTocar, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         lv_obj_t * txt = lv_label_create(cel);
         lv_label_set_text_fmt(txt, "bit %d", i);
         lv_obj_set_style_text_color(txt, lv_color_hex(0xFFFFFF), 0);
@@ -73,16 +95,9 @@ static void criarTela()
     }
 
     s_status = lv_label_create(tela);
-    lv_label_set_text(s_status, "aguardando...");
+    lv_label_set_text(s_status, "aguardando toque...");
     lv_obj_set_style_text_color(s_status, lv_color_hex(0xFFFF00), 0);
     lv_obj_set_pos(s_status, 10, 300);
-}
-
-// Destaca o bit atual (vermelho) e apaga o anterior
-static void destacar(int atual, int anterior)
-{
-    if (anterior >= 0) lv_obj_set_style_bg_color(s_celulas[anterior], lv_color_hex(0x333333), 0);
-    if (atual >= 0)    lv_obj_set_style_bg_color(s_celulas[atual], lv_color_hex(0xE00000), 0);
 }
 
 void setup()
@@ -106,10 +121,6 @@ void setup()
 
 void loop()
 {
-    static uint32_t ultimo = 0;
-    static uint32_t inicio = 0;
-    static bool pressionado = false;
-    static uint8_t indice = 0;
     static uint32_t ultimoPisca = 0;
     static uint32_t ultimoLog = 0;
     uint32_t agora = millis();
@@ -125,35 +136,11 @@ void loop()
         usbSerial.printf("mapa rodando: %lu ms\n", (unsigned long)agora);
     }
 
-    // Espera 30 s antes de enviar qualquer input, para dar tempo de abrir a tela de teste no console
-    static const uint32_t ATRASO_INICIO_MS = 30000;
-    if (agora < ATRASO_INICIO_MS) {
-        static uint32_t ultimaContagem = 0xFFFFFFFF;
-        uint32_t restante = (ATRASO_INICIO_MS - agora + 999) / 1000;
-        if (restante != ultimaContagem) {
-            ultimaContagem = restante;
-            lv_label_set_text_fmt(s_status, "inicia em %lu s", (unsigned long)restante);
-            usbSerial.printf("aguardando inicio: %lu s\n", (unsigned long)restante);
-        }
-        delay(5);
-        return;
-    }
-
-    // Intervalo de 10 s entre um input e o proximo, para dar tempo de anotar
-    if (!pressionado && agora - ultimo >= 10000) {
-        rel.botoes = (uint16_t)(1u << indice);
-        hid.SendReport(0, &rel, sizeof(rel));
-        usbSerial.printf("bit %u\n", indice);
-        lv_label_set_text_fmt(s_status, "enviado: bit %u", indice);
-        destacar(indice, (indice + 15) % 16);
-        pressionado = true;
-        inicio = agora;
-    } else if (pressionado && agora - inicio >= 700) {
+    // Solta o botao depois de DURACAO_PRESSAO_MS
+    if (s_soltarEm && agora - s_pressionadoEm >= DURACAO_PRESSAO_MS) {
+        s_soltarEm = false;
         rel.botoes = 0;
         hid.SendReport(0, &rel, sizeof(rel));
-        pressionado = false;
-        indice = (uint8_t)((indice + 1) % 16);
-        ultimo = agora;
     }
     delay(5);
 }
