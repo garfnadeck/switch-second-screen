@@ -840,6 +840,7 @@
             </div>
             <div class="callout"><strong>Teste sem o contorno de reset:</strong> com o contorno desligado, o toque parou de responder depois de alguns toques. Portanto o chip trava de fato, e o reset pelo INT continua ativo (flag <code>ES3C35P_TOUCH_SEM_CONTORNO</code> só para teste). Voltou a funcionar com o contorno.</div>
             <div class="callout"><strong>USB HID no ESP32-S3 (etapa 1, branch <code>feature/usb-hid-esp32</code>):</strong> a placa passa a aparecer como controle USB pelo USB nativo (IO19/IO20), com o mesmo descritor do Pico. O ambiente <code>esp32-s3-usb-teste</code> aperta o botão A a cada 2 s. Consequência: para gravar, segure BOOT ao conectar. Ainda não compilado nem testado no Switch.</div>
+            <div class="callout"><strong>USB HID reconhecido no NS2 (10/11, branch <code>feature/usb-hid-esp32</code>):</strong> o firmware de teste (<code>src/usb_minimo</code>) sobe o USB OTG com identidade de controle HORI (VID <code>0x0F0D</code>, PID <code>0x0092</code>), e o NS2 reconheceu como controle. A porta serial virtual do firmware mostra que ele roda. Pendente: confirmar se o botão A responde no menu e testar no Switch OLED (chega à tarde).</div>
             <div class="callout"><strong>Diagnóstico:</strong> o serial desta placa não mostra os logs (a porta é a USB JTAG/serial). Por isso o estado do toque aparece num rótulo amarelo no canto da tela: erro do I2C, status, último toque, número do flush e tempos de rotação e envio.</div>
 
             <h2>🚀 Desempenho da HUD</h2>
