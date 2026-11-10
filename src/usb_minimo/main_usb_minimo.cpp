@@ -5,6 +5,10 @@
 #include <string.h>
 #include "USB.h"
 #include "USBHID.h"
+#include "USBCDC.h"
+
+// Serial virtual pelo mesmo USB OTG: aparece no Mac como /dev/cu.usbmodem* se o firmware subir.
+static USBCDC usbSerial;
 
 static const uint8_t DESCRITOR[] = {
     0x05, 0x01, 0x09, 0x05, 0xA1, 0x01, 0x15, 0x00, 0x25, 0x01, 0x35, 0x00, 0x45, 0x01, 0x75, 0x01,
@@ -35,6 +39,7 @@ static ControleMinimo controle;
 static RelatorioSwitch rel = { 0, 8, 128, 128, 128, 128, 0 };
 
 void setup() {
+    usbSerial.begin();
     hid.addDevice(&controle, sizeof(DESCRITOR));
     hid.begin();
     USB.productName("Switch Minimo");
@@ -45,6 +50,11 @@ void setup() {
 void loop() {
     static uint32_t ultimo = 0;
     uint32_t agora = millis();
+    static uint32_t ultimoLog = 0;
+    if (agora - ultimoLog >= 1000) {
+        ultimoLog = agora;
+        usbSerial.printf("minimo rodando: %lu ms\n", (unsigned long)agora);
+    }
     if (agora - ultimo >= 2000) {
         ultimo = agora;
         rel.botoes = 1;          // botao A
