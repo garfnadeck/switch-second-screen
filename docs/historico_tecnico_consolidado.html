@@ -745,7 +745,7 @@
         <!-- CONTEÚDO: 09/11/2026 -->
         <div id="content-2026-11-09" class="date-content-view">
             <div class="hero">
-                <div class="eyebrow">REGISTRO DE 09/11/2026 // VERSÃO ATUAL (branch feature/busca-wifi)</div>
+                <div class="eyebrow">REGISTRO DE 09/11/2026 // VERSÃO ATUAL (branch feature/hud-dois-nucleos)</div>
                 <h2>Busca de redes Wi-Fi na própria placa</h2>
                 <p>Antes, para trocar de rede era preciso digitar o nome exato do Wi-Fi. Agora a placa lista as redes ao redor, ordenadas pelo sinal. Basta tocar numa delas e digitar a senha.</p>
             </div>
@@ -832,15 +832,61 @@
             </table></div>
             <div class="callout"><strong>Não compilado nem testado na placa ainda.</strong> Pelo PR #11 (branch <code>feature/touch-es3c35p</code>), o teste é <code>pio run -e esp32-s3-hud -t upload</code>, tocar nas abas e nos botões e conferir se a aba muda. Se o toque aparecer espelhado ou girado, a conversão está em <code>toqueLer()</code>.</div>
 
+            <h2>👆 Toque confirmado na HUD</h2>
+            <p>O toque passou a funcionar na HUD. A bancada já funcionava, então a causa estava no firmware principal, em três pontos:</p>
+            <div class="grid-2">
+                <div class="card"><h2>💡 LED de status no pino do touch</h2><p>No ESP32-S3 DevKitC o <code>LED_BUILTIN</code> é o GPIO 48, que é o RST do touch. O firmware piscava esse pino, mantendo o chip em reset. Agora o LED não é usado na placa ESP32 (no Pico continua).</p></div>
+                <div class="card"><h2>⏱️ Ritmo e ordem</h2><p>Toque inicializado depois do display, como na bancada que funcionou, e leitura a cada 10 ms (antes eram 30 ms).</p></div>
+            </div>
+            <div class="callout"><strong>Diagnóstico:</strong> o serial desta placa não mostra os logs (a porta é a USB JTAG/serial). Por isso o estado do toque aparece num rótulo amarelo no canto da tela: erro do I2C, status, último toque, número do flush e tempos de rotação e envio.</div>
+
+            <h2>🚀 Desempenho da HUD</h2>
+            <div class="tbl-wrap"><table>
+                <thead><tr><th>Versão</th><th>FPS</th><th>Rotação (gira)</th><th>Envio SPI (env)</th><th>Resultado</th></tr></thead>
+                <tbody>
+                    <tr><td>Tela inteira a cada quadro, rotação no ESP32</td><td>4 a 33</td><td>50 a 70 ms</td><td>15 ms</td><td>Limpa, mas troca de aba lenta</td></tr>
+                    <tr><td>Atualização parcial (primeira tentativa)</td><td>—</td><td>—</td><td>—</td><td>Listras e lixo no topo</td></tr>
+                    <tr><td>Parcial corrigida (quadro lógico na PSRAM, janelas de largura total)</td><td>11</td><td>50 ms</td><td>10 ms</td><td>Limpa</td></tr>
+                    <tr><td>Envio no núcleo 0, em paralelo com o desenho</td><td><strong>27</strong></td><td>19 ms</td><td>20 ms</td><td><strong>Troca de aba muito boa</strong></td></tr>
+                </tbody>
+            </table></div>
+            <div class="callout"><strong>Causa do ruído:</strong> no modo parcial o LVGL 8 entrega ao <code>flush</code> só os pixels da área, com largura igual à da área, e não a tela inteira. Além disso, janelas de envio estreitas geram listras no painel, então o envio usa sempre a largura total.</div>
+            <div class="callout"><strong>Testado e descartado:</strong> girar a imagem pelo próprio painel (MADCTL.MV). A imagem saiu girada 90° e a velocidade não mudou (4 FPS), então o ambiente <code>esp32-s3-hud-rothw</code> ficou só como experimento.</div>
+
+            <h2>📁 Arquivos alterados hoje</h2>
+            <div class="tbl-wrap"><table>
+                <thead><tr><th>Arquivo</th><th>O que mudou</th><th>Gravar com</th></tr></thead>
+                <tbody>
+                    <tr><td><code>src/hardware/es3c35p_lvgl.cpp</code></td><td>Flush parcial com quadro lógico na PSRAM, tarefa de envio no núcleo 0, rotação em blocos, rótulo de diagnóstico.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>src/hardware/es3c35p_touch.cpp</code></td><td>Probe de confirmação, leitura a cada 10 ms, erro e status para diagnóstico.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>src/main.cpp</code></td><td>LED de status não usa o GPIO 48 no ESP32.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>src/hardware/es3c35p_display.cpp</code></td><td>Flag <code>ES3C35P_ROT_HW</code> (experimento de rotação pelo painel, desligado por padrão).</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>src/hardware/touch_isolado.cpp</code></td><td>Teste isolado do toque (sem LVGL, sem Wi-Fi), usado para achar a causa.</td><td>Firmware (upload)</td></tr>
+                    <tr><td><code>platformio.ini</code></td><td>Ambientes de teste: <code>esp32-s3-touch-isolado</code>, <code>esp32-s3-touch-wifi</code>, <code>esp32-s3-touch-lvgl</code>, <code>esp32-s3-hud-rothw</code>.</td><td>—</td></tr>
+                </tbody>
+            </table></div>
+
+            <h2>🧪 O que foi testado</h2>
+            <div class="tbl-wrap"><table>
+                <thead><tr><th>Item</th><th>Resultado</th></tr></thead>
+                <tbody>
+                    <tr><td>Toque no teste isolado (sem LVGL e sem Wi-Fi)</td><td>OK</td></tr>
+                    <tr><td>Toque com Wi-Fi ligado</td><td>OK</td></tr>
+                    <tr><td>Toque no LVGL, sem interface</td><td>OK</td></tr>
+                    <tr><td>Toque na HUD completa, após corrigir o LED</td><td>OK</td></tr>
+                    <tr><td>Toque nas abas Mapa e Macros</td><td>OK</td></tr>
+                    <tr><td>Troca de abas com o envio em paralelo</td><td>Muito boa</td></tr>
+                    <tr><td>Compilação com <code>-O2</code> no driver do LVGL</td><td>Sem ganho medido na rotação; mantido</td></tr>
+                </tbody>
+            </table></div>
+
             <h2>✅ Próximos passos</h2>
             <ul class="todo-list">
-                <li><input type="checkbox" disabled><label>Validar o toque na placa (PR #11)<small>as abas e os botões devem responder; conferir orientação e o efeito do reset</small></label></li>
-                <li><input type="checkbox" disabled><label>Encontrar a causa do travamento do toque<small>hoje o contorno é o reset pelo INT; o INT da placa não é confiável</small></label></li>
-                <li><input type="checkbox" disabled><label>Compilar e gravar <code>pio run -e esp32-s3-tela -t upload</code><small>a tela deve mostrar TESTE; corrigir o que o compilador apontar</small></label></li>
-                <li><input type="checkbox" disabled><label>Testar a busca de redes no modo SwitchHUD<small>validada na web com a placa no Wi-Fi do usuário; falta o modo AP</small></label></li>
-                <li><input type="checkbox" disabled><label>Ligar o LVGL ao flush da tela<small>primeiro com a HUD simples; depois o restante da UI</small></label></li>
+                <li><input type="checkbox" disabled><label>Abrir PR da branch <code>feature/hud-dois-nucleos</code><small>decidir se vai para a main ou para a branch do toque</small></label></li>
+                <li><input type="checkbox" disabled><label>Fazer o ruído do topo não voltar<small>confirmar em mais telas (Mapa, Macros, Config) com a troca rápida</small></label></li>
+                <li><input type="checkbox" disabled><label>Encontrar a causa do travamento do toque na raiz<small>o contorno com reset pelo INT ainda está ativo</small></label></li>
                 <li><input type="checkbox" disabled><label>Tornar a senha do SwitchHUD configurável<small>hoje está fixa em <code>main.cpp</code></small></label></li>
-                <li><input type="checkbox" disabled><label>Definir se o Switch precisa de internet pela placa<small>exige NAT ou ponte; fica para depois da busca</small></label></li>
+                <li><input type="checkbox" disabled><label>Definir se o Switch precisa de internet pela placa<small>exige NAT ou ponte; fica para depois</small></label></li>
             </ul>
         </div>
 

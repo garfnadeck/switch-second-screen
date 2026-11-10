@@ -14,6 +14,8 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
+#include <limits.h>
 #include "hardware/es3c35p_display.h"
 #include "hardware/es3c35p_touch.h"
 
@@ -30,6 +32,10 @@ static const char * TAG = "es3c35p-hud";
 static lv_color_t * s_lvgl = NULL;      // 480x320, o que o LVGL desenha
 static uint16_t   * s_nativo = NULL;    // 320x480, girado e com byte trocado, o que vai para o SPI
 static uint16_t   * s_frame = NULL;     // 480x320 na PSRAM: quadro logico inteiro, mantido entre os flushes parciais
+// Envio em paralelo (nucleo 0): o flush so copia a area e marca a faixa alterada; a tarefa gira e envia
+static TaskHandle_t       s_tarefaEnvio = NULL;
+static portMUX_TYPE       s_mux = portMUX_INITIALIZER_UNLOCKED;
+static int                s_sujoX1 = INT_MAX, s_sujoX2 = -1;   // faixa de colunas logicas (lx) pendente de envio
 static lv_disp_draw_buf_t s_draw;
 static lv_disp_drv_t      s_disp;
 static lv_indev_drv_t     s_indev;
@@ -90,8 +96,8 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
 }
 #else
 // Software, modo parcial. O LVGL entrega so os pixels da area (largura = largura da area).
-// 1) copia a area para o quadro logico inteiro (s_frame); 2) gira as linhas alteradas para o
-// buffer nativo com a largura TOTAL do painel (janelas estreitas davam listras); 3) envia em blocos.
+// flush: copia a area para o quadro logico (s_frame), marca a faixa e retorna logo (o LVGL segue desenhando).
+// tarefaEnvio (nucleo 0): gira as colunas alteradas e envia com janelas de largura total.
 static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
 {
     const uint16_t * src = (const uint16_t *)cor;
@@ -100,13 +106,23 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     s_nFlush++;
     s_fx1 = ax1; s_fx2 = ax2; s_fy1 = ay1; s_fy2 = ay2;
 
-    // 1) area -> quadro logico
     for (int ly = ay1; ly <= ay2; ly++) {
         memcpy(&s_frame[ly * HUD_W + ax1], src + (ly - ay1) * aw, aw * sizeof(uint16_t));
     }
 
-    // 2) linhas alteradas (lx = ax1..ax2) com as 320 colunas nativas: nativo x = 319 - ly, nativo y = lx
-    int ny1 = ax1, ny2 = ax2;
+    portENTER_CRITICAL(&s_mux);
+    if (ax1 < s_sujoX1) s_sujoX1 = ax1;
+    if (ax2 > s_sujoX2) s_sujoX2 = ax2;
+    portEXIT_CRITICAL(&s_mux);
+    if (s_tarefaEnvio) xTaskNotifyGive(s_tarefaEnvio);
+
+    lv_disp_flush_ready(drv);           // libera o LVGL ja: o envio acontece no outro nucleo
+}
+
+// Gira as colunas lx em [x1..x2] (com as 320 colunas nativas) e envia em janelas de largura total
+static void enviaColunas(int x1, int x2)
+{
+    int ny1 = x1, ny2 = x2;
     int h = ny2 - ny1 + 1;
     int64_t t0 = esp_timer_get_time();
     const int T = 16;
@@ -127,8 +143,7 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     esp_cache_msync(s_nativo, PANEL_W * h * sizeof(uint16_t), ESP_CACHE_MSYNC_FLAG_DIR_C2M);
     int64_t t1 = esp_timer_get_time();
 
-    // 3) janelas de largura total, em blocos de no maximo 25600 bytes
-    int linhasPorBloco = 12800 / PANEL_W;   // 40 linhas
+    int linhasPorBloco = 12800 / PANEL_W;   // 40 linhas = 25600 bytes
     for (int r = 0; r < h; r += linhasPorBloco) {
         int n = (r + linhasPorBloco > h) ? (h - r) : linhasPorBloco;
         if (!es3c35p_display::drawRect(0, ny1 + r, PANEL_W, ny1 + r + n, s_nativo + r * PANEL_W, bandaPronta, NULL)) {
@@ -142,7 +157,20 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     }
     s_msGira = (unsigned long)((t1 - t0) / 1000);
     s_msEnvio = (unsigned long)((esp_timer_get_time() - t1) / 1000);
-    lv_disp_flush_ready(drv);
+}
+
+static void tarefaEnvio(void * arg)
+{
+    (void)arg;
+    for (;;) {
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);   // espera um flush
+        int x1, x2;
+        portENTER_CRITICAL(&s_mux);
+        x1 = s_sujoX1; x2 = s_sujoX2;
+        s_sujoX1 = INT_MAX; s_sujoX2 = -1;
+        portEXIT_CRITICAL(&s_mux);
+        if (x2 >= x1) enviaColunas(x1, x2);
+    }
 }
 #endif  // ES3C35P_ROT_HW
 
@@ -208,6 +236,8 @@ void es3c35p_lvgl_init()
     }
 
     s_sem = xSemaphoreCreateBinary();
+    // Tarefa de envio no nucleo 0 (a tela e o LVGL ficam no nucleo 1)
+    xTaskCreatePinnedToCore(tarefaEnvio, "hud_envio", 4096, NULL, 5, &s_tarefaEnvio, 0);
     if (!s_sem) {
         ESP_LOGE(TAG, "sem memoria para o semaforo: HUD desligada");
         return;
