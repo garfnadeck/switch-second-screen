@@ -146,6 +146,7 @@ struct GameState {
     int8_t active_macro_slot = -1; // -1 = nenhuma macro em execucao
     char link_status[24] = "desativado";   // estado da leitura de RAM (sys-botbase)
     char switch_ip[16] = "192.168.1.50";
+    char board_ip[24] = "-";               // IP da propria placa (Wi-Fi ou AP), para mostrar na Config
     uint16_t switch_port = 6000;
 
     FireRedStats fr;

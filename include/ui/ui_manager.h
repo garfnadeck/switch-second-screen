@@ -43,6 +43,8 @@ private:
     lv_obj_t * status_footer = nullptr;
     lv_obj_t * ip_textarea = nullptr;
     lv_obj_t * lbl_diag = nullptr;        // Config: USB / macro ativa / execucoes
+    lv_obj_t * lbl_board_ip = nullptr;    // Config: IP da placa
+    char board_ip_shown[24] = "";
     int8_t   diag_conn = -1, diag_active = -2;
     uint32_t diag_exec = 0xFFFFFFFF;
     char     diag_link[24] = {};
@@ -110,6 +112,12 @@ public:
         char buf[64];
         mod->formatMapCoordText(buf, sizeof(buf), state);
         lv_label_set_text(coord_label, buf);
+
+        // Config > IP da placa (so redesenha quando muda)
+        if (lbl_board_ip && strncmp(board_ip_shown, state.board_ip, sizeof(board_ip_shown)) != 0) {
+            snprintf(board_ip_shown, sizeof(board_ip_shown), "%s", state.board_ip);
+            lv_label_set_text_fmt(lbl_board_ip, "IP da placa:\n%s", state.board_ip);
+        }
 
         // Config > diagnostico (so redesenha quando muda)
         int8_t conn = state.connected ? 1 : 0;
@@ -385,6 +393,12 @@ public:
         lv_obj_set_style_text_line_space(lbl_diag, 4, LV_PART_MAIN);
         lv_obj_align(lbl_diag, LV_ALIGN_TOP_LEFT, 5, 70);
         lv_label_set_text(lbl_diag, "USB: -");
+
+        lbl_board_ip = lv_label_create(tab_config);
+        lv_obj_set_style_text_color(lbl_board_ip, lv_color_hex(0x00F5D4), LV_PART_MAIN);
+        lv_obj_set_style_text_font(lbl_board_ip, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_obj_align(lbl_board_ip, LV_ALIGN_TOP_LEFT, 235, 62);
+        lv_label_set_text(lbl_board_ip, "IP da placa: -");
 
         // Rodapé
         status_footer = lv_label_create(scr);

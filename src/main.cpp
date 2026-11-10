@@ -517,6 +517,14 @@ void setup() {
 }
 
 void loop() {
+    {
+        static uint32_t ultimoIp = 0;
+        if (millis() - ultimoIp >= 2000) {
+            ultimoIp = millis();
+            IPAddress ip = apMode ? WiFi.softAPIP() : WiFi.localIP();
+            snprintf(state.board_ip, sizeof(state.board_ip), "%s", ip.toString().c_str());
+        }
+    }
 #ifdef USB_HID_ESP32_TESTE
     {
         static uint32_t ultimo = 0;
