@@ -6,9 +6,10 @@
 
 #include <stdint.h>
 
-// Bits de botao (mesma ordem do relatorio do Switch)
-#define USB_BTN_A       (1u << 0)
-#define USB_BTN_B       (1u << 1)
+// Bits de botao: ver include/hardware/usb_hid_mapa.h (mapeamento medido no NS2)
+#include "hardware/usb_hid_mapa.h"
+#define USB_BTN_A  BOTAO(BIT_A)
+#define USB_BTN_B  BOTAO(BIT_B)
 
 void usbHidEsp32Init();
 void usbHidEsp32Press(uint16_t botoes);   // botoes: mascara de 16 bits, o resto fica solto
