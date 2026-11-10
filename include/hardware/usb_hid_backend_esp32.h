@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include "USBHID.h"
 
-enum { HID_ITF_PROTOCOL_NONE = 0 };
+// HID_ITF_PROTOCOL_NONE vem do TinyUSB (USBHID.h); nao redeclarar aqui.
 
 class Adafruit_USBD_HID_Esp32 : public USBHIDDevice {
 public:
