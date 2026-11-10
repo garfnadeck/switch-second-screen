@@ -85,26 +85,24 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     lv_disp_flush_ready(drv);
 }
 #else
-// Logico (lx, ly) -> nativo (x = 319 - ly, y = lx). Conferido em tests/rot_test.py.
-// Envia so a area que mudou (partial refresh): gira essa area para o buffer nativo e manda em blocos.
+// Software: o LVGL entrega so os pixels da area (no modo parcial, com largura igual a da area).
+// Gira essa area para o buffer nativo e envia em blocos.
 static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
 {
-    (void)cor;                          // o buffer cheio fica em s_lvgl (a tela logica inteira)
-    const uint16_t * origem = (const uint16_t *)s_lvgl;
+    const uint16_t * src = (const uint16_t *)cor;
+    int ax1 = a->x1, ay1 = a->y1, ax2 = a->x2, ay2 = a->y2;
+    int aw = ax2 - ax1 + 1;                 // largura da area no buffer do LVGL
     s_nFlush++;
-    s_fx1 = a->x1; s_fx2 = a->x2; s_fy1 = a->y1; s_fy2 = a->y2;
+    s_fx1 = ax1; s_fx2 = ax2; s_fy1 = ay1; s_fy2 = ay2;
 
-    // Area logica -> area nativa (inclusiva). A altura logica vai inteira: assim a janela nativa tem
-    // a largura do painel (320), que e o formato validado na bancada. Janelas estreitas deram listras.
-    int ly1 = 0, ly2 = HUD_H - 1;
-    int nx1 = (PANEL_W - 1) - ly2, nx2 = (PANEL_W - 1) - ly1;
-    int ny1 = a->x1,               ny2 = a->x2;
+    // Area logica -> area nativa (inclusiva): nativo x = 319 - ly, nativo y = lx
+    int nx1 = (PANEL_W - 1) - ay2, nx2 = (PANEL_W - 1) - ay1;
+    int ny1 = ax1,                 ny2 = ax2;
     int w = nx2 - nx1 + 1;
     int h = ny2 - ny1 + 1;
     if (w <= 0 || h <= 0 || w * h > PANEL_W * PANEL_H) { lv_disp_flush_ready(drv); return; }
 
-    // Rotacao em blocos de 16x16: as leituras e escritas de cada bloco ficam nas mesmas linhas de cache
-    // (rotacao pixel a pixel na PSRAM levava ~67 ms; o gargalo era a falta de cache)
+    // Rotacao em blocos de 16x16 (ordem amigavel ao cache da PSRAM)
     int64_t t0 = esp_timer_get_time();
     const int T = 16;
     for (int by = ny1; by <= ny2; by += T) {
@@ -115,7 +113,7 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
                 for (int x = bx; x <= xFim; x++) {
                     int lx = y;
                     int ly = (PANEL_W - 1) - x;
-                    uint16_t c = origem[ly * HUD_W + lx];
+                    uint16_t c = src[(ly - ay1) * aw + (lx - ax1)];
                     s_nativo[(y - ny1) * w + (x - nx1)] = (uint16_t)((c >> 8) | (c << 8));   // painel quer o byte alto primeiro
                 }
             }
@@ -125,7 +123,7 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     int64_t t1 = esp_timer_get_time();
 
     // Blocos de no maximo 25600 bytes (limite do barramento SPI), um de cada vez
-    int linhasPorBloco = 12800 / w;     // 12800 pixels de 2 bytes = 25600 bytes
+    int linhasPorBloco = 12800 / w;
     if (linhasPorBloco < 1) linhasPorBloco = 1;
     for (int r = 0; r < h; r += linhasPorBloco) {
         int n = (r + linhasPorBloco > h) ? (h - r) : linhasPorBloco;
@@ -140,7 +138,7 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     }
     s_msGira = (unsigned long)((t1 - t0) / 1000);
     s_msEnvio = (unsigned long)((esp_timer_get_time() - t1) / 1000);
-    lv_disp_flush_ready(drv);           // libera o LVGL mesmo se algo falhou (nao trava)
+    lv_disp_flush_ready(drv);
 }
 #endif  // ES3C35P_ROT_HW
 
@@ -217,7 +215,7 @@ void es3c35p_lvgl_init()
     s_disp.ver_res = HUD_H;
     s_disp.flush_cb = flush;
     s_disp.draw_buf = &s_draw;
-    s_disp.full_refresh = 1;            // tela inteira a cada quadro: a atualizacao parcial deixou ruido no topo
+    s_disp.full_refresh = 0;            // so as areas que mudaram sao redesenhadas e enviadas
     lv_disp_drv_register(&s_disp);
 
     lv_indev_drv_init(&s_indev);
