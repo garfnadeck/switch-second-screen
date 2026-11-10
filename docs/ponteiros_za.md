@@ -26,6 +26,12 @@ ou da 1.0.1 (atualização do dia do lançamento).
 - `getBuildID` do jogo do usuário: `7222E13ECF6ADB32` (versão a identificar; jogo base, sem updates).
 - O comando correto é `getTitleID` (com ID maiúsculo). `getTitleId` não é reconhecido e fica sem resposta.
 
+### Posição achada no jogo do usuário (build `7222E13ECF6ADB32`, sem updates)
+
+`0x41E9D20, 0x248, 0x0, 0x138`, depois `+0x90` (x, y, z float32). Achado com `tools/za_scan_pos.py`:
+único candidato, e os valores mudaram ao andar (-876,10 / 0 / -757,38 → -903,71 / 0 / -487,93).
+A base ficou `0x2620` abaixo da publicada para outubro/2025.
+
 ## Formato dos dados
 
 - Cada Pokémon: bloco de `0x148` bytes no formato PA9 (cifrado e embaralhado, como no PKHeX).
