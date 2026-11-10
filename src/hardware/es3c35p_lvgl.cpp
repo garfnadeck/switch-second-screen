@@ -26,6 +26,7 @@ static const char * TAG = "es3c35p-hud";
 // (que funcionou com faixas de largura total). O LVGL redesenha a tela inteira a cada quadro.
 static lv_color_t * s_lvgl = NULL;      // 480x320, o que o LVGL desenha
 static uint16_t   * s_nativo = NULL;    // 320x480, girado e com byte trocado, o que vai para o SPI
+static uint16_t   * s_frame = NULL;     // 480x320 na PSRAM: quadro logico inteiro, mantido entre os flushes parciais
 static lv_disp_draw_buf_t s_draw;
 static lv_disp_drv_t      s_disp;
 static lv_indev_drv_t     s_indev;
@@ -85,49 +86,49 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     lv_disp_flush_ready(drv);
 }
 #else
-// Software: o LVGL entrega so os pixels da area (no modo parcial, com largura igual a da area).
-// Gira essa area para o buffer nativo e envia em blocos.
+// Software, modo parcial. O LVGL entrega so os pixels da area (largura = largura da area).
+// 1) copia a area para o quadro logico inteiro (s_frame); 2) gira as linhas alteradas para o
+// buffer nativo com a largura TOTAL do painel (janelas estreitas davam listras); 3) envia em blocos.
 static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
 {
     const uint16_t * src = (const uint16_t *)cor;
     int ax1 = a->x1, ay1 = a->y1, ax2 = a->x2, ay2 = a->y2;
-    int aw = ax2 - ax1 + 1;                 // largura da area no buffer do LVGL
+    int aw = ax2 - ax1 + 1;
     s_nFlush++;
     s_fx1 = ax1; s_fx2 = ax2; s_fy1 = ay1; s_fy2 = ay2;
 
-    // Area logica -> area nativa (inclusiva): nativo x = 319 - ly, nativo y = lx
-    int nx1 = (PANEL_W - 1) - ay2, nx2 = (PANEL_W - 1) - ay1;
-    int ny1 = ax1,                 ny2 = ax2;
-    int w = nx2 - nx1 + 1;
-    int h = ny2 - ny1 + 1;
-    if (w <= 0 || h <= 0 || w * h > PANEL_W * PANEL_H) { lv_disp_flush_ready(drv); return; }
+    // 1) area -> quadro logico
+    for (int ly = ay1; ly <= ay2; ly++) {
+        memcpy(&s_frame[ly * HUD_W + ax1], src + (ly - ay1) * aw, aw * sizeof(uint16_t));
+    }
 
-    // Rotacao em blocos de 16x16 (ordem amigavel ao cache da PSRAM)
+    // 2) linhas alteradas (lx = ax1..ax2) com as 320 colunas nativas: nativo x = 319 - ly, nativo y = lx
+    int ny1 = ax1, ny2 = ax2;
+    int h = ny2 - ny1 + 1;
     int64_t t0 = esp_timer_get_time();
     const int T = 16;
     for (int by = ny1; by <= ny2; by += T) {
         int yFim = (by + T - 1 < ny2) ? (by + T - 1) : ny2;
-        for (int bx = nx1; bx <= nx2; bx += T) {
-            int xFim = (bx + T - 1 < nx2) ? (bx + T - 1) : nx2;
+        for (int bx = 0; bx < PANEL_W; bx += T) {
+            int xFim = (bx + T - 1 < PANEL_W - 1) ? (bx + T - 1) : (PANEL_W - 1);
             for (int y = by; y <= yFim; y++) {
                 for (int x = bx; x <= xFim; x++) {
                     int lx = y;
                     int ly = (PANEL_W - 1) - x;
-                    uint16_t c = src[(ly - ay1) * aw + (lx - ax1)];
-                    s_nativo[(y - ny1) * w + (x - nx1)] = (uint16_t)((c >> 8) | (c << 8));   // painel quer o byte alto primeiro
+                    uint16_t c = s_frame[ly * HUD_W + lx];
+                    s_nativo[(y - ny1) * PANEL_W + x] = (uint16_t)((c >> 8) | (c << 8));   // painel quer o byte alto primeiro
                 }
             }
         }
     }
-    esp_cache_msync(s_nativo, w * h * sizeof(uint16_t), ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+    esp_cache_msync(s_nativo, PANEL_W * h * sizeof(uint16_t), ESP_CACHE_MSYNC_FLAG_DIR_C2M);
     int64_t t1 = esp_timer_get_time();
 
-    // Blocos de no maximo 25600 bytes (limite do barramento SPI), um de cada vez
-    int linhasPorBloco = 12800 / w;
-    if (linhasPorBloco < 1) linhasPorBloco = 1;
+    // 3) janelas de largura total, em blocos de no maximo 25600 bytes
+    int linhasPorBloco = 12800 / PANEL_W;   // 40 linhas
     for (int r = 0; r < h; r += linhasPorBloco) {
         int n = (r + linhasPorBloco > h) ? (h - r) : linhasPorBloco;
-        if (!es3c35p_display::drawRect(nx1, ny1 + r, nx2 + 1, ny1 + r + n, s_nativo + r * w, bandaPronta, NULL)) {
+        if (!es3c35p_display::drawRect(0, ny1 + r, PANEL_W, ny1 + r + n, s_nativo + r * PANEL_W, bandaPronta, NULL)) {
             ESP_LOGE(TAG, "envio do bloco falhou");
             break;
         }
@@ -195,7 +196,10 @@ void es3c35p_lvgl_init()
                                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     s_nativo = (uint16_t *)heap_caps_aligned_alloc(64, PANEL_W * PANEL_H * sizeof(uint16_t),
                                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!s_lvgl || !s_nativo) {
+    s_frame = (uint16_t *)heap_caps_aligned_alloc(64, HUD_W * HUD_H * sizeof(uint16_t),
+                                                  MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (s_frame) memset(s_frame, 0, HUD_W * HUD_H * sizeof(uint16_t));
+    if (!s_lvgl || !s_nativo || !s_frame) {
         ESP_LOGE(TAG, "sem PSRAM para os quadros: HUD desligada");
         return;
     }
