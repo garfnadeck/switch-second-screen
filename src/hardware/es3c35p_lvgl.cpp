@@ -52,6 +52,39 @@ static void bandaPronta(void * ctx)
     if (acordar == pdTRUE) portYIELD_FROM_ISR();
 }
 
+#if defined(ES3C35P_ROT_HW)
+// Modo de rotacao pelo painel: a area logica vai direto, em faixas de linhas, so trocando a ordem dos bytes
+static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
+{
+    (void)cor;
+    const uint16_t * origem = (const uint16_t *)s_lvgl;
+    int w = a->x2 - a->x1 + 1;
+    int linhas = 25600 / (w * 2);           // faixas de no maximo 25600 bytes
+    if (linhas < 1) linhas = 1;
+    if (w <= 0) { lv_disp_flush_ready(drv); return; }
+
+    for (int y0 = a->y1; y0 <= a->y2; y0 += linhas) {
+        int n = (y0 + linhas - 1 <= a->y2) ? linhas : (a->y2 - y0 + 1);
+        for (int r = 0; r < n; r++) {
+            const uint16_t * linha = origem + (y0 + r) * HUD_W + a->x1;
+            for (int x = 0; x < w; x++) {
+                uint16_t c = linha[x];
+                s_nativo[r * w + x] = (uint16_t)((c >> 8) | (c << 8));
+            }
+        }
+        esp_cache_msync(s_nativo, w * n * sizeof(uint16_t), ESP_CACHE_MSYNC_FLAG_DIR_C2M);
+        if (!es3c35p_display::drawRect(a->x1, y0, a->x2 + 1, y0 + n, s_nativo, bandaPronta, NULL)) {
+            ESP_LOGE(TAG, "envio da faixa falhou");
+            break;
+        }
+        if (xSemaphoreTake(s_sem, pdMS_TO_TICKS(200)) != pdTRUE) {
+            ESP_LOGE(TAG, "faixa nao terminou a tempo");
+            break;
+        }
+    }
+    lv_disp_flush_ready(drv);
+}
+#else
 // Logico (lx, ly) -> nativo (x = 319 - ly, y = lx). Conferido em tests/rot_test.py.
 // Envia so a area que mudou (partial refresh): gira essa area para o buffer nativo e manda em blocos.
 static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
@@ -109,6 +142,7 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
     s_msEnvio = (unsigned long)((esp_timer_get_time() - t1) / 1000);
     lv_disp_flush_ready(drv);           // libera o LVGL mesmo se algo falhou (nao trava)
 }
+#endif  // ES3C35P_ROT_HW
 
 // Toque: nativo (x, y) -> logico (lx = y, ly = 319 - x), inverso da rotacao do envio
 static void toqueLer(lv_indev_drv_t * drv, lv_indev_data_t * data)

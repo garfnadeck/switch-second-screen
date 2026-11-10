@@ -125,6 +125,9 @@ bool init()
     vendor.init_cmds = ES3C35P_INIT_CMDS;
     vendor.init_cmds_size = ES3C35P_INIT_CMDS_COUNT;
     vendor.flags.use_qspi_interface = 1;
+#if defined(ES3C35P_ROT_HW)
+    vendor.flags.supports_madctl_mv = 1;   // rotacao pelo proprio painel (MADCTL.MV), sem girar no ESP32
+#endif
 
     esp_lcd_panel_dev_config_t panel_cfg = {};
     panel_cfg.reset_gpio_num = -1;          // RST da tela esta no EN do ESP32
@@ -138,6 +141,17 @@ bool init()
     esp_lcd_panel_init(s_panel);
     vTaskDelay(pdMS_TO_TICKS(200));
     esp_lcd_panel_disp_on_off(s_panel, true);
+#if defined(ES3C35P_ROT_HW)
+    // Painel em paisagem (480x320): troca X/Y e espelha conforme os defines (ajustar na placa se a imagem vier invertida)
+    #ifndef ES3C35P_MIRROR_X
+        #define ES3C35P_MIRROR_X 0
+    #endif
+    #ifndef ES3C35P_MIRROR_Y
+        #define ES3C35P_MIRROR_Y 0
+    #endif
+    esp_lcd_panel_swap_xy(s_panel, true);
+    esp_lcd_panel_mirror(s_panel, ES3C35P_MIRROR_X, ES3C35P_MIRROR_Y);
+#endif
 
     // Diagnostico: RDDID zerado indica que o painel nao responde ao QSPI
     uint8_t rddid[3] = { 0 };
