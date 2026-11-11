@@ -58,16 +58,17 @@ def listar_pokemon(meta, heap):
 _CANDIDATO = re.compile(rb"(?s)(?=(?:[^\x00].{3}|\x00[^\x00].{2})\x00\x00..(?!.{0,21}\x00\x00\x00))")
 
 
-def listar_blocos(meta, heap):
+def listar_blocos(meta, heap, alinhamento=4):
     """Procura na copia inteira qualquer bloco de Pokemon valido (dentro de objeto ou nao).
 
     Devolve [(endereco do bloco, apelido, especie, hp, nivel se a extensao vier logo depois, modo)].
+    alinhamento=1 testa todas as posicoes (mais lento; use em regioes pequenas).
     """
     ini = meta["heap_ini"]
     saida = []
     for m in _CANDIDATO.finditer(heap):
         pos = m.start()
-        if pos % 4 or pos + 0x158 > len(heap):
+        if pos % alinhamento or pos + 0x158 > len(heap):
             continue
         claro, modo = validar(heap[pos:pos + 0x158])
         if claro is None:
