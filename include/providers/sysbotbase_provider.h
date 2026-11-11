@@ -60,13 +60,18 @@ private:
 #endif
     }
 
-    bool connectToSwitch(const char* ip, uint16_t port) {
+    // O Wi-Fi do Switch pode levar algumas centenas de ms para aceitar a conexao:
+    // com 150 ms ele era pulado na busca e a conexao direta falhava.
+    static constexpr int TIMEOUT_CONEXAO_MS = 700;      // conexao direta no IP configurado
+    static constexpr int TIMEOUT_BUSCA_MS   = 350;      // por endereco, durante a busca
+
+    bool connectToSwitch(const char* ip, uint16_t port, int timeout_ms = TIMEOUT_CONEXAO_MS) {
         disconnect();
 #ifdef ARDUINO
   #if defined(ARDUINO_ARCH_ESP32)
-        return client.connect(ip, port, 150);
+        return client.connect(ip, port, timeout_ms);
   #else
-        client.setTimeout(150);
+        client.setTimeout(timeout_ms);
         return client.connect(ip, port);
   #endif
 #else
@@ -207,7 +212,7 @@ private:
     void scanStep(GameState &state) {
         char ip[16];
         snprintf(ip, sizeof(ip), "%.12s%d", scan_prefix, scan_host);
-        if (connectToSwitch(ip, state.switch_port)) {
+        if (connectToSwitch(ip, state.switch_port, TIMEOUT_BUSCA_MS)) {
             snprintf(state.switch_ip, sizeof(state.switch_ip), "%s", ip);
             scan_state = 2;
             setLink(state, "switch encontrado");
@@ -221,7 +226,7 @@ private:
     void pump(GameState &state) {
         uint32_t now = millis();
 
-        if (scan_state == 1) { scanStep(state); return; }   // 1 host por chamada (<=150 ms)
+        if (scan_state == 1) { scanStep(state); return; }   // 1 endereco por chamada (ate TIMEOUT_BUSCA_MS)
 
         if (!isConnected()) {
             if (now - last_try_ms >= 5000) {             // tenta reconectar a cada 5 s (connect bloqueia ate 150 ms)

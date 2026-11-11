@@ -523,6 +523,11 @@ void loop() {
             ultimoIp = millis();
             IPAddress ip = apMode ? WiFi.softAPIP() : WiFi.localIP();
             snprintf(state.board_ip, sizeof(state.board_ip), "%s", ip.toString().c_str());
+            // Busca disparada pela tela da placa: grava o IP achado (antes so a pagina web gravava)
+            if (router.scanState() == 2 && strcmp(cfg.sw_ip, state.switch_ip) != 0) {
+                snprintf(cfg.sw_ip, sizeof(cfg.sw_ip), "%s", state.switch_ip);
+                saveSettings();
+            }
         }
     }
 #ifdef USB_HID_ESP32_TESTE

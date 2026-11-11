@@ -760,7 +760,7 @@
         if (d.state === 'running') $('scanmsg').textContent = `Procurando o Switch (${d.progress}%)...`;
         else {
           clearInterval(scanTimer);
-          if (d.state === 'found') { $('swip').value = d.ip; $('scanmsg').textContent = 'Switch encontrado em ' + d.ip + '. Toque em Salvar para gravar.'; }
+          if (d.state === 'found') { $('swip').value = d.ip; $('scanmsg').textContent = 'Switch encontrado em ' + d.ip + ' (salvo).'; }
           else $('scanmsg').textContent = 'Nao encontrei. Confira: Switch na mesma rede, sys-botbase ativo.';
         }
       } catch (e) { /* a placa fica ocupada durante a varredura: tenta de novo */ }
