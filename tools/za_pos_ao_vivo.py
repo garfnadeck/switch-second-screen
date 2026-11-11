@@ -14,7 +14,7 @@ import time
 
 from za_scan_pos import comando
 
-CADEIA = "0x41E9D20 0x248 0x0 0x1C8"      # a mesma do include/providers/za_memory_map.h
+CADEIA = "0x41EC340 0x248 0x0 0x138 0x90"   # a mesma do include/providers/za_memory_map.h
 
 
 def main():

@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Procura a base do ponteiro de posicao do jogador no Legends Z-A (so leitura).
 
+ATENCAO: este script parte de uma cadeia ERRADA (junta o ultimo salto com o +0x90 em 0x1C8, pulando
+uma etapa). O que ele achou em 10/11/2026 (0x41E9D20) NAO e a posicao do jogador: e um valor da
+interface que so muda ao abrir o menu. A cadeia certa e "0x41EC340 0x248 0x0 0x138 0x90"
+(ver docs/ponteiros_za.md e tools/za_pos_ao_vivo.py). Mantido so pelas funcoes de leitura.
+
 Ideia: entre versoes do jogo a forma da cadeia se mantem ([[[main+BASE]+0x248]+0x0]+0x138, +0x90)
 e so a BASE muda. O script le um trecho do 'main' em volta da base publicada, testa cada
 ponteiro encontrado como BASE e guarda os que devolvem tres floats plausiveis. Depois pede

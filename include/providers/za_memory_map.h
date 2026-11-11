@@ -10,7 +10,7 @@
 //  console do usuario em 10/11/2026: jogo base, sem updates, build 7222E13ECF6ADB32.
 //  Pesquisa, fontes e o que ainda falta: docs/ponteiros_za.md
 //
-//  - Posicao: PREENCHIDA e conferida andando com o personagem.
+//  - Posicao: PREENCHIDA (ponteiro publicado pelo ZAShinyWarper) e conferida ao vivo, andando.
 //  - Time:    ainda ZERADO (nao achado nesta versao).
 //
 //  Cadeia de ponteiros = argumentos do comando "pointerPeek" do sys-botbase:
@@ -46,8 +46,9 @@ static const ZaMemoryMap ZA_MAP = {
     /* party        */ { 0, { 0 } },                       // nao achado nesta versao
     /* party_stride */ 0, /* party_count */ 6,
     /* offsets      */ 0, 0, 0, 0, 0,
-    // [[[main+0x41E9D20]+0x248]+0x0]+0x138, e os floats ficam em +0x90 (0x138 + 0x90 = 0x1C8)
-    /* pos          */ { 4, { 0x41E9D20, 0x248, 0x0, 0x1C8 } },
+    // [[[[main+0x41EC340]+0x248]+0x0]+0x138]+0x90: QUATRO saltos seguidos e so entao o +0x90.
+    // (No pointerPeek o ultimo numero e somado sem ser seguido, por isso o 0x90 vai separado.)
+    /* pos          */ { 5, { 0x41EC340, 0x248, 0x0, 0x138, 0x90 } },
     /* off x,y,z    */ 0, 4, 8,
     /* world bounds */ 0.f, 0.f, 0.f, 0.f                  // a calibrar andando ate pontos conhecidos
 };

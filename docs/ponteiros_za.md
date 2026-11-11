@@ -1,13 +1,13 @@
 # Ponteiros de memória — Pokémon Legends Z-A
 
-Pesquisa de 10/11/2026. Nenhum valor foi testado no console ainda.
+Pesquisa e testes de 10/11/2026. Na coluna da posição, os quatro números são saltos seguidos; o `+0x90` vem depois.
 Título: `0100F43008C44000`. Cadeias a partir do `main` (comando `pointerPeek` do sys-botbase).
 
 ## Publicados, por versão do jogo
 
 | Versão | Base "save" | Time (PartyPointer) | Posição do jogador (+0x90 = x,y,z float) | Fonte |
 |---|---|---|---|---|
-| 1.0.0 / 1.0.1 (não rotulado, out/2025) | `0x5F0B250` | não publicado | `0x41EC340, 0x248, 0x00, 0x138` | ZAShinyWarper, commit inicial 5d3696c |
+| 1.0.0 / 1.0.1 (não rotulado, out/2025) — **é a do usuário** | `0x5F0B250` | não publicado | `0x41EC340, 0x248, 0x00, 0x138` | ZAShinyWarper, commit inicial 5d3696c |
 | 1.0.2 | `0x5F0C250` | `0x5F0C250, 0x18, 0x1B0, 0xF0, 0x50, 0x30, 0x0` | `0x41ED340, 0x248, 0x00, 0x138` | SysBot.NET e675d1e; ZAShinyWarper 86674aa |
 | 1.0.3 | `0x5F0E250` | `0x5F0E250, 0x18, 0x1B0, 0xF0, 0x50, 0x30, 0x0` | (ver ZAShinyWarper c01c080) | SysBot.NET ae0acb6 |
 | 2.0.0 | `0x6105710` | (ver SysBot.NET 839d99c) | `0x47D21A0, 0x248, 0x00, 0x138` | ZAShinyWarper fa2e03b |
@@ -26,11 +26,20 @@ ou da 1.0.1 (atualização do dia do lançamento).
 - `getBuildID` do jogo do usuário: `7222E13ECF6ADB32` (versão a identificar; jogo base, sem updates).
 - O comando correto é `getTitleID` (com ID maiúsculo). `getTitleId` não é reconhecido e fica sem resposta.
 
-### Posição achada no jogo do usuário (build `7222E13ECF6ADB32`, sem updates)
+### Posição do jogador no jogo do usuário (build `7222E13ECF6ADB32`, sem updates)
 
-`0x41E9D20, 0x248, 0x0, 0x138`, depois `+0x90` (x, y, z float32). Achado com `tools/za_scan_pos.py`:
-único candidato, e os valores mudaram ao andar (-876,10 / 0 / -757,38 → -903,71 / 0 / -487,93).
-A base ficou `0x2620` abaixo da publicada para outubro/2025.
+**`pointerPeek 12 0x41EC340 0x248 0x0 0x138 0x90`** → x, y, z em float32. É o ponteiro publicado
+pelo ZAShinyWarper para outubro/2025, e foi conferido ao vivo com `tools/za_pos_ao_vivo.py`: os
+valores acompanham o personagem a cada passo.
+
+Atenção à forma: são QUATRO saltos seguidos (`[[[[main+0x41EC340]+0x248]+0x0]+0x138]`) e só então
+`+0x90`. No `pointerPeek` o último número é somado sem ser seguido, então o `0x90` vai separado.
+
+**Erro registrado (10/11):** a primeira tentativa juntou `0x138 + 0x90 = 0x1C8`, o que pula um
+salto. Com isso o ponteiro publicado devolveu zeros e concluiu-se, errado, que a versão do jogo
+era outra. A busca `za_scan_pos.py` então achou `0x41E9D20`, que NÃO é a posição: é um valor da
+interface que alterna entre dois pontos fixos ao abrir o menu. O jogo do usuário usa os mesmos
+endereços publicados para outubro/2025 (a base do save também bate).
 
 ### Base do save achada no jogo do usuário
 
