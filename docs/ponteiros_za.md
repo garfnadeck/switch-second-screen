@@ -78,6 +78,21 @@ Conclusão: o time não está nas regiões próximas aos dados do save. Varrer a
 pelo Wi-Fi é lento demais (~270 KB/s). Caminho recomendado: achar o endereço do HP com uma
 ferramenta de busca no próprio console (Breeze / EdiZon SE) e depois montar a cadeia.
 
+### Versão do jogo do usuário: 1.0.1
+
+O banco público de cheats (HamletDuFromage/switch-cheats-db, `cheats/0100F43008C44000.json`) rotula
+o build `7222E13ECF6ADB32` como **Pokémon Legends: Z-A 1.0.1**. Os cheats desse build são remendos
+de código (dinheiro, itens, mega, pulo); nenhum aponta para o time ou para o HP.
+Os forks de SysBot para o Z-A (PokeBot_ZA_Compatable, ZA_Sysbot.net) não leem o time.
+PokeBot (1.0.2) traz `MenuOffset = 0x5F2E880` (0 = mundo, 1 = menu X, 4 = caixa), útil depois.
+
+### Objeto de Pokémon na memória (confirmado em 10/11/2026)
+
+`[assinatura (ponteiro de código)][ponteiro da extensão 0x10][ponteiro do bloco 0x148]`.
+`tools/za_bfs_pokemon.py` achou os dois em branco por essa assinatura (`[BASE, 0x18, 0x110]` e
+`[BASE, 0x18, 0x1B0]`). `[BASE, 0x18]` é o começo de uma área geral de memória, não um objeto.
+Bloco, extensão e objeto saem do mesmo alocador (`[BASE, 0x18, 0x8]`).
+
 ## Formato dos dados
 
 - Cada Pokémon: bloco de `0x148` bytes no formato PA9 (cifrado e embaralhado, como no PKHeX).
