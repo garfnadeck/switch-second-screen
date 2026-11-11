@@ -42,6 +42,7 @@ private:
     lv_obj_t * macro_btn_lbls[6] = {nullptr};
     lv_obj_t * status_footer = nullptr;
     lv_obj_t * ip_textarea = nullptr;
+    lv_obj_t * teclado = nullptr;         // teclado numerico para o IP do Switch
     lv_obj_t * lbl_diag = nullptr;        // Config: USB / macro ativa / execucoes
     lv_obj_t * lbl_board_ip = nullptr;    // Config: IP da placa
     lv_obj_t * lbl_scan = nullptr;        // Config: progresso/resultado da busca do Switch
@@ -50,7 +51,7 @@ private:
     char board_ip_shown[24] = "";
     int8_t   diag_conn = -1, diag_active = -2;
     uint32_t diag_exec = 0xFFFFFFFF;
-    char     diag_link[24] = {};
+    char     diag_link[40] = {};
 
     IGameModule* getActiveModule() {
         uint8_t idx = static_cast<uint8_t>(state.profile);
@@ -64,6 +65,22 @@ private:
     }
 
     // Botoes desenhados pelos modulos chamam isto
+    // "a.b.c.d" com cada parte entre 0 e 255
+    static bool ipValido(const char * t) {
+        int partes = 0, valor = -1;
+        for (const char * c = t; ; c++) {
+            if (*c >= '0' && *c <= '9') {
+                valor = (valor < 0 ? 0 : valor) * 10 + (*c - '0');
+                if (valor > 255) return false;
+            } else if (*c == '.' || *c == '\0') {
+                if (valor < 0) return false;
+                partes++; valor = -1;
+                if (*c == '\0') break;
+            } else return false;
+        }
+        return partes == 4;
+    }
+
     static void macroThunk(void * ctx, uint8_t slot) {
         static_cast<UIManager*>(ctx)->onMacroClicked(slot);
     }
@@ -406,6 +423,32 @@ public:
         lv_textarea_set_text(ip_textarea, state.switch_ip);
         lv_obj_set_size(ip_textarea, 230, 32);
         lv_obj_align(ip_textarea, LV_ALIGN_TOP_LEFT, 235, 24);
+
+        // Teclado numerico na tela: aparece ao tocar no campo; OK aplica e grava, o X cancela
+        teclado = lv_keyboard_create(lv_layer_top());
+        lv_keyboard_set_mode(teclado, LV_KEYBOARD_MODE_NUMBER);
+        lv_obj_set_size(teclado, 480, 170);
+        lv_obj_align(teclado, LV_ALIGN_BOTTOM_MID, 0, 0);
+        lv_obj_add_flag(teclado, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_event_cb(ip_textarea, [](lv_event_t * e) {
+            auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+            lv_keyboard_set_textarea(mgr->teclado, mgr->ip_textarea);
+            lv_obj_clear_flag(mgr->teclado, LV_OBJ_FLAG_HIDDEN);
+        }, LV_EVENT_CLICKED, this);
+        lv_obj_add_event_cb(teclado, [](lv_event_t * e) {
+            auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+            lv_event_code_t code = lv_event_get_code(e);
+            if (code != LV_EVENT_READY && code != LV_EVENT_CANCEL) return;
+            const char * txt = lv_textarea_get_text(mgr->ip_textarea);
+            if (code == LV_EVENT_READY && ipValido(txt)) {
+                mgr->router.setSwitchTarget(mgr->state, txt, mgr->state.switch_port);   // reconecta na hora
+                mgr->state.switch_ip_changed = true;                                    // o main grava na flash
+            } else {
+                lv_textarea_set_text(mgr->ip_textarea, mgr->state.switch_ip);           // cancelado ou invalido
+            }
+            lv_obj_add_flag(mgr->teclado, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_clear_state(mgr->ip_textarea, LV_STATE_FOCUSED);
+        }, LV_EVENT_ALL, this);
         lv_obj_set_style_bg_color(ip_textarea, lv_color_hex(0x1E1E36), LV_PART_MAIN);
         lv_obj_set_style_text_color(ip_textarea, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
 
