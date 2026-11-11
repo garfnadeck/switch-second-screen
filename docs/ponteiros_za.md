@@ -106,6 +106,20 @@ Pokémon em branco de `[BASE, 0x18, 0x1B0]`.
 Falta: a cadeia fixa até o objeto. Ferramentas: `za_dump_mem.py` (copia a memória) e
 `za_cadeias.py` (busca reversa de ponteiros, sem rede).
 
+### 11/11/2026: onde o time NÃO está, e o mapa de regiões
+
+- Os objetos de Pokémon achados em 10/11 eram os Pokémon presentes no cenário (inclusive a
+  Chikorita andando ao lado do jogador). São descartados quando o cenário muda: na cópia de
+  288 MB feita minutos depois (`za_dump_mem.py`) só restava o último Pokémon enfrentado.
+- Blocos do save: `[BASE,0x0]`, `[BASE,0x70]`, `[BASE,0xB0,0x978]` (caixas), `[BASE,0xC8,0x40]`,
+  `[BASE,0xD0]`, `[BASE,0x100]`, `[BASE,0x38,0x1C0]`, `[BASE,0x38,0x2C0]` apontam para áreas
+  vizinhas (página-alinhadas). `za_scan_save.py` varreu 4 MB ali em qualquer alinhamento: só achou
+  o Pokémon da caixa 1 (leitura das caixas validada: `pointerPeek 344 0x5F0B250 0xB0 0x978 0x0`,
+  com a extensão contígua). O time não fica ali como bloco cifrado.
+- Regiões apontadas fora do heap principal (`za_regioes.py`): `0x5CE3..0x5CE5` (32 MB, 661 mil
+  ponteiros: objetos vivos), `0x59F8..0x5A2D` (848 MB), `0x5C89..0x5C9B` (288 MB),
+  `0x5CA7..0x5CB1` (160 MB). Endereços da sessão de 10-11/11; mudam ao reabrir o jogo.
+
 ## Formato dos dados
 
 - Cada Pokémon: bloco de `0x148` bytes no formato PA9 (cifrado e embaralhado, como no PKHeX).
