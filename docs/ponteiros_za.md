@@ -42,6 +42,15 @@ A cadeia do time da 1.0.2 (`0x18, 0x1B0, 0xF0, 0x50, 0x30, 0x0`) NÃO resolve ne
 Campos do bloco decifrado (PKHeX `PA9.cs`): HP atual `0x8A`, status `0x90`, nível `0x148`,
 HP máximo `0x14A` (os dois últimos na extensão de time, total `0x158`).
 
+### Estrutura vista em [BASE, 0x18] (dump de 10/11/2026)
+
+O objeto `[0x5F0B250, 0x18]` tem registros de `0xA0` bytes (em `+0x0A0` e `+0x140`). Cada registro
+anota três áreas com tamanho: `0x148` (alinhamento 4), `0x10` (2) e `0x28` (8). São os tamanhos do
+bloco de Pokémon e da extensão de time, guardados em áreas SEPARADAS (por isso a busca por um
+bloco contínuo de `0x158` não achou nada). Ponteiros: bloco em `registro+0x30`, extensão em
+`registro+0x50`. A testar com `tools/za_ler_pokemon.py`.
+A cadeia da 1.0.2 passa por `+0x1B0` (a área de `0x28` do segundo registro) e quebra em `+0xF0`.
+
 ## Formato dos dados
 
 - Cada Pokémon: bloco de `0x148` bytes no formato PA9 (cifrado e embaralhado, como no PKHeX).
