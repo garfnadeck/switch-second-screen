@@ -51,6 +51,24 @@ bloco contínuo de `0x158` não achou nada). Ponteiros: bloco em `registro+0x30`
 `registro+0x50`. A testar com `tools/za_ler_pokemon.py`.
 A cadeia da 1.0.2 passa por `+0x1B0` (a área de `0x28` do segundo registro) e quebra em `+0xF0`.
 
+### Time: o que já foi tentado e NÃO achou a Chikorita (10/11/2026)
+
+Jogo: Chikorita nv 7, HP 25/25, única no time; treinador "Laila".
+
+| Tentativa | Ferramenta | Resultado |
+|---|---|---|
+| Cadeia da 1.0.2 e variações de 1 e 2 saltos | `za_scan_time.py` | não resolve; quebra no elo 3 (`+0xF0` = 0), com menu aberto ou fechado |
+| Blocos e ponteiros a 2 níveis do objeto do save | `za_scan_bloco.py` | nada |
+| Soma de verificação em 40 MB em volta das âncoras | `za_scan_heap.py` | só coincidências (soma de 16 bits) |
+| Chaves dos blocos do save (`0x3AA1A9AD` etc.) em 32 MB | `za_scan_chave.py` | nenhuma ocorrência |
+| Registros de `[BASE, 0x18]` | `za_ler_pokemon.py` | dois Pokémon EM BRANCO (área de trabalho, não o time) |
+| Blocos válidos no reservatório (6 MB) | `za_scan_core.py` | nada |
+| Nome "Chikorita" em UTF-16 em 48 MB | `za_scan_nome.py` | nenhuma ocorrência |
+
+Conclusão: o time não está nas regiões próximas aos dados do save. Varrer a memória inteira
+pelo Wi-Fi é lento demais (~270 KB/s). Caminho recomendado: achar o endereço do HP com uma
+ferramenta de busca no próprio console (Breeze / EdiZon SE) e depois montar a cadeia.
+
 ## Formato dos dados
 
 - Cada Pokémon: bloco de `0x148` bytes no formato PA9 (cifrado e embaralhado, como no PKHeX).
