@@ -57,6 +57,7 @@
 #define LV_USE_SLIDER     1
 #define LV_USE_SWITCH     1
 #define LV_USE_TEXTAREA   1
+#define LV_USE_KEYBOARD   1   // teclado na tela (IP do Switch); precisa de BTNMATRIX e TEXTAREA
 #define LV_USE_TABLE      1
 #define LV_USE_TABVIEW    1
 
