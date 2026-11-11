@@ -93,6 +93,19 @@ PokeBot (1.0.2) traz `MenuOffset = 0x5F2E880` (0 = mundo, 1 = menu X, 4 = caixa)
 `[BASE, 0x18, 0x1B0]`). `[BASE, 0x18]` é o começo de uma área geral de memória, não um objeto.
 Bloco, extensão e objeto saem do mesmo alocador (`[BASE, 0x18, 0x8]`).
 
+### Time ACHADO na memória (10/11/2026, 23h)
+
+`tools/za_scan_assinatura.py` varreu os 189 MB do alocador e achou 11 Pokémon com dados e 29 em
+branco. Entre eles a Chikorita do time: nível 9, HP 23/29, batendo com o jogo. Os outros são
+selvagens carregados em volta (Fletchling, Bunnelby, Scatterbug, Weedle, Mareep, Snover).
+Confirmado com Pokémon reais: a decifragem (`tools/za_pa9.py`), os campos (HP `0x8A`, nível
+`0x148`, HP máximo `0x14A`, apelido `0x58`) e o formato do objeto. Na memória os blocos ficam
+CIFRADOS com a soma certa. A "espécie interna" lida bateu com o número da Pokédex nesses casos.
+Assinatura do objeto: `main+0x39E5750` (build 1.0.1). Os objetos ficam poucos MB depois do
+Pokémon em branco de `[BASE, 0x18, 0x1B0]`.
+Falta: a cadeia fixa até o objeto. Ferramentas: `za_dump_mem.py` (copia a memória) e
+`za_cadeias.py` (busca reversa de ponteiros, sem rede).
+
 ## Formato dos dados
 
 - Cada Pokémon: bloco de `0x148` bytes no formato PA9 (cifrado e embaralhado, como no PKHeX).

@@ -3,3 +3,6 @@
 
 # Cache do Python
 __pycache__/
+
+# Copias de memoria do jogo (tools/za_dump_mem.py)
+dump_za/
