@@ -62,8 +62,10 @@ private:
 
     // O Wi-Fi do Switch pode levar algumas centenas de ms para aceitar a conexao:
     // com 150 ms ele era pulado na busca e a conexao direta falhava.
-    static constexpr int TIMEOUT_CONEXAO_MS = 700;      // conexao direta no IP configurado
-    static constexpr int TIMEOUT_BUSCA_MS   = 350;      // por endereco, durante a busca
+    // Valores de 1 s ou mais de proposito: ha versoes da biblioteca de rede do ESP32 que
+    // arredondam limites abaixo de 1 s para zero, e a conexao falha na hora.
+    static constexpr int TIMEOUT_CONEXAO_MS = 2000;     // conexao direta no IP configurado
+    static constexpr int TIMEOUT_BUSCA_MS   = 1000;     // por endereco, durante a busca
 
     bool connectToSwitch(const char* ip, uint16_t port, int timeout_ms = TIMEOUT_CONEXAO_MS) {
         disconnect();
@@ -212,13 +214,19 @@ private:
     void scanStep(GameState &state) {
         char ip[16];
         snprintf(ip, sizeof(ip), "%.12s%d", scan_prefix, scan_host);
-        if (connectToSwitch(ip, state.switch_port, TIMEOUT_BUSCA_MS)) {
+        uint32_t t0 = millis();
+        bool ok = connectToSwitch(ip, state.switch_port, TIMEOUT_BUSCA_MS);
+        if (ok) {
             snprintf(state.switch_ip, sizeof(state.switch_ip), "%s", ip);
             scan_state = 2;
             setLink(state, "switch encontrado");
             last_poll_ms = millis();
             return;
         }
+        // Diagnostico na tela: qual endereco falhou e em quanto tempo (0 ms = falhou sem esperar)
+        char txt[40];
+        snprintf(txt, sizeof(txt), "busca .%d falhou em %lums", scan_host, (unsigned long)(millis() - t0));
+        setLink(state, txt);
         if (++scan_host > scan_last) { scan_state = 3; setLink(state, "switch nao encontrado"); }
     }
 
@@ -231,8 +239,14 @@ private:
         if (!isConnected()) {
             if (now - last_try_ms >= 5000) {             // tenta reconectar a cada 5 s (connect bloqueia ate 150 ms)
                 last_try_ms = now;
+                uint32_t t0 = millis();
                 linked = connectToSwitch(state.switch_ip, state.switch_port);
-                setLink(state, linked ? "conectado" : "sem conexao");
+                if (linked) setLink(state, "conectado");
+                else {
+                    char txt[40];
+                    snprintf(txt, sizeof(txt), "sem conexao (%lums)", (unsigned long)(millis() - t0));
+                    setLink(state, txt);
+                }
                 if (!linked && !telemetry_only) state.connected = false;
             }
             return;
