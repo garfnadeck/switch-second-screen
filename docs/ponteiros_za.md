@@ -32,6 +32,16 @@ ou da 1.0.1 (atualização do dia do lançamento).
 único candidato, e os valores mudaram ao andar (-876,10 / 0 / -757,38 → -903,71 / 0 / -487,93).
 A base ficou `0x2620` abaixo da publicada para outubro/2025.
 
+### Base do save achada no jogo do usuário
+
+`0x5F0B250` (igual à publicada para outubro/2025). Confirmada com `tools/za_scan_base.py`:
+`[0x5F0B250, 0xA0, 0x40]` devolve o bloco do treinador, com o nome em texto puro (`0x10`, UTF-16).
+`[0x5F0B250, 0xB0, 0x978, 0x0]` (caixa 1) resolve e devolve um espaço vazio válido.
+A cadeia do time da 1.0.2 (`0x18, 0x1B0, 0xF0, 0x50, 0x30, 0x0`) NÃO resolve nesta versão.
+
+Campos do bloco decifrado (PKHeX `PA9.cs`): HP atual `0x8A`, status `0x90`, nível `0x148`,
+HP máximo `0x14A` (os dois últimos na extensão de time, total `0x158`).
+
 ## Formato dos dados
 
 - Cada Pokémon: bloco de `0x148` bytes no formato PA9 (cifrado e embaralhado, como no PKHeX).

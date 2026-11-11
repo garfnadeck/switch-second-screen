@@ -56,6 +56,8 @@ def testar_pokemon(sock, base):
         if soma_ok and especie(claro) != 0:
             hp = struct.unpack_from("<H", claro, 0x8A)[0]
             print(f"      {rotulo}: POKEMON VALIDO, especie interna {especie(claro)}, HP atual {hp}")
+        elif soma_ok:
+            print(f"      {rotulo}: espaco vazio valido (cadeia certa, sem Pokemon)")
         else:
             print(f"      {rotulo}: tem dados, mas a soma nao bate. Inicio: {bruto[:16].hex()}")
 
