@@ -48,3 +48,19 @@ def decifrar(bruto):
 def especie(dados):
     """Numero interno da especie (bloco A, deslocamento 0x08)."""
     return struct.unpack_from("<H", dados, 0x08)[0]
+
+
+def validar(bruto):
+    """Devolve (dados em claro, modo) se 'bruto' for um Pokemon valido, senao (None, None).
+
+    modo = 'cifrado' (como no save) ou 'aberto' (ja decifrado na memoria).
+    """
+    if len(bruto) < TAM_CAIXA or bruto[4:6] != b"\0\0":
+        return None, None
+    claro, soma_ok = decifrar(bruto)
+    if soma_ok and especie(claro) != 0:
+        return claro, "cifrado"
+    soma = sum(struct.unpack_from("<H", bruto, i)[0] for i in range(8, TAM_CAIXA, 2)) & 0xFFFF
+    if soma == struct.unpack_from("<H", bruto, 6)[0] and soma != 0 and especie(bruto) != 0:
+        return bytes(bruto), "aberto"
+    return None, None

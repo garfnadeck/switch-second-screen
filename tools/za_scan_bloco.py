@@ -14,7 +14,7 @@ import socket
 import struct
 import sys
 
-from za_pa9 import decifrar, especie
+from za_pa9 import especie, validar
 from za_scan_pos import comando
 
 TAM_TIME = 0x158
@@ -41,13 +41,13 @@ def ler_abs(sock, endereco, tamanho, bloco=0x1000):
 
 def pokemon(bruto):
     """Devolve um resumo se 'bruto' (0x158 bytes) for um Pokemon valido, senao None."""
-    if len(bruto) < TAM_TIME or bruto[:8] == b"\0" * 8 or bruto[4:6] != b"\0\0":
+    if len(bruto) < TAM_TIME or bruto[:8] == b"\0" * 8:
         return None
-    claro, soma_ok = decifrar(bruto[:TAM_TIME])
-    if not soma_ok or especie(claro) == 0:
+    claro, modo = validar(bruto[:TAM_TIME])
+    if claro is None:
         return None
     return (f"especie interna {especie(claro)}, nivel {claro[0x148]}, "
-            f"HP {struct.unpack_from('<H', claro, 0x8A)[0]}/{struct.unpack_from('<H', claro, 0x14A)[0]}")
+            f"HP {struct.unpack_from('<H', claro, 0x8A)[0]}/{struct.unpack_from('<H', claro, 0x14A)[0]} ({modo})")
 
 
 def main():
