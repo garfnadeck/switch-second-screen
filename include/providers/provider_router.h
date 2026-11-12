@@ -52,10 +52,17 @@ public:
         state.mode = new_mode;
         if (new_mode == SwitchMode::MOCK_SIMULATOR) {
             active_prov = &mock_prov;
-        } else if (new_mode == SwitchMode::LOCKED_USB_MACRO) {
-            active_prov = &usb_prov;
         } else {
-            active_prov = &tcp_prov;
+            // Limpa os Pokemon falsos do Mock para exibir "--- / sem dados" ate a leitura real da RAM
+            for (int i = 0; i < 6; i++) {
+                state.party[i] = PokemonSlot{};
+                state.party[i].active = false;
+            }
+            if (new_mode == SwitchMode::LOCKED_USB_MACRO) {
+                active_prov = &usb_prov;
+            } else {
+                active_prov = &tcp_prov;
+            }
         }
         active_prov->init(state);
     }
