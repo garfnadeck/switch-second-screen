@@ -1,3 +1,4 @@
+#include <SD_MMC.h>
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
@@ -351,6 +352,24 @@ void setup() {
         json += ",\"ip\":\"" + (apMode ? WiFi.softAPIP().toString() : WiFi.localIP().toString()) + "\"";
         json += "}";
         server.send(200, "application/json", json);
+    });
+
+    // Sprite de Pokemon (40x40 RGB565+alfa, 4800 bytes) lido do SD (ou LittleFS como reserva)
+    server.on("/api/sprite", HTTP_GET, []() {
+        int sp = server.hasArg("sp") ? server.arg("sp").toInt() : 0;
+        char path[48];
+        snprintf(path, sizeof(path), "/assets/za/sprites/%d.bin", sp);
+        if (SD_MMC.exists(path)) {
+            File f = SD_MMC.open(path, FILE_READ);
+            server.streamFile(f, "application/octet-stream");
+            f.close();
+        } else if (LittleFS.exists(path)) {
+            File f = LittleFS.open(path, "r");
+            server.streamFile(f, "application/octet-stream");
+            f.close();
+        } else {
+            server.send(404, "text/plain", "sem sprite");
+        }
     });
 
     server.serveStatic("/css", LittleFS, "/css");
