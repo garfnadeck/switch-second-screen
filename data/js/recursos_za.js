@@ -1,51 +1,75 @@
-/* Recursos da placa que faltavam na interface web (Second Screen OLED).
- * Usa as rotas que o firmware ja expoe: /api/teleport, /api/display/flip,
+/* Recursos da placa na interface web (Second Screen OLED) - v2 visual.
+ * Usa as rotas do firmware: /api/party, /api/teleport, /api/display/flip,
  * /api/pokemon/edit, /api/sd/status, /api/sd/upload, /api/sd/reload.
- * Carregado por <script src="/js/recursos_za.js"> no index.html.
+ * Sprites: tenta /api/sprite?sp=N (RGB565+alfa, 40x40, 3 bytes/px). Sem a rota,
+ * mostra a inicial da espécie.
  */
 (function () {
   'use strict';
 
-  // Espelha za_memory_map.h: bordas do mundo em Lumiose.
   const MAPA = { xMin: -1320, xMax: -340, zMin: -990, zMax: -10 };
+  const SPRITE = 40;
 
   const ACOES = [
-    [0, 'Curar HP'], [1, 'Curar status'], [2, 'Restaurar PP'], [3, 'Restauracao total'],
-    [4, 'Alternar shiny'], [5, 'IVs maximos'], [6, 'Equipar item'], [7, 'Curar time inteiro'],
+    [0, 'Curar HP'], [1, 'Curar status'], [2, 'Restaurar PP'], [3, 'Restauração total'],
+    [4, 'Alternar shiny'], [5, 'IVs máximos'], [6, 'Equipar item'], [7, 'Curar time inteiro'],
     [8, 'Level +1'], [9, 'Level +10'], [10, 'Level 100'], [11, 'EV Atk+Spe'],
     [12, 'EV SpA+Spe'], [13, 'EV HP+Def'], [14, 'Zerar EVs'], [15, 'Definir natureza'],
     [16, 'Alternar Alpha XXL']
   ];
-
   const NATUREZAS = ['Hardy', 'Lonely', 'Brave', 'Adamant', 'Naughty', 'Bold', 'Docile', 'Relaxed',
     'Impish', 'Lax', 'Timid', 'Hasty', 'Serious', 'Jolly', 'Naive', 'Modest', 'Mild', 'Quiet',
     'Bashful', 'Rash', 'Calm', 'Gentle', 'Sassy', 'Careful', 'Quirky'];
 
+  const CSS = `
+  #recursos-za{margin:24px auto;max-width:480px;background:#12121F;border:2px solid #2D3E66;border-radius:12px;padding:12px;color:#fff;font-family:system-ui,sans-serif;font-size:13px;box-sizing:border-box}
+  #recursos-za h2{margin:0 0 10px;font-size:15px;color:#2D8CFF;text-transform:uppercase;letter-spacing:1px}
+  #recursos-za .aba{background:#18182C;border:1px solid #2D3E66;border-radius:10px;padding:10px;margin-bottom:10px}
+  #recursos-za .aba h3{margin:0 0 8px;font-size:13px;color:#A8B8E0}
+  #recursos-za .grade{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  #recursos-za .card{background:#0F3460;border:2px solid #1F4E8C;border-radius:8px;padding:8px;display:flex;gap:8px;align-items:center;min-height:64px}
+  #recursos-za .card.vivo{border-color:#00E676;background:#133E35}
+  #recursos-za .card.zero{opacity:.45}
+  #recursos-za canvas,#recursos-za .sprite{width:40px;height:40px;flex:0 0 40px;background:#1F1F38;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:bold;color:#A8B8E0;image-rendering:pixelated}
+  #recursos-za .info{flex:1;min-width:0}
+  #recursos-za .nome{font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #recursos-za .sub{color:#A8B8E0;font-size:11px}
+  #recursos-za .barra{height:8px;background:#1F1F38;border-radius:4px;overflow:hidden;margin-top:4px}
+  #recursos-za .barra>div{height:100%;background:#00E676}
+  #recursos-za .barra>div.baixo{background:#FF1744}
+  #recursos-za .tag{display:inline-block;background:#FFD740;color:#12121F;border-radius:4px;padding:0 4px;font-size:10px;font-weight:bold;margin-left:4px}
+  #recursos-za button,#recursos-za select,#recursos-za input{font:inherit;color:#fff;background:#1F1F38;border:2px solid #2D3E66;border-radius:8px;padding:6px 10px;cursor:pointer}
+  #recursos-za button:active{background:#2D3E66}
+  #recursos-za button.primario{background:#0F3460;border-color:#2D8CFF}
+  #recursos-za label{display:block;margin:6px 0;color:#A8B8E0}
+  #recursos-za label>*{margin-left:6px}
+  #recursos-za .linha{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  #recursos-za .msg{min-height:1.2em;margin-top:6px;font-size:12px}
+  `;
+
   function $(id) { return document.getElementById(id); }
+  function esc(t) { return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
   async function post(url, params) {
-    const body = params ? new URLSearchParams(params) : undefined;
-    const r = await fetch(url, { method: 'POST', body: body });
+    const r = await fetch(url, { method: 'POST', body: params ? new URLSearchParams(params) : undefined });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   }
-
   function msg(el, texto, erro) {
     el.textContent = texto;
-    el.style.color = erro ? '#ff8a80' : '#9ccc65';
+    el.style.color = erro ? '#FF8A80' : '#00E676';
   }
 
-  // Clique no mapa (em % da caixa) -> coordenadas do jogo.
-  // px: 0 = esquerda (X minimo); py: 0 = topo (Z maximo, norte).
+  // ---- Mapa: duplo clique teleporta ----
   function pctParaMundo(px, py) {
-    const wx = MAPA.xMin + (px / 100) * (MAPA.xMax - MAPA.xMin);
-    const wz = MAPA.zMax - (py / 100) * (MAPA.zMax - MAPA.zMin);
-    return { wx: wx, wz: wz };
+    return {
+      wx: MAPA.xMin + (px / 100) * (MAPA.xMax - MAPA.xMin),
+      wz: MAPA.zMax - (py / 100) * (MAPA.zMax - MAPA.zMin)
+    };
   }
-
   function ligarTeleporte() {
     const mapa = $('mapbox');
-    const status = $('rz-tp-status');
+    const status = $('rz-tp-msg');
     if (!mapa) return;
     mapa.addEventListener('dblclick', async (e) => {
       const r = mapa.getBoundingClientRect();
@@ -53,134 +77,140 @@
       const py = (e.clientY - r.top) / r.height * 100;
       if (px < 0 || px > 100 || py < 0 || py > 100) return;
       const c = pctParaMundo(px, py);
-      if (!confirm('Teleportar o personagem para X=' + c.wx.toFixed(1) + ' Z=' + c.wz.toFixed(1) + '?')) return;
+      if (!confirm('Teleportar para X=' + c.wx.toFixed(1) + ' Z=' + c.wz.toFixed(1) + '?')) return;
       try {
         await post('/api/teleport', { wx: c.wx.toFixed(2), wz: c.wz.toFixed(2) });
         msg(status, 'Teleporte enviado (X ' + c.wx.toFixed(0) + ', Z ' + c.wz.toFixed(0) + ').');
-      } catch (err) {
-        msg(status, 'Falha no teleporte: ' + err.message, true);
-      }
+      } catch (err) { msg(status, 'Falha no teleporte: ' + err.message, true); }
     });
   }
 
+  // ---- Time: cards com sprite, nível, HP e status ----
+  function desenharSprite(el, bytes) {
+    // LVGL 8 CF_TRUE_COLOR_ALPHA: por pixel [cor RGB565 (lo, hi), alfa]
+    const c = document.createElement('canvas');
+    c.width = SPRITE; c.height = SPRITE;
+    const ctx = c.getContext('2d');
+    const img = ctx.createImageData(SPRITE, SPRITE);
+    for (let i = 0; i < SPRITE * SPRITE; i++) {
+      const v = bytes[i * 3] | (bytes[i * 3 + 1] << 8);
+      const a = bytes[i * 3 + 2];
+      img.data[i * 4]     = ((v >> 11) & 0x1F) * 255 / 31;
+      img.data[i * 4 + 1] = ((v >> 5) & 0x3F) * 255 / 63;
+      img.data[i * 4 + 2] = (v & 0x1F) * 255 / 31;
+      img.data[i * 4 + 3] = a;
+    }
+    ctx.putImageData(img, 0, 0);
+    el.replaceWith(c);
+  }
+
+  const spriteOk = {};
+  async function carregarSprite(sp, el) {
+    if (spriteOk[sp] === false) return;
+    try {
+      const r = await fetch('/api/sprite?sp=' + sp, { cache: 'force-cache' });
+      if (!r.ok) throw new Error();
+      const buf = new Uint8Array(await r.arrayBuffer());
+      if (buf.length !== SPRITE * SPRITE * 3) throw new Error();
+      desenharSprite(el, buf);
+    } catch (_) { spriteOk[sp] = false; }
+  }
+
+  function montarTime(grade) {
+    grade.innerHTML = '';
+    for (let i = 0; i < 6; i++) {
+      const c = document.createElement('div');
+      c.className = 'card zero';
+      c.innerHTML = '<div class="sprite" data-sp="0">-</div>' +
+        '<div class="info"><div class="nome">---</div><div class="sub">sem dados</div><div class="barra"><div style="width:0"></div></div></div>';
+      grade.appendChild(c);
+    }
+  }
+
+  async function atualizarTime() {
+    const grade = $('rz-time');
+    try {
+      const d = await (await fetch('/api/party', { cache: 'no-store' })).json();
+      const cards = grade.children;
+      (d.party || []).forEach((p, i) => {
+        const c = cards[i];
+        if (!c) return;
+        const vazio = !p.sp;
+        c.className = 'card ' + (vazio ? 'zero' : 'vivo');
+        const sprite = c.querySelector('.sprite');
+        if (!vazio && sprite.dataset.sp !== String(p.sp)) {
+          sprite.dataset.sp = p.sp;
+          sprite.textContent = (p.n || '?').charAt(0).toUpperCase();
+          carregarSprite(p.sp, sprite);
+        }
+        const pct = p.max > 0 ? Math.max(0, Math.min(100, p.hp / p.max * 100)) : 0;
+        const tags = (p.shiny ? '<span class="tag">✦ shiny</span>' : '') + (p.alpha ? '<span class="tag">α</span>' : '');
+        c.querySelector('.info').innerHTML =
+          '<div class="nome">' + esc(p.n || '---') + tags + '</div>' +
+          '<div class="sub">Nv ' + (p.lv || 0) + ' · ' + (p.hp || 0) + '/' + (p.max || 0) + (p.st ? ' · ' + esc(p.st) : '') + '</div>' +
+          '<div class="barra"><div class="' + (pct < 30 ? 'baixo' : '') + '" style="width:' + pct.toFixed(0) + '%"></div></div>';
+      });
+    } catch (_) { /* sem conexao: mantem o ultimo estado */ }
+  }
+
+  // ---- Tela: girar 180 ----
   function ligarRotacao() {
     const btn = $('rz-flip');
-    const status = $('rz-flip-status');
+    const status = $('rz-flip-msg');
     if (!btn) return;
     btn.addEventListener('click', async () => {
       try {
         const d = await post('/api/display/flip');
-        msg(status, 'Tela ' + (d.flip ? 'girada 180 graus' : 'na posicao normal') + '.');
-      } catch (err) {
-        msg(status, 'Falha ao girar: ' + err.message, true);
-      }
+        msg(status, 'Tela ' + (d.flip ? 'girada 180°' : 'na posição normal') + '.');
+      } catch (err) { msg(status, 'Falha ao girar: ' + err.message, true); }
     });
   }
 
-  function montarEditorPokemon(container) {
-    container.innerHTML = '';
-    const linha = (rotulo, el) => {
-      const d = document.createElement('label');
-      d.style.display = 'block';
-      d.style.margin = '6px 0';
-      d.textContent = rotulo + ' ';
-      d.appendChild(el);
-      return d;
-    };
-
-    const slot = document.createElement('select');
-    slot.id = 'rz-pk-slot';
-    for (let i = 0; i < 6; i++) {
-      const o = document.createElement('option');
-      o.value = i; o.textContent = 'Slot ' + (i + 1);
-      slot.appendChild(o);
-    }
-
-    const acao = document.createElement('select');
-    acao.id = 'rz-pk-acao';
-    ACOES.forEach(([v, t]) => {
-      const o = document.createElement('option');
-      o.value = v; o.textContent = t;
-      acao.appendChild(o);
-    });
-
-    const item = document.createElement('input');
-    item.id = 'rz-pk-item';
-    item.type = 'number'; item.min = 0; item.max = 65535; item.value = 0;
-    item.placeholder = 'ID do item';
-
-    const natureza = document.createElement('select');
-    natureza.id = 'rz-pk-natureza';
-    NATUREZAS.forEach((n, i) => {
-      const o = document.createElement('option');
-      o.value = i; o.textContent = n;
-      natureza.appendChild(o);
-    });
-
-    const enviarBtn = document.createElement('button');
-    enviarBtn.textContent = 'Aplicar';
-    const status = document.createElement('div');
-    status.id = 'rz-pk-status';
-    status.style.minHeight = '1.2em';
-
-    const atualizaCampos = () => {
+  // ---- Editor de Pokémon ----
+  function montarEditor() {
+    const slot = $('rz-pk-slot');
+    const acao = $('rz-pk-acao');
+    const item = $('rz-pk-item');
+    const nat = $('rz-pk-nat');
+    const btn = $('rz-pk-aplicar');
+    const status = $('rz-pk-msg');
+    for (let i = 0; i < 6; i++) slot.add(new Option('Slot ' + (i + 1), i));
+    ACOES.forEach(([v, t]) => acao.add(new Option(t, v)));
+    NATUREZAS.forEach((n, i) => nat.add(new Option(n, i)));
+    const atualiza = () => {
       const a = Number(acao.value);
       item.parentElement.style.display = a === 6 ? 'block' : 'none';
-      natureza.parentElement.style.display = a === 15 ? 'block' : 'none';
+      nat.parentElement.style.display = a === 15 ? 'block' : 'none';
     };
-    acao.addEventListener('change', atualizaCampos);
-
-    enviarBtn.addEventListener('click', async () => {
+    acao.addEventListener('change', atualiza);
+    atualiza();
+    btn.addEventListener('click', async () => {
       const a = Number(acao.value);
       let valor = 0;
       if (a === 6) valor = Number(item.value) || 0;
-      if (a === 15) valor = Number(natureza.value);
+      if (a === 15) valor = Number(nat.value);
       try {
         await post('/api/pokemon/edit', { slot: slot.value, action: a, item: valor });
         msg(status, 'Aplicado: ' + acao.options[acao.selectedIndex].text + ' no slot ' + (Number(slot.value) + 1) + '.');
-      } catch (err) {
-        msg(status, 'Falha: ' + err.message, true);
-      }
+      } catch (err) { msg(status, 'Falha: ' + err.message, true); }
     });
-
-    container.appendChild(linha('Pokemon:', slot));
-    container.appendChild(linha('Acao:', acao));
-    container.appendChild(linha('Item:', item));
-    container.appendChild(linha('Natureza:', natureza));
-    container.appendChild(enviarBtn);
-    container.appendChild(status);
-    atualizaCampos();
   }
 
-  async function atualizarStatusSD() {
+  // ---- SD ----
+  async function atualizarSD() {
     const el = $('rz-sd-status');
     try {
-      const r = await fetch('/api/sd/status');
-      const d = await r.json();
-      el.textContent = d.sd_ready
-        ? 'SD pronta: ' + d.used_mb + ' MB usados de ' + d.total_mb + ' MB.'
-        : 'SD nao encontrada.';
-      el.style.color = d.sd_ready ? '#9ccc65' : '#ff8a80';
-    } catch (err) {
-      el.textContent = 'Falha ao ler a SD: ' + err.message;
-      el.style.color = '#ff8a80';
-    }
+      const d = await (await fetch('/api/sd/status', { cache: 'no-store' })).json();
+      msg(el, d.sd_ready ? 'SD pronta: ' + d.used_mb + ' MB de ' + d.total_mb + ' MB usados.' : 'SD não encontrada.', !d.sd_ready);
+    } catch (err) { msg(el, 'Falha ao ler a SD: ' + err.message, true); }
   }
-
   function ligarSD() {
-    const up = $('rz-sd-enviar');
-    const arq = $('rz-sd-arquivo');
-    const caminho = $('rz-sd-caminho');
-    const recarregar = $('rz-sd-recarregar');
     const status = $('rz-sd-msg');
-    if (!up) return;
-
-    atualizarStatusSD();
-
-    up.addEventListener('click', async () => {
+    $('rz-sd-enviar').addEventListener('click', async () => {
+      const arq = $('rz-sd-arquivo');
       if (!arq.files || !arq.files[0]) { msg(status, 'Escolha um arquivo.', true); return; }
       const f = arq.files[0];
-      const destino = (caminho.value || '/' + f.name).trim();
+      const destino = ($('rz-sd-caminho').value || '/' + f.name).trim();
       const form = new FormData();
       form.append('file', f, f.name);
       try {
@@ -188,50 +218,56 @@
         const d = await r.json();
         if (!r.ok || !d.ok) throw new Error('a placa recusou o arquivo');
         msg(status, 'Gravado em ' + d.path + '.');
-        atualizarStatusSD();
-      } catch (err) {
-        msg(status, 'Falha no envio: ' + err.message, true);
-      }
+        atualizarSD();
+      } catch (err) { msg(status, 'Falha no envio: ' + err.message, true); }
     });
-
-    recarregar.addEventListener('click', async () => {
-      try {
-        await post('/api/sd/reload');
-        msg(status, 'Assets recarregados da SD.');
-      } catch (err) {
-        msg(status, 'Falha ao recarregar: ' + err.message, true);
-      }
+    $('rz-sd-recarregar').addEventListener('click', async () => {
+      try { await post('/api/sd/reload'); msg(status, 'Assets recarregados.'); }
+      catch (err) { msg(status, 'Falha: ' + err.message, true); }
     });
+    atualizarSD();
   }
 
+  // ---- Painel ----
   function montarPainel() {
     const estilo = document.createElement('style');
-    estilo.textContent = '#recursos-za{margin:24px auto;max-width:720px;padding:16px;border:1px solid #37474f;border-radius:10px;font-family:system-ui,sans-serif}' +
-      '#recursos-za h2{margin:0 0 10px;font-size:18px}' +
-      '#recursos-za .bloco{margin:12px 0;padding-top:10px;border-top:1px solid #263238}' +
-      '#recursos-za button{padding:6px 12px;margin-top:6px;cursor:pointer}';
+    estilo.textContent = CSS;
     document.head.appendChild(estilo);
 
     const sec = document.createElement('section');
     sec.id = 'recursos-za';
     sec.innerHTML =
       '<h2>Recursos da placa</h2>' +
-      '<div class="bloco"><strong>Mapa: teleporte</strong>' +
-      '<p>De duplo clique no mapa para teleportar o personagem para aquele ponto.</p>' +
-      '<div id="rz-tp-status"></div></div>' +
-      '<div class="bloco"><strong>Tela</strong>' +
-      '<p><button id="rz-flip">Girar tela 180 graus</button></p>' +
-      '<div id="rz-flip-status"></div></div>' +
-      '<div class="bloco"><strong>Editor de Pokemon</strong><div id="rz-pk"></div></div>' +
-      '<div class="bloco"><strong>Cartao SD</strong>' +
-      '<div id="rz-sd-status">Lendo SD...</div>' +
-      '<label style="display:block;margin:6px 0">Arquivo: <input type="file" id="rz-sd-arquivo"></label>' +
-      '<label style="display:block;margin:6px 0">Caminho na SD: <input type="text" id="rz-sd-caminho" placeholder="/assets/pasta/arquivo.png" style="width:70%"></label>' +
-      '<button id="rz-sd-enviar">Enviar para a SD</button> ' +
-      '<button id="rz-sd-recarregar">Recarregar assets</button>' +
-      '<div id="rz-sd-msg"></div></div>';
+
+      '<div class="aba"><h3>Time</h3><div class="grade" id="rz-time"></div></div>' +
+
+      '<div class="aba"><h3>Mapa</h3>' +
+      '<div class="sub" style="color:#A8B8E0">Duplo clique no mapa acima para teleportar.</div>' +
+      '<div class="msg" id="rz-tp-msg"></div></div>' +
+
+      '<div class="aba"><h3>Tela</h3>' +
+      '<div class="linha"><button class="primario" id="rz-flip">Girar 180°</button></div>' +
+      '<div class="msg" id="rz-flip-msg"></div></div>' +
+
+      '<div class="aba"><h3>Editor de Pokémon</h3>' +
+      '<label>Pokémon: <select id="rz-pk-slot"></select></label>' +
+      '<label>Ação: <select id="rz-pk-acao"></select></label>' +
+      '<label>Item (ID): <input type="number" id="rz-pk-item" min="0" max="65535" value="0"></label>' +
+      '<label>Natureza: <select id="rz-pk-nat"></select></label>' +
+      '<div class="linha"><button class="primario" id="rz-pk-aplicar">Aplicar</button></div>' +
+      '<div class="msg" id="rz-pk-msg"></div></div>' +
+
+      '<div class="aba"><h3>Cartão SD</h3>' +
+      '<div class="msg" id="rz-sd-status">Lendo SD...</div>' +
+      '<label>Arquivo: <input type="file" id="rz-sd-arquivo"></label>' +
+      '<label>Caminho: <input type="text" id="rz-sd-caminho" placeholder="/assets/pasta/arquivo.png" style="width:65%"></label>' +
+      '<div class="linha"><button class="primario" id="rz-sd-enviar">Enviar</button>' +
+      '<button id="rz-sd-recarregar">Recarregar assets</button></div>' +
+      '<div class="msg" id="rz-sd-msg"></div></div>';
     document.body.appendChild(sec);
-    montarEditorPokemon($('rz-pk'));
+
+    montarTime($('rz-time'));
+    montarEditor();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -239,5 +275,7 @@
     ligarTeleporte();
     ligarRotacao();
     ligarSD();
+    atualizarTime();
+    setInterval(atualizarTime, 1500);
   });
 })();
