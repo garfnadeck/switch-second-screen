@@ -517,6 +517,21 @@ void setup() {
 }
 
 void loop() {
+    {
+        static uint32_t ultimoIp = 0;
+        if (millis() - ultimoIp >= 2000) {
+            ultimoIp = millis();
+            IPAddress ip = apMode ? WiFi.softAPIP() : WiFi.localIP();
+            snprintf(state.board_ip, sizeof(state.board_ip), "%s", ip.toString().c_str());
+            // IP digitado no teclado da tela, ou achado pela busca disparada na tela: grava na flash
+            bool digitado = state.switch_ip_changed;
+            state.switch_ip_changed = false;
+            if ((digitado || router.scanState() == 2) && strcmp(cfg.sw_ip, state.switch_ip) != 0) {
+                snprintf(cfg.sw_ip, sizeof(cfg.sw_ip), "%s", state.switch_ip);
+                saveSettings();
+            }
+        }
+    }
 #ifdef USB_HID_ESP32_TESTE
     {
         static uint32_t ultimo = 0;

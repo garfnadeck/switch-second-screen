@@ -60,13 +60,20 @@ private:
 #endif
     }
 
-    bool connectToSwitch(const char* ip, uint16_t port) {
+    // O Wi-Fi do Switch pode levar algumas centenas de ms para aceitar a conexao:
+    // com 150 ms ele era pulado na busca e a conexao direta falhava.
+    // Valores de 1 s ou mais de proposito: ha versoes da biblioteca de rede do ESP32 que
+    // arredondam limites abaixo de 1 s para zero, e a conexao falha na hora.
+    static constexpr int TIMEOUT_CONEXAO_MS = 2000;     // conexao direta no IP configurado
+    static constexpr int TIMEOUT_BUSCA_MS   = 1000;     // por endereco, durante a busca
+
+    bool connectToSwitch(const char* ip, uint16_t port, int timeout_ms = TIMEOUT_CONEXAO_MS) {
         disconnect();
 #ifdef ARDUINO
   #if defined(ARDUINO_ARCH_ESP32)
-        return client.connect(ip, port, 150);
+        return client.connect(ip, port, timeout_ms);
   #else
-        client.setTimeout(150);
+        client.setTimeout(timeout_ms);
         return client.connect(ip, port);
   #endif
 #else
@@ -151,10 +158,10 @@ private:
     }
 
     void requestNext(GameState &state) {
-        // Sem enderecos configurados (ou jogo diferente do Z-A): so confirma o link com getTitleId
+        // Sem enderecos configurados (ou jogo diferente do Z-A): so confirma o link com getTitleID
         bool za = (state.profile == GameProfile::POKEMON_LEGENDS_ZA);
         if (!za || (map.party.count == 0 && map.pos.count == 0)) {
-            sendRaw("getTitleId\r\n"); next_req = 0; awaiting = true; sent_ms = millis(); return;
+            sendRaw("getTitleID\r\n"); next_req = 0; awaiting = true; sent_ms = millis(); return;
         }
         if (next_req == 0 && map.party.count) {
             sendChain("pointerPeek", (uint16_t)(map.party_stride * map.party_count), map.party);
@@ -207,13 +214,19 @@ private:
     void scanStep(GameState &state) {
         char ip[16];
         snprintf(ip, sizeof(ip), "%.12s%d", scan_prefix, scan_host);
-        if (connectToSwitch(ip, state.switch_port)) {
+        uint32_t t0 = millis();
+        bool ok = connectToSwitch(ip, state.switch_port, TIMEOUT_BUSCA_MS);
+        if (ok) {
             snprintf(state.switch_ip, sizeof(state.switch_ip), "%s", ip);
             scan_state = 2;
             setLink(state, "switch encontrado");
             last_poll_ms = millis();
             return;
         }
+        // Diagnostico na tela: qual endereco falhou e em quanto tempo (0 ms = falhou sem esperar)
+        char txt[40];
+        snprintf(txt, sizeof(txt), "busca .%d falhou em %lums", scan_host, (unsigned long)(millis() - t0));
+        setLink(state, txt);
         if (++scan_host > scan_last) { scan_state = 3; setLink(state, "switch nao encontrado"); }
     }
 
@@ -221,13 +234,19 @@ private:
     void pump(GameState &state) {
         uint32_t now = millis();
 
-        if (scan_state == 1) { scanStep(state); return; }   // 1 host por chamada (<=150 ms)
+        if (scan_state == 1) { scanStep(state); return; }   // 1 endereco por chamada (ate TIMEOUT_BUSCA_MS)
 
         if (!isConnected()) {
             if (now - last_try_ms >= 5000) {             // tenta reconectar a cada 5 s (connect bloqueia ate 150 ms)
                 last_try_ms = now;
+                uint32_t t0 = millis();
                 linked = connectToSwitch(state.switch_ip, state.switch_port);
-                setLink(state, linked ? "conectado" : "sem conexao");
+                if (linked) setLink(state, "conectado");
+                else {
+                    char txt[40];
+                    snprintf(txt, sizeof(txt), "sem conexao (%lums)", (unsigned long)(millis() - t0));
+                    setLink(state, txt);
+                }
                 if (!linked && !telemetry_only) state.connected = false;
             }
             return;

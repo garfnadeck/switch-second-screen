@@ -381,6 +381,7 @@ public:
     }
 
     void update(GameState &state) override {
+        state.usb_online = TinyUSBDevice.mounted();
         state.mode = SwitchMode::LOCKED_USB_MACRO;
         unsigned long now = millis();
         state.active_macro_slot = static_cast<int8_t>(active_slot);

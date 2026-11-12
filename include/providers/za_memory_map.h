@@ -6,10 +6,12 @@
 // =====================================================================================
 //  MAPA DE MEMORIA DO POKEMON LEGENDS Z-A  (Atmosphere + sys-botbase)
 //
-//  >>> TUDO ABAIXO COMECA ZERADO DE PROPOSITO <<<
-//  Eu nao tenho os enderecos reais do Z-A. Eles dependem da VERSAO do jogo (e do build
-//  id) e normalmente vem de pesquisa da comunidade ou de busca na memoria com um debugger.
-//  Preencha so este arquivo; o resto (leitura, parse, telas) ja esta pronto.
+//  Os enderecos dependem da VERSAO do jogo (build id). Os valores abaixo foram medidos no
+//  console do usuario em 10/11/2026: jogo base, sem updates, build 7222E13ECF6ADB32.
+//  Pesquisa, fontes e o que ainda falta: docs/ponteiros_za.md
+//
+//  - Posicao: PREENCHIDA (ponteiro publicado pelo ZAShinyWarper) e conferida ao vivo, andando.
+//  - Time:    ainda ZERADO (nao achado nesta versao).
 //
 //  Cadeia de ponteiros = argumentos do comando "pointerPeek" do sys-botbase:
 //     pointerPeek <tamanho> <salto1> <salto2> ... <saltoN>
@@ -40,14 +42,15 @@ struct ZaMemoryMap {
     float world_min_z, world_max_z;
 };
 
-// PREENCHER:
 static const ZaMemoryMap ZA_MAP = {
-    /* party        */ { 0, { 0 } },
+    /* party        */ { 0, { 0 } },                       // nao achado nesta versao
     /* party_stride */ 0, /* party_count */ 6,
     /* offsets      */ 0, 0, 0, 0, 0,
-    /* pos          */ { 0, { 0 } },
+    // [[[[main+0x41EC340]+0x248]+0x0]+0x138]+0x90: QUATRO saltos seguidos e so entao o +0x90.
+    // (No pointerPeek o ultimo numero e somado sem ser seguido, por isso o 0x90 vai separado.)
+    /* pos          */ { 5, { 0x41EC340, 0x248, 0x0, 0x138, 0x90 } },
     /* off x,y,z    */ 0, 4, 8,
-    /* world bounds */ 0.f, 0.f, 0.f, 0.f
+    /* world bounds */ 0.f, 0.f, 0.f, 0.f                  // a calibrar andando ate pontos conhecidos
 };
 
 #endif // ZA_MEMORY_MAP_H

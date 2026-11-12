@@ -143,9 +143,12 @@ struct GameState {
     SwitchMode mode = SwitchMode::MOCK_SIMULATOR;
     GameProfile profile = GameProfile::POKEMON_SV;
     bool connected = false;
+    bool switch_ip_changed = false;        // IP do Switch digitado na tela: o main grava na flash
+    bool usb_online = false;               // USB HID enumerado (botoes); independe de connected
     int8_t active_macro_slot = -1; // -1 = nenhuma macro em execucao
-    char link_status[24] = "desativado";   // estado da leitura de RAM (sys-botbase)
+    char link_status[40] = "desativado";   // estado da leitura de RAM (sys-botbase)
     char switch_ip[16] = "192.168.1.50";
+    char board_ip[24] = "-";               // IP da propria placa (Wi-Fi ou AP), para mostrar na Config
     uint16_t switch_port = 6000;
 
     FireRedStats fr;
