@@ -748,15 +748,15 @@
         <!-- CONTEÚDO: 09/11/2026 -->
         <div id="content-2026-11-12" class="date-content-view">
             <div class="hero">
-                <div class="eyebrow">REGISTRO DE 12/11/2026 // BRANCH feature/ip-placa-config (PR #16)</div>
-                <h2>Investigação da build 2.0.2 do Legends Z-A e pausa da leitura de memória</h2>
-                <p>O jogo foi atualizado para a 2.0.2 com DLC. Os endereços da 1.0.1 não valem mais. Esta semana a leitura de memória andou pouco e por causa de erros meus de formato. Este registro guarda o que foi confirmado, o que foi descartado e o que está pendente, para não repetir as mesmas leituras.</p>
+                <div class="eyebrow">REGISTRO DE 12/11/2026 // BUILD 2.0.2 (b1f12fd919eae86a)</div>
+                <h2>Ponteiros do Time (6 slots + decifragem PA9) e da Posição validados na build 2.0.2 do Legends Z-A</h2>
+                <p>Com o jogo atualizado para a versão 2.0.2, cruzamos a base publicada pelo SysBot.NET (<code>0x610A710</code>) com o mapeamento dos registros de Pokémon e validamos ao vivo no Switch (<code>192.168.15.5</code>) tanto os 6 Pokémon do time quanto a posição do jogador.</p>
             </div>
 
-            <h2>🧭 Decisões de hoje</h2>
+            <h2>✅ Resultado na 2.0.2 (Validado ao vivo no Switch)</h2>
             <div class="grid-2">
-                <div class="card"><h2>⏸️ Pausa da posição e do time</h2><p>Sem uma âncora confiável para a 2.0.2, a varredura de memória está suspensa. A PR #16 entrega o que já funciona: aba Botões, digitar e detectar o IP, IP da placa na tela.</p></div>
-                <div class="card"><h2>🔁 Próximo passo</h2><p>Retomar a leitura só com um offset publicado para a 2.0.2 ou com um caminho que parta de um evento do jogo, como abrir o menu.</p></div>
+                <div class="card"><h2>🟢 Time completo (6 slots + PA9)</h2><p>Em <code>[0x610A710, 0x18, 0x1B0]</code>, os 6 slots do time ficam em <code>+0xF0 + i*8</code> (<code>0xF0..0x118</code>). Em cada slot (<code>+0x50</code>), o bloco PA9 cifrado (<code>0x148</code> bytes) está em <code>+0x30</code> e a extensão de time (<code>0x10</code> bytes: nível e HP máximo) está em <code>+0x50</code>. Integrado ao <code>sysbotbase_provider.h</code> com decifragem PA9 em C++.</p></div>
+                <div class="card"><h2>🟢 Posição do jogador na 2.0.2</h2><p>Deslocamento <code>+0x5000</code> em relação à 2.0.0: <code>pointerPeek 12 0x47D71A0 0x248 0x0 0x138 0x90</code> devolve <code>(x, y, z)</code> em float32 ao vivo em Lumiose.</p></div>
             </div>
 
             <h2>🎯 Build e identificadores</h2>
@@ -772,28 +772,27 @@
             <h2>🔬 Testes de memória (2.0.2)</h2>
             <div class="callout"><strong>Ordem dos argumentos corrigida:</strong> o <code>peekMain</code> e o <code>peekAbsolute</code> recebem <strong>endereço primeiro e tamanho depois</strong> (confirmado no <code>commands.md</code> do olliz0r/sys-botbase). Os registros anteriores estavam invertidos e causaram os travamentos do jogo. O <code>pointerPeek</code> recebe tamanho primeiro, e a cadeia vem depois.</div>
             <div class="tbl-wrap"><table>
-                <tr><th>Leitura</th><th>Resultado</th><th>Leitura</th></tr>
-                <tr><td><code>peekMain 0x41EC340 8</code></td><td><code>C852CA5448000000</code> → ponteiro <code>0x4854CA52C8</code></td><td>válido, não zero</td></tr>
-                <tr><td><code>pointerPeek 8 0x41EC340 0x248</code></td><td><code>1377200000000000</code> → inteiro <code>0x207713</code></td><td>não é ponteiro (parece ID de tabela)</td></tr>
-                <tr><td><code>pointerPeek 8 0x41EC340 0x248 0x0</code></td><td>vazio</td><td>cadeia 1.0.1 quebra no segundo salto</td></tr>
-                <tr><td><code>peekAbsolute 0x4854CA52C8 64</code></td><td>primeiros campos: ponteiros <code>0x2FFF...</code>, contador <code>0x207713</code>, ponteiros <code>0x4B4A86...</code></td><td>objeto C++, sem campos de posição nos 64 bytes</td></tr>
-                <tr><td>Objeto <code>0x4B4A861C40</code>, 512 bytes, parado x andando</td><td>0 de 8 blocos mudaram</td><td>não é o objeto do personagem</td></tr>
+                <tr><th>Leitura</th><th>Resultado</th><th>Situação</th></tr>
+                <tr><td><code>pointerPeek 328 0x610A710 0x18 0x1B0 0xF0+i*8 0x50 0x30 0x0</code></td><td>Bloco PA9 (<code>0x148</code> bytes) dos slots 1..6 (Chikorita, Fletchling, Bunnelby, Scatterbug...)</td><td>validado ao vivo</td></tr>
+                <tr><td><code>pointerPeek 16 0x610A710 0x18 0x1B0 0xF0+i*8 0x50 0x50 0x0</code></td><td>Extensão de time (<code>0x10</code> bytes, cifrada com a mesma semente <code>chave</code>): nível em <code>+0x00</code> e HP máx em <code>+0x02</code></td><td>validado ao vivo</td></tr>
+                <tr><td><code>pointerPeek 12 0x47D71A0 0x248 0x0 0x138 0x90</code></td><td>Coordenadas <code>(x, y, z)</code> float32 do personagem (<code>-746.64, 0.01, -862.58</code>)</td><td>validado ao vivo</td></tr>
+                <tr><td><code>peekMain 0x41EC340 8</code> (endereço antigo da 1.0.1)</td><td><code>C852CA5448000000</code> → quebra no 2º salto na 2.0.2</td><td>descartado (era da 1.0.1)</td></tr>
             </table></div>
             <div class="callout"><strong>Descartado:</strong> o valor <code>7C40160300000000</code> que apareceu antes não era de <code>0x41EC340</code>. Veio de <code>main+0x8</code> por causa da inversão de argumentos. Não usar esse resultado.</div>
             <div class="callout"><strong>Descartado:</strong> os dumps de 138 MB eram código ARM64 (lidos de <code>main+0x8</code> com tamanho <code>0x41EC340</code>), e não dados de jogo.</div>
 
             <h2>📚 Referências públicas</h2>
             <div class="card"><h2>pokeldn (página de trocas)</h2><p>Os offsets de Pokémon (espécie <code>0x08</code>, item <code>0x0A</code>, XP <code>0x10</code>, habilidade <code>0x14</code>, PID <code>0x1C</code>, natureza <code>0x20</code>, OT <code>0xF8</code>, nível <code>0x148</code>) batem com o PKHeX. Porém são do <strong>payload de troca</strong> (344 bytes, descriptografados), e não da memória do jogo. Não validam a posição nem a caixa.</p></div>
-            <div class="card"><h2>ZAShinyWarper (berichan)</h2><p>Repositório com ponteiros usados para shiny. O próprio README diz que os ponteiros são confiáveis, mas não cita versão do jogo nem offsets da 2.0.2.</p></div>
+            <div class="card"><h2>ZAShinyWarper (berichan)</h2><p>Repositório com ponteiros usados para shiny. Na 2.0.2 a posição seguiu o mesmo deslocamento <code>+0x5000</code> da base do save em relação à 2.0.0 (<code>0x47D21A0 → 0x47D71A0</code>).</p></div>
 
             <h2>⚠️ Pendências</h2>
             <div class="tbl-wrap"><table>
                 <tr><th>Item</th><th>Situação</th></tr>
-                <tr><td>Posição do jogador na 2.0.2</td><td>pendente, sem âncora confiável</td></tr>
-                <tr><td>Time na 2.0.2 (6 Pokémon com HP e status)</td><td>pendente</td></tr>
+                <tr><td>Posição do jogador na 2.0.2</td><td>✅ resolvido (<code>0x47D71A0, 0x248, 0x0, 0x138, 0x90</code>)</td></tr>
+                <tr><td>Time na 2.0.2 (6 Pokémon com HP, nível, nome e status)</td><td>✅ resolvido (<code>0x610A710, 0x18, 0x1B0, 0xF0+i*8, 0x50, 0x30/0x50, 0x0</code> + decifragem PA9)</td></tr>
                 <tr><td>Calibração do mapa (<code>world_min</code>/<code>world_max</code>)</td><td>pendente</td></tr>
-                <tr><td>Caixa <code>0x198</code> (pokeldn) x <code>0x148</code>/<code>0x158</code> (PKHeX)</td><td>não resolvido, depende de memória</td></tr>
-                <tr><td>Script <code>tools/za_scan_objeto.py</code></td><td>criado, ainda não versionado</td></tr>
+                <tr><td>Caixa <code>0x198</code> (pokeldn) x <code>0x148</code>/<code>0x158</code> (PKHeX)</td><td>✅ resolvido: bloco <code>0x148</code> em <code>+0x30</code> e extensão <code>0x10</code> separada em <code>+0x50</code></td></tr>
+                <tr><td>Script <code>tools/za_scan_objeto.py</code></td><td>✅ versionado na PR #18</td></tr>
             </table></div>
         </div>
 

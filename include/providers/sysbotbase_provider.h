@@ -39,7 +39,13 @@ private:
     char     rx[RX_MAX];
     uint16_t rx_len = 0;
     bool     awaiting = false;                           // ha um pedido sem resposta
-    uint8_t  next_req = 0;                               // 0 = party, 1 = posicao
+    uint8_t  next_req = 0;                               // 0 = bloco PA9 do slot, 1 = extensao do slot, 2 = posicao
+    uint8_t  party_idx = 0;                              // slot atual do time (0..5)
+    uint32_t pending_ec = 0;                             // chave PA9 do slot atual (para decifrar a extensao 0x10)
+    uint16_t pending_hp_cur = 0;
+    uint16_t pending_species = 0;
+    uint8_t  pending_status = 0;
+    char     pending_name[16] = {};
     uint32_t sent_ms = 0, last_poll_ms = 0, last_try_ms = 0;
     bool     linked = false;
     bool     telemetry_only = false;
@@ -89,7 +95,7 @@ private:
     }
 
     void disconnect() {
-        rx_len = 0; awaiting = false;
+        rx_len = 0; awaiting = false; next_req = 0;
 #ifdef ARDUINO
         client.stop();
 #else
@@ -141,11 +147,77 @@ private:
         return n;
     }
     static uint16_t rd16(const uint8_t * p) { return (uint16_t)(p[0] | (p[1] << 8)); }
+    static uint32_t rd32(const uint8_t * p) {
+        return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+    }
     static float    rdf (const uint8_t * p) { float f; memcpy(&f, p, 4); return f; }
 
     static const char * statusName(uint8_t s) {
         switch (s) { case 1: return "SLP"; case 2: return "PSN"; case 3: return "BRN";
                      case 4: return "FRZ"; case 5: return "PAR"; case 6: return "CNF"; default: return ""; }
+    }
+
+    // ---- Decifragem PA9 (PKHeX: LCG 0x41C64E6D + 0x6073 e desembaralhamento de 4 blocos de 80 bytes) ----
+    static void pa9Xor(uint8_t * data, uint16_t len, uint32_t seed) {
+        for (uint16_t i = 0; i + 1 < len; i += 2) {
+            seed = seed * 0x41C64E6Du + 0x6073u;
+            uint16_t k = (uint16_t)(seed >> 16);
+            data[i]     ^= (uint8_t)(k & 0xFF);
+            data[i + 1] ^= (uint8_t)(k >> 8);
+        }
+    }
+
+    static bool pa9DecryptBlock(const uint8_t * raw, uint8_t * out, uint32_t &out_ec) {
+        uint32_t ec = rd32(raw);
+        uint16_t sanity = rd16(raw + 4);
+        uint16_t chk_expect = rd16(raw + 6);
+        if ((ec == 0 && chk_expect == 0) || sanity != 0) return false;
+
+        uint8_t body[320];
+        memcpy(body, raw + 8, 320);
+        pa9Xor(body, 320, ec);
+
+        uint16_t sum = 0;
+        for (uint16_t i = 0; i < 320; i += 2) sum = (uint16_t)(sum + rd16(body + i));
+        if (sum != chk_expect) return false;
+
+        static const uint8_t ORDER[128] = {
+            0,1,2,3, 0,1,3,2, 0,2,1,3, 0,3,1,2, 0,2,3,1, 0,3,2,1,
+            1,0,2,3, 1,0,3,2, 2,0,1,3, 3,0,1,2, 2,0,3,1, 3,0,2,1,
+            1,2,0,3, 1,3,0,2, 2,1,0,3, 3,1,0,2, 2,3,0,1, 3,2,0,1,
+            1,2,3,0, 1,3,2,0, 2,1,3,0, 3,1,2,0, 2,3,1,0, 3,2,1,0,
+            0,1,2,3, 0,1,3,2, 0,2,1,3, 0,3,1,2, 0,2,3,1, 0,3,2,1,
+            1,0,2,3, 1,0,3,2
+        };
+        uint8_t sv = (uint8_t)((ec >> 13) & 31u);
+        memcpy(out, raw, 8);
+        for (uint8_t b = 0; b < 4; b++) {
+            uint8_t src_blk = ORDER[sv * 4 + b];
+            memcpy(out + 8 + b * 80, body + src_blk * 80, 80);
+        }
+        out_ec = ec;
+        return rd16(out + 0x08) != 0;
+    }
+
+    static void pa9ExtractName(const uint8_t * claro, uint16_t species, char * out, size_t out_sz) {
+        size_t j = 0;
+        for (uint8_t i = 0; i < 13 && j + 1 < out_sz; i++) {
+            uint16_t ch = rd16(claro + 0x58 + i * 2);
+            if (ch == 0) break;
+            if (ch >= 0x20 && ch <= 0x7E) out[j++] = (char)ch;
+        }
+        out[j] = 0;
+        if (j == 0) snprintf(out, out_sz, "#%u", (unsigned)species);
+    }
+
+    static void clearSlot(PokemonSlot &p) {
+        p.max_hp = 0; p.current_hp = 0; p.level = 0; p.name[0] = 0; p.status[0] = 0;
+    }
+
+    void advancePartySlot() {
+        uint8_t cnt = (map.party_count > 0 && map.party_count <= 6) ? map.party_count : 6;
+        party_idx = (uint8_t)((party_idx + 1) % cnt);
+        next_req = map.pos.count ? 2 : 0;
     }
 
     void sendChain(const char * name, uint16_t size, const MemChain &c) {
@@ -157,19 +229,29 @@ private:
         sendRaw(cmd);
     }
 
+    void sendPartySlotChain(uint8_t slot, bool is_extra) {
+        MemChain c = map.party;
+        if (c.count >= 6) {
+            c.jumps[3] = map.party.jumps[3] + (uint32_t)slot * 8u;   // 0xF0, 0xF8, 0x100, 0x108, 0x110, 0x118
+            c.jumps[5] = is_extra ? 0x50u : 0x30u;                   // +0x30 = bloco 0x148, +0x50 = extensao 0x10
+        }
+        sendChain("pointerPeek", is_extra ? 16 : map.party_stride, c);
+    }
+
     void requestNext(GameState &state) {
         // Sem enderecos configurados (ou jogo diferente do Z-A): so confirma o link com getTitleID
         bool za = (state.profile == GameProfile::POKEMON_LEGENDS_ZA);
         if (!za || (map.party.count == 0 && map.pos.count == 0)) {
             sendRaw("getTitleID\r\n"); next_req = 0; awaiting = true; sent_ms = millis(); return;
         }
-        if (next_req == 0 && map.party.count) {
-            sendChain("pointerPeek", (uint16_t)(map.party_stride * map.party_count), map.party);
+        if ((next_req == 0 || next_req == 1) && map.party.count) {
+            sendPartySlotChain(party_idx, next_req == 1);
         } else if (map.pos.count) {
-            next_req = 1;
+            next_req = 2;
             sendChain("pointerPeek", 12, map.pos);
         } else {
-            sendChain("pointerPeek", (uint16_t)(map.party_stride * map.party_count), map.party);
+            next_req = 0;
+            sendPartySlotChain(party_idx, false);
         }
         awaiting = true; sent_ms = millis();
     }
@@ -183,29 +265,57 @@ private:
         }
         static uint8_t buf[RX_MAX / 2];
         uint16_t n = hexToBytes(rx, buf, sizeof(buf));
-        if (n == 0) { setLink(state, "resposta invalida"); return; }
+        if (n == 0) {
+            if ((next_req == 0 || next_req == 1) && map.party.count && party_idx < 6) {
+                clearSlot(state.party[party_idx]);
+                advancePartySlot();
+            }
+            setLink(state, "resposta invalida");
+            return;
+        }
 
         if (next_req == 0 && map.party.count) {
-            for (uint8_t i = 0; i < map.party_count && i < 6; i++) {
-                uint32_t b = (uint32_t)i * map.party_stride;
-                if (b + map.party_stride > n) break;
-                PokemonSlot &p = state.party[i];
-                uint16_t hpmax = rd16(buf + b + map.off_hp_max);
-                if (hpmax == 0 || hpmax > 9999) { p.max_hp = 0; p.current_hp = 0; p.name[0] = 0; p.status[0] = 0; continue; }
-                p.max_hp = hpmax;
-                p.current_hp = rd16(buf + b + map.off_hp_cur);
-                p.level = buf[b + map.off_level];
-                snprintf(p.name, sizeof(p.name), "#%u", (unsigned)rd16(buf + b + map.off_species)); // TODO: tabela de nomes
-                snprintf(p.status, sizeof(p.status), "%s", statusName(buf[b + map.off_status]));
+            static uint8_t claro[328];
+            uint32_t ec = 0;
+            if (n >= 328 && pa9DecryptBlock(buf, claro, ec)) {
+                pending_ec = ec;
+                pending_species = rd16(claro + map.off_species);
+                pending_hp_cur  = rd16(claro + map.off_hp_cur);
+                pending_status  = claro[map.off_status];
+                pa9ExtractName(claro, pending_species, pending_name, sizeof(pending_name));
+                next_req = 1;   // pede a extensao 0x10 do mesmo slot (nivel e HP maximo)
+            } else {
+                if (party_idx < 6) clearSlot(state.party[party_idx]);
+                advancePartySlot();
             }
-            next_req = map.pos.count ? 1 : 0;
+        } else if (next_req == 1 && map.party.count) {
+            if (n >= 16 && party_idx < 6) {
+                pa9Xor(buf, 16, pending_ec);
+                uint16_t off_lv = map.off_level >= 0x148 ? (uint16_t)(map.off_level - 0x148) : 0;
+                uint16_t off_hm = map.off_hp_max >= 0x148 ? (uint16_t)(map.off_hp_max - 0x148) : 2;
+                uint8_t  lv    = (off_lv < 16) ? buf[off_lv] : 0;
+                uint16_t hpmax = (off_hm + 1 < 16) ? rd16(buf + off_hm) : 0;
+                PokemonSlot &p = state.party[party_idx];
+                if (hpmax == 0 || hpmax > 9999 || lv == 0 || lv > 100) {
+                    clearSlot(p);
+                } else {
+                    p.max_hp = hpmax;
+                    p.current_hp = pending_hp_cur > hpmax ? hpmax : pending_hp_cur;
+                    p.level = lv;
+                    snprintf(p.name, sizeof(p.name), "%s", pending_name);
+                    snprintf(p.status, sizeof(p.status), "%s", statusName(pending_status));
+                }
+            } else if (party_idx < 6) {
+                clearSlot(state.party[party_idx]);
+            }
+            advancePartySlot();
         } else {
             if (n >= 12) {
                 state.map.x = rdf(buf + map.off_x);
                 state.map.y = rdf(buf + map.off_z);   // no mapa 2D: horizontal = x, vertical = z do jogo
                 state.map.z = rdf(buf + map.off_y);
             }
-            next_req = map.party.count ? 0 : 1;
+            next_req = map.party.count ? 0 : 2;
         }
         if (!telemetry_only) state.connected = true;   // em telemetria, 'connected' = USB HID
         setLink(state, "ok (lendo RAM)");
@@ -254,7 +364,7 @@ private:
 
         if (awaiting) {
             if (readLine()) { awaiting = false; handleReply(state); rx_len = 0; last_poll_ms = now; }
-            else if (now - sent_ms > 800) { awaiting = false; rx_len = 0; setLink(state, "timeout"); }
+            else if (now - sent_ms > 800) { awaiting = false; rx_len = 0; next_req = 0; setLink(state, "timeout"); }
             return;
         }
         if (now - last_poll_ms >= 250) requestNext(state);   // ~4 leituras/s no total
@@ -291,6 +401,7 @@ public:
     void setProfile(GameState &state, GameProfile new_profile) override {
         state.profile = new_profile;
         next_req = 0;
+        party_idx = 0;
     }
     void update(GameState &state) override {
         state.mode = SwitchMode::UNLOCKED_SYSBOTBASE;
