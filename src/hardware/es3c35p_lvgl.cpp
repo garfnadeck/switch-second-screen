@@ -36,6 +36,7 @@ static uint16_t   * s_frame = NULL;     // 480x320 na PSRAM: quadro logico intei
 static TaskHandle_t       s_tarefaEnvio = NULL;
 static portMUX_TYPE       s_mux = portMUX_INITIALIZER_UNLOCKED;
 static int                s_sujoX1 = INT_MAX, s_sujoX2 = -1;   // faixa de colunas logicas (lx) pendente de envio
+static volatile bool      s_flip180 = false;                   // false = paisagem normal (0°), true = paisagem invertida (180°)
 static lv_disp_draw_buf_t s_draw;
 static lv_disp_drv_t      s_disp;
 static lv_indev_drv_t     s_indev;
@@ -122,8 +123,13 @@ static void flush(lv_disp_drv_t * drv, const lv_area_t * a, lv_color_t * cor)
 // Gira as colunas lx em [x1..x2] (com as 320 colunas nativas) e envia em janelas de largura total
 static void enviaColunas(int x1, int x2)
 {
-    int ny1 = x1, ny2 = x2;
+    bool flip = s_flip180;
+    int ny1 = flip ? (HUD_W - 1 - x2) : x1;
+    int ny2 = flip ? (HUD_W - 1 - x1) : x2;
+    if (ny1 < 0) ny1 = 0;
+    if (ny2 >= PANEL_H) ny2 = PANEL_H - 1;
     int h = ny2 - ny1 + 1;
+    if (h <= 0) return;
     int64_t t0 = esp_timer_get_time();
     const int T = 16;
     for (int by = ny1; by <= ny2; by += T) {
@@ -132,8 +138,8 @@ static void enviaColunas(int x1, int x2)
             int xFim = (bx + T - 1 < PANEL_W - 1) ? (bx + T - 1) : (PANEL_W - 1);
             for (int y = by; y <= yFim; y++) {
                 for (int x = bx; x <= xFim; x++) {
-                    int lx = y;
-                    int ly = (PANEL_W - 1) - x;
+                    int lx = flip ? ((HUD_W - 1) - y) : y;
+                    int ly = flip ? x : ((PANEL_W - 1) - x);
                     uint16_t c = s_frame[ly * HUD_W + lx];
                     s_nativo[(y - ny1) * PANEL_W + x] = (uint16_t)((c >> 8) | (c << 8));   // painel quer o byte alto primeiro
                 }
@@ -174,14 +180,15 @@ static void tarefaEnvio(void * arg)
 }
 #endif  // ES3C35P_ROT_HW
 
-// Toque: nativo (x, y) -> logico (lx = y, ly = 319 - x), inverso da rotacao do envio
+// Toque: nativo (x, y) -> logico (lx = y, ly = 319 - x), inverso da rotacao do envio (ou invertido em 180°)
 static void toqueLer(lv_indev_drv_t * drv, lv_indev_data_t * data)
 {
     (void)drv;
     uint16_t tx = 0, ty = 0;
     if (es3c35p_touch::read(&tx, &ty)) {
-        int lx = ty;
-        int ly = (PANEL_W - 1) - tx;
+        bool flip = s_flip180;
+        int lx = flip ? ((HUD_W - 1) - (int)ty) : (int)ty;
+        int ly = flip ? (int)tx : ((PANEL_W - 1) - (int)tx);
         if (lx < 0) lx = 0;
         if (lx >= HUD_W) lx = HUD_W - 1;
         if (ly < 0) ly = 0;
@@ -196,18 +203,23 @@ static void toqueLer(lv_indev_drv_t * drv, lv_indev_data_t * data)
         if (s_estavaPressionado) snprintf(s_toqueTxt, sizeof(s_toqueTxt), "solto");
         s_estavaPressionado = false;
     }
+}
 
-    // Rotulo de diagnostico: erro do I2C, toque e o ultimo flush (so redesenha se o texto mudou)
-    if (s_dbg) {
-        char msg[120];
-        snprintf(msg, sizeof(msg), "i2c=%d st=0x%02X %s | fl#%lu gira%lums env%lums",
-                 es3c35p_touch::ultimoErro(), es3c35p_touch::ultimoStatus(), s_toqueTxt,
-                 s_nFlush, s_msGira, s_msEnvio);
-        if (strcmp(msg, s_msgMostrada) != 0) {
-            snprintf(s_msgMostrada, sizeof(s_msgMostrada), "%s", msg);
-            lv_label_set_text(s_dbg, msg);
-        }
+void es3c35p_lvgl_set_flip(bool flip)
+{
+    s_flip180 = flip;
+    if (s_frame) {
+        portENTER_CRITICAL(&s_mux);
+        s_sujoX1 = 0;
+        s_sujoX2 = HUD_W - 1;
+        portEXIT_CRITICAL(&s_mux);
+        if (s_tarefaEnvio) xTaskNotifyGive(s_tarefaEnvio);
     }
+}
+
+bool es3c35p_lvgl_get_flip()
+{
+    return s_flip180;
 }
 
 void es3c35p_lvgl_init()
@@ -260,13 +272,13 @@ void es3c35p_lvgl_init()
     s_indev.read_cb = toqueLer;
     lv_indev_drv_register(&s_indev);
 
-    // Rotulo de diagnostico do toque (fica na camada de cima, sobre a HUD)
-    s_dbg = lv_label_create(lv_layer_top());
-    lv_obj_set_style_text_color(s_dbg, lv_color_hex(0xFFFF00), 0);
-    lv_obj_align(s_dbg, LV_ALIGN_BOTTOM_LEFT, 4, -4);
-    lv_label_set_text(s_dbg, s_touchOk ? "touch: pronto, aguardando toque" : "touch: NAO iniciou");
-
     ESP_LOGI(TAG, "LVGL ligado: %dx%d, quadro inteiro na PSRAM", HUD_W, HUD_H);
 }
+
+#else
+
+void es3c35p_lvgl_init() {}
+void es3c35p_lvgl_set_flip(bool) {}
+bool es3c35p_lvgl_get_flip() { return false; }
 
 #endif  // ARDUINO_ARCH_ESP32

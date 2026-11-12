@@ -97,13 +97,28 @@ struct FireRedStats {
     }
 };
 
+enum class PokeEditAction : uint8_t {
+    HEAL_HP        = 0,
+    HEAL_STATUS    = 1,
+    RESTORE_PP     = 2,
+    FULL_RESTORE   = 3,
+    TOGGLE_SHINY   = 4,
+    MAX_IVS        = 5,
+    SET_ITEM       = 6,
+    HEAL_PARTY_ALL = 7
+};
+
 struct PokemonSlot {
     uint16_t species = 0;
-    char name[16];
-    uint8_t level;
-    uint16_t current_hp;
-    uint16_t max_hp;
-    char status[8];
+    char name[16] = {};
+    uint8_t level = 0;
+    uint16_t current_hp = 0;
+    uint16_t max_hp = 0;
+    char status[8] = {};
+    uint16_t held_item = 0;
+    uint8_t pp[4] = {0, 0, 0, 0};
+    bool is_shiny = false;
+    bool is_max_iv = false;
     bool active = true;
 };
 
@@ -145,6 +160,8 @@ struct GameState {
     GameProfile profile = GameProfile::POKEMON_SV;
     bool connected = false;
     bool switch_ip_changed = false;        // IP do Switch digitado na tela: o main grava na flash
+    bool screen_flip = false;              // true = gira a tela e o toque em 180° (paisagem invertida)
+    bool screen_flip_changed = false;      // alterou a rotacao na tela: o main grava no /config.txt
     bool usb_online = false;               // USB HID enumerado (botoes); independe de connected
     int8_t active_macro_slot = -1; // -1 = nenhuma macro em execucao
     char link_status[40] = "desativado";   // estado da leitura de RAM (sys-botbase)

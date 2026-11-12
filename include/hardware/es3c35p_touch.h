@@ -18,5 +18,6 @@ bool read(uint16_t * x, uint16_t * y);
 // Diagnostico: ultimo erro do I2C (esp_err_t, 0 = ok) e ultimo byte de status lido.
 int      ultimoErro();
 uint8_t  ultimoStatus();
+const char * infoChip0x28();
 
 }  // namespace es3c35p_touch

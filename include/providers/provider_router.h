@@ -48,6 +48,11 @@ public:
     // Parar tudo (macros USB). O sys-botbase nao envia botoes, entao nao ha o que cancelar nele.
     void stopAll(GameState &state) { usb_prov.stopAll(state); }
 
+    // Acoes do Mini Menu do Pokemon (Curar HP, Status, PP, Item, Shiny, 6IVs, Curar Time)
+    void editPokemon(GameState &state, uint8_t slot, PokeEditAction action, uint16_t item_id = 0) {
+        tcp_prov.editPokemon(state, slot, action, item_id);
+    }
+
     void switchMode(GameState &state, SwitchMode new_mode) {
         state.mode = new_mode;
         if (new_mode == SwitchMode::MOCK_SIMULATOR) {

@@ -22,6 +22,31 @@ static i2c_master_dev_handle_t s_dev = NULL;
 static int64_t s_int_baixo_desde = 0;   // us, 0 = INT esta alto
 static int      s_erro = -1;            // ultimo esp_err_t da leitura (-1 = ainda nao leu)
 static uint8_t  s_status = 0xFF;        // ultimo byte de status (0xFF = ainda nao leu)
+static char     s_info0x28[48] = "nao sondado";
+
+static void sondarChip0x28()
+{
+    if (!s_bus) return;
+    if (i2c_master_probe(s_bus, 0x28, 50) != ESP_OK) {
+        snprintf(s_info0x28, sizeof(s_info0x28), "0x28 ausente");
+        return;
+    }
+    i2c_master_dev_handle_t dev28 = NULL;
+    i2c_device_config_t cfg = {};
+    cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+    cfg.device_address = 0x28;
+    cfg.scl_speed_hz = 100000;
+    if (i2c_master_bus_add_device(s_bus, &cfg, &dev28) != ESP_OK || !dev28) {
+        snprintf(s_info0x28, sizeof(s_info0x28), "0x28 ACK");
+        return;
+    }
+    uint8_t r00 = 0xFF, r0F = 0xFF, r75 = 0xFF;
+    uint8_t addr = 0x00; i2c_master_transmit_receive(dev28, &addr, 1, &r00, 1, pdMS_TO_TICKS(30));
+    addr = 0x0F;         i2c_master_transmit_receive(dev28, &addr, 1, &r0F, 1, pdMS_TO_TICKS(30));
+    addr = 0x75;         i2c_master_transmit_receive(dev28, &addr, 1, &r75, 1, pdMS_TO_TICKS(30));
+    i2c_master_bus_rm_device(dev28);
+    snprintf(s_info0x28, sizeof(s_info0x28), "0x28 id:%02X/%02X/%02X", r00, r0F, r75);
+}
 
 static esp_err_t regLer(uint16_t reg, uint8_t * buf, size_t len)
 {
@@ -83,6 +108,7 @@ bool init()
     }
 
     ESP_LOGI(TAG, "touch iniciado (0x%02X, 1 ponto)", ES3C35P_TOUCH_ADDR);
+    sondarChip0x28();
     return true;
 }
 
@@ -148,6 +174,7 @@ bool read(uint16_t * x, uint16_t * y)
 
 int     ultimoErro()   { return s_erro; }
 uint8_t ultimoStatus() { return s_status; }
+const char * infoChip0x28() { return s_info0x28; }
 
 }  // namespace es3c35p_touch
 
@@ -158,6 +185,7 @@ bool init() { return false; }
 bool read(uint16_t *, uint16_t *) { return false; }
 int     ultimoErro()   { return -1; }
 uint8_t ultimoStatus() { return 0; }
+const char * infoChip0x28() { return "simulador"; }
 }  // namespace es3c35p_touch
 
 #endif

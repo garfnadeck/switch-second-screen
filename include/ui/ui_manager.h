@@ -16,6 +16,10 @@
 #include "../games/pokemon_firered_module.h"
 #include <math.h>
 #include <string.h>
+#if defined(ARDUINO_ARCH_ESP32)
+    #include "../hardware/es3c35p_lvgl.h"
+    #include "../hardware/es3c35p_touch.h"
+#endif
 
 class UIManager {
 private:
@@ -376,8 +380,15 @@ public:
             snprintf(diag_link, sizeof(diag_link), "%s", state.link_status);
             diag_conn = conn; diag_active = state.active_macro_slot; diag_exec = state.generic.macro_executions;
             const char * act = (diag_active >= 0) ? mod->getMacroLabel((uint8_t)diag_active) : "nenhuma";
-            lv_label_set_text_fmt(lbl_diag, "USB: %s\nMacro ativa: %s\nExecucoes: %lu\nLeitura RAM: %s",
-                                  conn ? "#00E676 ON#" : "#FF1744 OFF#", act, (unsigned long)diag_exec, state.link_status);
+#if defined(ARDUINO_ARCH_ESP32)
+            const char * chip28 = es3c35p_touch::infoChip0x28();
+#else
+            const char * chip28 = "simulador";
+#endif
+            lv_label_set_text_fmt(lbl_diag, "USB: %s | Tela: %s\nMacro: %s (%lu)\nRAM: %s\nI2C: %s",
+                                  conn ? "#00E676 ON#" : "#FF1744 OFF#",
+                                  state.screen_flip ? "180°" : "0°",
+                                  act, (unsigned long)diag_exec, state.link_status, chip28);
         }
     }
 
@@ -747,6 +758,11 @@ public:
                 modules[i]->buildMacroTab(tab_macros, &UIManager::macroThunk, this);
             }
         }
+        pokemon_za_mod.setPokeEditHandler([](void * ctx, uint8_t slot, PokeEditAction action, uint16_t item_id) {
+            auto * mgr = static_cast<UIManager*>(ctx);
+            mgr->router.editPokemon(mgr->state, slot, action, item_id);
+            mgr->pokemon_za_mod.updateStatusTab(mgr->state);
+        }, this);
 
         // Aba 4: Config
         lv_obj_t * lbl_mode = lv_label_create(tab_config);
@@ -841,13 +857,31 @@ public:
         lv_label_set_text(lbl_btn, "Detectar");
         lv_obj_center(lbl_btn);
 
+        lv_obj_t * btn_girar = lv_btn_create(tab_config);
+        lv_obj_set_size(btn_girar, 114, 30);
+        lv_obj_align(btn_girar, LV_ALIGN_TOP_LEFT, 351, 100);
+        lv_obj_set_style_bg_color(btn_girar, lv_color_hex(0x006064), LV_PART_MAIN);
+        lv_obj_add_event_cb(btn_girar, [](lv_event_t * e) {
+            auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+            mgr->state.screen_flip = !mgr->state.screen_flip;
+            mgr->state.screen_flip_changed = true;
+#if defined(ARDUINO_ARCH_ESP32)
+            es3c35p_lvgl_set_flip(mgr->state.screen_flip);
+#endif
+            mgr->diag_conn = -1; // forca atualizar diagnostico
+        }, LV_EVENT_CLICKED, this);
+        lv_obj_t * lbl_girar = lv_label_create(btn_girar);
+        lv_obj_set_style_text_font(lbl_girar, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_label_set_text(lbl_girar, LV_SYMBOL_REFRESH " Girar 180");
+        lv_obj_center(lbl_girar);
+
         lbl_scan = lv_label_create(tab_config);
         lv_obj_set_width(lbl_scan, 240);
         lv_label_set_long_mode(lbl_scan, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_color(lbl_scan, lv_color_hex(0xAAAACC), LV_PART_MAIN);
         lv_obj_set_style_text_font(lbl_scan, &lv_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(lbl_scan, LV_ALIGN_TOP_LEFT, 235, 136);
-        lv_label_set_text(lbl_scan, "Detectar: procura o Switch na rede da placa");
+        lv_label_set_text(lbl_scan, "Detectar: procura o Switch | Girar: inverte a tela");
 
         // Rodapé
         status_footer = lv_label_create(scr);
@@ -861,7 +895,7 @@ public:
         lv_timer_create([](lv_timer_t * t) {
             auto * mgr = static_cast<UIManager*>(t->user_data);
             mgr->tickUpdate();
-        }, 100, this);
+        }, 50, this);
     }
 };
 

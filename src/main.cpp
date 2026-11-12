@@ -99,6 +99,7 @@ static bool saveSettings() {
     f.print("switch_ip=");   f.print(cfg.sw_ip); f.print("\n");
     f.print("compiled_ip="); f.print(SWITCH_IP); f.print("\n");
     f.print("port=");        f.print((int)cfg.sw_port); f.print("\n");
+    f.print("flip=");        f.print(state.screen_flip ? 1 : 0); f.print("\n");
     f.close();
     return true;
 }
@@ -120,6 +121,7 @@ static void loadSettings() {
         else if (k == "switch_ip")    file_sw_ip = v;
         else if (k == "compiled_ip")  compiled_sw_ip = v;
         else if (k == "port")         { int p = v.toInt(); if (p > 0 && p < 65536) cfg.sw_port = (uint16_t)p; }
+        else if (k == "flip")         { state.screen_flip = (v.toInt() != 0); }
     }
     f.close();
     if (compiled_sw_ip == SWITCH_IP && validIp(file_sw_ip.c_str())) {
@@ -271,6 +273,9 @@ void setup() {
     AssetManager::initSD();
 #ifdef HAS_DISPLAY
     init_hardware_display_touch();
+    #if defined(ARDUINO_ARCH_ESP32)
+    es3c35p_lvgl_set_flip(state.screen_flip);
+    #endif
     ui.buildUI();
 #endif
 
@@ -441,7 +446,9 @@ void setup() {
             const PokemonSlot &p = state.party[i];
             if (i) j += ",";
             j += "{\"sp\":" + String(p.species) + ",\"n\":\"" + clean(p.name) + "\",\"lv\":" + String(p.level) +
-                 ",\"hp\":" + String(p.current_hp) + ",\"max\":" + String(p.max_hp) + ",\"st\":\"" + clean(p.status) + "\"}";
+                 ",\"hp\":" + String(p.current_hp) + ",\"max\":" + String(p.max_hp) + ",\"st\":\"" + clean(p.status) + "\"" +
+                 ",\"item\":" + String(p.held_item) + ",\"shiny\":" + (p.is_shiny ? "true" : "false") +
+                 ",\"iv\":" + (p.is_max_iv ? "true" : "false") + "}";
         }
         j += "]}";
         server.send(200, "application/json", j);
@@ -552,6 +559,28 @@ void setup() {
 #endif
     });
 
+    server.on("/api/pokemon/edit", HTTP_POST, []() {
+        uint8_t slot = server.hasArg("slot") ? (uint8_t)server.arg("slot").toInt() : 0;
+        uint8_t act  = server.hasArg("action") ? (uint8_t)server.arg("action").toInt() : 0;
+        uint16_t itm = server.hasArg("item") ? (uint16_t)server.arg("item").toInt() : 0;
+        if (slot < 6 && act <= 7) {
+            router.editPokemon(state, slot, static_cast<PokeEditAction>(act), itm);
+            server.send(200, "application/json", "{\"ok\":true}");
+        } else {
+            server.send(400, "application/json", "{\"ok\":false}");
+        }
+    });
+
+    server.on("/api/display/flip", HTTP_POST, []() {
+        state.screen_flip = server.hasArg("flip") ? (server.arg("flip").toInt() != 0) : !state.screen_flip;
+        state.screen_flip_changed = true;
+#if defined(HAS_DISPLAY) && defined(ARDUINO_ARCH_ESP32)
+        es3c35p_lvgl_set_flip(state.screen_flip);
+#endif
+        saveSettings();
+        server.send(200, "application/json", String("{\"ok\":true,\"flip\":") + (state.screen_flip ? "true" : "false") + "}");
+    });
+
     server.serveStatic("/maps_config.json", LittleFS, "/maps_config.json", "max-age=3600");
     server.serveStatic("/m", LittleFS, "/m", "max-age=86400");
     server.serveStatic("/assets", LittleFS, "/assets", "max-age=86400");
@@ -568,9 +597,13 @@ void loop() {
             snprintf(state.board_ip, sizeof(state.board_ip), "%s", ip.toString().c_str());
             // IP digitado no teclado da tela, ou achado pela busca disparada na tela: grava na flash
             bool digitado = state.switch_ip_changed;
+            bool girou = state.screen_flip_changed;
             state.switch_ip_changed = false;
+            state.screen_flip_changed = false;
             if ((digitado || router.scanState() == 2) && strcmp(cfg.sw_ip, state.switch_ip) != 0) {
                 snprintf(cfg.sw_ip, sizeof(cfg.sw_ip), "%s", state.switch_ip);
+                saveSettings();
+            } else if (girou) {
                 saveSettings();
             }
         }

@@ -5,3 +5,5 @@
 // Fora do ESP32 nao faz nada.
 
 void es3c35p_lvgl_init();
+void es3c35p_lvgl_set_flip(bool flip);
+bool es3c35p_lvgl_get_flip();
