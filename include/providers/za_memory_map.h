@@ -56,7 +56,10 @@ static const ZaMemoryMap ZA_MAP = {
     // (No pointerPeek o ultimo numero e somado sem ser seguido, por isso o 0x90 vai separado.)
     /* pos          */ { 5, { 0x47D71A0, 0x248, 0x0, 0x138, 0x90 } },
     /* off x,y,z    */ 0, 4, 8,
-    /* world bounds */ 0.f, 0.f, 0.f, 0.f                  // a calibrar andando ate pontos conhecidos
+    // Calibrado ao vivo em Lumiose (mapa_lumiose.jpg):
+    // Centro (Campo 20 / Torre Prisma): X = -830.0, Z = -500.0 | Raio da cidade: R = 490.0
+    // (+X = Leste/Direita, +Z = Norte/Cima, -Z = Sul/Baixo onde fica o Campo 1 em X~=-758, Z~=-885)
+    /* world bounds */ -1320.f, -340.f, -990.f, -10.f
 };
 
 #endif // ZA_MEMORY_MAP_H

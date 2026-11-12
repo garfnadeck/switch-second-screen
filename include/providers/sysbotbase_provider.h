@@ -216,21 +216,63 @@ private:
 
     static const char * lumioseZoneName(float x, float z_map, float alt_y) {
         if (alt_y < -8.0f) return "Lumiose (Subsolo)";
-        float r2 = x * x + z_map * z_map;
-        if (r2 < 180.0f * 180.0f) return "Torre Prisma (Centro)";
+
+        // Coordenadas normalizadas [0..1] no mapa_lumiose.jpg:
+        // Centro (Campo 20 / Torre Prisma) = (-830.0, -500.0), Raio = 490.0
+        float nx = 0.50f + (x - (-830.0f)) / 980.0f;
+        float ny = 0.50f - (z_map - (-500.0f)) / 980.0f;
+
+        struct WildZoneRef { uint8_t id; float nx; float ny; float r; const char * label; };
+        static const WildZoneRef ZONES[20] = {
+            {  1, 0.585f, 0.905f, 0.085f, "Campo 1 (Zona Selvagem 1)"   },
+            {  2, 0.620f, 0.660f, 0.075f, "Campo 2 (Zona Selvagem 2)"   },
+            {  3, 0.500f, 0.280f, 0.070f, "Campo 3 (Zona Selvagem 3)"   },
+            {  4, 0.570f, 0.150f, 0.075f, "Campo 4 (Zona Selvagem 4)"   },
+            {  5, 0.410f, 0.600f, 0.075f, "Campo 5 (Zona Selvagem 5)"   },
+            {  6, 0.900f, 0.530f, 0.075f, "Campo 6 (Zona Selvagem 6)"   },
+            {  7, 0.290f, 0.430f, 0.070f, "Campo 7 (Zona Selvagem 7)"   },
+            {  8, 0.710f, 0.420f, 0.070f, "Campo 8 (Zona Selvagem 8)"   },
+            {  9, 0.130f, 0.560f, 0.075f, "Campo 9 (Zona Selvagem 9)"   },
+            { 10, 0.160f, 0.660f, 0.075f, "Campo 10 (Zona Selvagem 10)" },
+            { 11, 0.820f, 0.590f, 0.075f, "Campo 11 (Zona Selvagem 11)" },
+            { 12, 0.420f, 0.820f, 0.075f, "Campo 12 (Zona Selvagem 12)" },
+            { 13, 0.400f, 0.075f, 0.075f, "Campo 13 (Zona Selvagem 13)" },
+            { 14, 0.110f, 0.430f, 0.075f, "Campo 14 (Zona Selvagem 14)" },
+            { 15, 0.810f, 0.180f, 0.075f, "Campo 15 (Zona Selvagem 15)" },
+            { 16, 0.360f, 0.680f, 0.070f, "Campo 16 (Zona Selvagem 16)" },
+            { 17, 0.760f, 0.770f, 0.070f, "Campo 17 (Zona Selvagem 17)" },
+            { 18, 0.200f, 0.180f, 0.075f, "Campo 18 (Zona Selvagem 18)" },
+            { 19, 0.800f, 0.310f, 0.075f, "Campo 19 (Zona Selvagem 19)" },
+            { 20, 0.500f, 0.500f, 0.085f, "Campo 20 (Centro / Prisma)"  },
+        };
+
+        int best_idx = -1;
+        float best_d2 = 999.0f;
+        for (int i = 0; i < 20; i++) {
+            float dx = nx - ZONES[i].nx;
+            float dy = ny - ZONES[i].ny;
+            float d2 = dx * dx + dy * dy;
+            if (d2 < best_d2) {
+                best_d2 = d2;
+                best_idx = i;
+            }
+        }
+        if (best_idx >= 0 && best_d2 <= ZONES[best_idx].r * ZONES[best_idx].r) {
+            return ZONES[best_idx].label;
+        }
+
         if (alt_y > 14.0f) return "Lumiose (Telhados)";
-        // 5 setores de Lumiose (Rouge=N, Jaune=NE/E, Vert=S, Magenta=SW, Bleu=NW/SE)
-        if (z_map < -250.0f) {
-            if (x < -250.0f) return "Distrito Bleu / Oeste";
-            if (x >  250.0f) return "Distrito Jaune / Leste";
+        if (ny < 0.35f) {
+            if (nx < 0.38f) return "Distrito Bleu / NO";
+            if (nx > 0.62f) return "Distrito Jaune / NE";
             return "Distrito Rouge / Norte";
         }
-        if (z_map > 250.0f) {
-            if (x < -250.0f) return "Distrito Magenta / SO";
-            if (x >  250.0f) return "Bulevar Sul / SE";
+        if (ny > 0.65f) {
+            if (nx < 0.38f) return "Distrito Magenta / SO";
+            if (nx > 0.62f) return "Bulevar Sul / SE";
             return "Distrito Vert / Sul";
         }
-        return (x < 0.0f) ? "Lumiose Oeste" : "Lumiose Leste";
+        return (nx < 0.50f) ? "Lumiose Oeste" : "Lumiose Leste";
     }
 
     void advancePartySlot() {

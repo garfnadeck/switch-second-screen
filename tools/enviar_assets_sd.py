@@ -75,7 +75,7 @@ def main():
 
     # 2. Mapas (208x208 e 480x480)
     maps_dir = ZA_DIR / "maps"
-    for nome in ["lumiose_full.bin", "lumiose_radar.bin", "lysandre_full.bin", "sewers_bleu.bin", "sewers_saison.bin"]:
+    for nome in ["lumiose_full.bin", "lumiose_radar.bin", "lumiose_zoom.bin", "lysandre_full.bin", "sewers_bleu.bin", "sewers_saison.bin"]:
         f = maps_dir / nome
         if f.exists():
             arquivos.append((f"/assets/za/maps/{f.name}", f))

@@ -54,13 +54,17 @@ private:
     lv_obj_t * lbl_btn_layer = nullptr;
     lv_obj_t * lbl_btn_center = nullptr;
 
-    CachedAsset map_radar_asset;     // 480x480 RGB565 na PSRAM (modo Radar Seguir)
-    CachedAsset map_full_asset;      // 208x208 RGB565 na PSRAM (modo Cidade Inteira / Submapas)
-    bool     map_follow = true;      // true = Radar 480x480 centrado no jogador; false = mapa inteiro 208x208
+    CachedAsset map_zoom_asset;      // 768x768 RGB565 na PSRAM (Zoom 3x Rua)
+    CachedAsset map_radar_asset;     // 480x480 RGB565 na PSRAM (Zoom 2x Radar)
+    CachedAsset map_full_asset;      // 208x208 RGB565 na PSRAM (Zoom 1x Cidade Inteira / Submapas)
+    uint8_t  map_zoom_level = 1;     // 0 = Cidade 208x208 (1x), 1 = Radar 480x480 (2x), 2 = Rua 768x768 (3x)
     uint8_t  map_layer = 0;          // 0 = Lumiose, 1 = Lysandre Lab, 2 = Esgoto Bleu, 3 = Esgoto Saison
-    float    map_radius = 1150.0f;   // Raio do mundo de Lumiose em unidades do jogo
-    float    cal_ox = 0.0f, cal_oy = 0.0f;
-    bool     has_custom_center = false;
+    // Calibracao oficial do mapa_lumiose.jpg (medida ao vivo no Switch):
+    // Campo 20 (Centro / Torre Prisma) = (-830.0, -500.0) | Raio da cidade = 490.0m
+    // Campo 1 (Sul) = (-758..-677, -878..-941) -> cai exatamente sobre o escudo "1" no sul do mapa.
+    static constexpr float WORLD_CENTER_X = -830.0f;
+    static constexpr float WORLD_CENTER_Z = -500.0f;
+    static constexpr float WORLD_RADIUS   =  490.0f;
     float    trail_x[TRAIL_LEN] = {};
     float    trail_y[TRAIL_LEN] = {};
     uint8_t  trail_count = 0;
@@ -110,14 +114,18 @@ private:
         }
     }
 
-    // Converte coordenada do mundo (x, y) para [0.0 .. 1.0] no mapa
+    // Converte coordenada do mundo (x, z_map) para [0.0 .. 1.0] no mapa_lumiose.jpg
     void worldToNorm(float wx, float wy, float &nx, float &ny) const {
         if (state.mode == SwitchMode::MOCK_SIMULATOR) {
             nx = wx / 260.0f;
             ny = wy / 230.0f;
+        } else if (wx == 0.0f && wy == 0.0f) {
+            nx = 0.50f;
+            ny = 0.50f;
         } else {
-            nx = 0.5f + (wx - cal_ox) / (2.0f * map_radius);
-            ny = 0.5f + (wy - cal_oy) / (2.0f * map_radius);
+            // +X = Leste (direita -> +nx), +Z = Norte (cima -> -ny), -Z = Sul (baixo -> +ny)
+            nx = 0.50f + (wx - WORLD_CENTER_X) / (2.0f * WORLD_RADIUS);
+            ny = 0.50f - (wy - WORLD_CENTER_Z) / (2.0f * WORLD_RADIUS);
         }
         if (nx < 0.03f) nx = 0.03f;
         if (nx > 0.97f) nx = 0.97f;
@@ -125,16 +133,25 @@ private:
         if (ny > 0.97f) ny = 0.97f;
     }
 
+    const char* zoomLabel() const {
+        if (map_layer != 0 || map_zoom_level == 0) return "Cam: Cidade";
+        if (map_zoom_level == 2 && map_zoom_asset.loaded) return "Cam: Rua 3x";
+        return "Cam: Radar 2x";
+    }
+
     void loadMapTextures() {
+        AssetManager::preloadToPSRAM("/assets/za/maps/lumiose_zoom.bin",  map_zoom_asset,  768, 768, LV_IMG_CF_TRUE_COLOR);
         AssetManager::preloadToPSRAM("/assets/za/maps/lumiose_radar.bin", map_radar_asset, 480, 480, LV_IMG_CF_TRUE_COLOR);
-        AssetManager::preloadToPSRAM(layerFile(map_layer), map_full_asset, 208, 208, LV_IMG_CF_TRUE_COLOR);
+        AssetManager::preloadToPSRAM(layerFile(map_layer),                map_full_asset,  208, 208, LV_IMG_CF_TRUE_COLOR);
         refreshMapSource();
     }
 
     void refreshMapSource() {
         if (!map_img) return;
-        bool use_radar = (map_follow && map_layer == 0 && map_radar_asset.loaded);
-        if (use_radar) {
+        if (map_layer == 0 && map_zoom_level == 2 && map_zoom_asset.loaded) {
+            lv_img_set_src(map_img, &map_zoom_asset.descriptor);
+            lv_obj_clear_flag(map_img, LV_OBJ_FLAG_HIDDEN);
+        } else if (map_layer == 0 && map_zoom_level >= 1 && map_radar_asset.loaded) {
             lv_img_set_src(map_img, &map_radar_asset.descriptor);
             lv_obj_clear_flag(map_img, LV_OBJ_FLAG_HIDDEN);
         } else if (map_full_asset.loaded) {
@@ -143,6 +160,9 @@ private:
             lv_obj_clear_flag(map_img, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(map_img, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (lbl_btn_follow) {
+            lv_label_set_text(lbl_btn_follow, zoomLabel());
         }
     }
 
@@ -172,17 +192,23 @@ private:
         float nx = 0.5f, ny = 0.5f;
         worldToNorm(state.map.x, state.map.y, nx, ny);
 
-        bool use_radar = (map_follow && map_layer == 0 && map_radar_asset.loaded);
-        if (use_radar) {
-            // Textura 480x480 se move para manter (nx, ny) no centro do viewport (248x212)
-            lv_coord_t px = (lv_coord_t)(nx * 480.0f);
-            lv_coord_t py = (lv_coord_t)(ny * 480.0f);
+        int16_t scroll_side = 0;
+        if (map_layer == 0 && map_zoom_level == 2 && map_zoom_asset.loaded) {
+            scroll_side = 768;
+        } else if (map_layer == 0 && map_zoom_level >= 1 && map_radar_asset.loaded) {
+            scroll_side = 480;
+        }
+
+        if (scroll_side > 0) {
+            // Textura (480x480 ou 768x768) rola para manter (nx, ny) no centro do viewport (248x212)
+            lv_coord_t px = (lv_coord_t)(nx * (float)scroll_side);
+            lv_coord_t py = (lv_coord_t)(ny * (float)scroll_side);
             lv_coord_t img_x = (MAP_VP_W / 2) - px;
             lv_coord_t img_y = (MAP_VP_H / 2) - py;
             if (img_x > 0) img_x = 0;
             if (img_y > 0) img_y = 0;
-            if (img_x < MAP_VP_W - 480) img_x = MAP_VP_W - 480;
-            if (img_y < MAP_VP_H - 480) img_y = MAP_VP_H - 480;
+            if (img_x < MAP_VP_W - scroll_side) img_x = MAP_VP_W - scroll_side;
+            if (img_y < MAP_VP_H - scroll_side) img_y = MAP_VP_H - scroll_side;
             lv_obj_set_pos(map_img, img_x, img_y);
 
             lv_coord_t dot_x = img_x + px;
@@ -194,8 +220,8 @@ private:
                 if (i < trail_count) {
                     float tnx, tny;
                     worldToNorm(trail_x[i], trail_y[i], tnx, tny);
-                    lv_coord_t tx = img_x + (lv_coord_t)(tnx * 480.0f) - 3;
-                    lv_coord_t ty = img_y + (lv_coord_t)(tny * 480.0f) - 3;
+                    lv_coord_t tx = img_x + (lv_coord_t)(tnx * (float)scroll_side) - 3;
+                    lv_coord_t ty = img_y + (lv_coord_t)(tny * (float)scroll_side) - 3;
                     lv_obj_set_pos(trail_dots[i], tx, ty);
                     lv_obj_clear_flag(trail_dots[i], LV_OBJ_FLAG_HIDDEN);
                 } else {
@@ -236,10 +262,12 @@ private:
             lv_label_set_text(coord_label, buf);
         }
         if (lbl_map_meta) {
-            float dist = sqrtf((state.map.x - cal_ox) * (state.map.x - cal_ox) +
-                               (state.map.y - cal_oy) * (state.map.y - cal_oy));
+            float dx = state.map.x - WORLD_CENTER_X;
+            float dz = state.map.y - WORLD_CENTER_Z;
+            float dist = (state.map.x == 0.0f && state.map.y == 0.0f) ? 0.0f : sqrtf(dx * dx + dz * dz);
+            const char * zstr = (map_zoom_level == 0) ? "1x" : (map_zoom_level == 1) ? "2x" : "3x";
             char mb[64];
-            snprintf(mb, sizeof(mb), "Dist centro: %.0fm | Escala: %.0f", dist, map_radius);
+            snprintf(mb, sizeof(mb), "Dist C20: %.0fm | Zoom: %s", dist, zstr);
             lv_label_set_text(lbl_map_meta, mb);
         }
     }
@@ -590,9 +618,9 @@ public:
         lv_obj_set_style_text_color(lbl_map_meta, lv_color_hex(0x99A2C8), LV_PART_MAIN);
         lv_obj_set_style_text_font(lbl_map_meta, &lv_font_montserrat_12, LV_PART_MAIN);
         lv_obj_set_pos(lbl_map_meta, 0, 86);
-        lv_label_set_text(lbl_map_meta, "Dist centro: 0m | Escala: 1150");
+        lv_label_set_text(lbl_map_meta, "Dist C20: 0m | Zoom: 2x");
 
-        // Linha 1 de botoes: [Camera: Radar/Cidade]  [Mapa: Lumiose/Labs/Esgoto]
+        // Linha 1 de botoes: [Cam: Radar 2x / Rua 3x / Cidade]  [Mapa: Lumiose/Labs/Esgoto]
         lv_obj_t * btn_follow = lv_btn_create(map_panel);
         lv_obj_set_size(btn_follow, 99, 42);
         lv_obj_set_pos(btn_follow, 0, 108);
@@ -600,16 +628,13 @@ public:
         lv_obj_set_style_radius(btn_follow, 6, LV_PART_MAIN);
         lv_obj_add_event_cb(btn_follow, [](lv_event_t * e) {
             auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
-            mgr->map_follow = !mgr->map_follow;
-            if (mgr->lbl_btn_follow) {
-                lv_label_set_text(mgr->lbl_btn_follow, mgr->map_follow ? "Cam: Radar" : "Cam: Cidade");
-            }
+            mgr->map_zoom_level = (mgr->map_zoom_level == 0) ? 1 : 0;
             mgr->refreshMapSource();
             mgr->updateMapRealtime();
         }, LV_EVENT_CLICKED, this);
         lbl_btn_follow = lv_label_create(btn_follow);
         lv_obj_set_style_text_font(lbl_btn_follow, &lv_font_montserrat_12, LV_PART_MAIN);
-        lv_label_set_text(lbl_btn_follow, "Cam: Radar");
+        lv_label_set_text(lbl_btn_follow, "Cam: Radar 2x");
         lv_obj_center(lbl_btn_follow);
 
         lv_obj_t * btn_layer = lv_btn_create(map_panel);
@@ -632,7 +657,7 @@ public:
         lv_label_set_text(lbl_btn_layer, "Mapa: Lumiose");
         lv_obj_center(lbl_btn_layer);
 
-        // Linha 2 de botoes: [Zoom +] [Zoom -] [Centrar Aqui]
+        // Linha 2 de botoes: [Zoom +] [Zoom -] [Limpar]
         lv_obj_t * btn_zin = lv_btn_create(map_panel);
         lv_obj_set_size(btn_zin, 58, 42);
         lv_obj_set_pos(btn_zin, 0, 156);
@@ -640,7 +665,8 @@ public:
         lv_obj_set_style_radius(btn_zin, 6, LV_PART_MAIN);
         lv_obj_add_event_cb(btn_zin, [](lv_event_t * e) {
             auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
-            if (mgr->map_radius > 450.0f) mgr->map_radius -= 175.0f;
+            if (mgr->map_zoom_level < 2) mgr->map_zoom_level++;
+            mgr->refreshMapSource();
             mgr->updateMapRealtime();
         }, LV_EVENT_CLICKED, this);
         lv_obj_t * lbl_zin = lv_label_create(btn_zin);
@@ -655,7 +681,8 @@ public:
         lv_obj_set_style_radius(btn_zout, 6, LV_PART_MAIN);
         lv_obj_add_event_cb(btn_zout, [](lv_event_t * e) {
             auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
-            if (mgr->map_radius < 1850.0f) mgr->map_radius += 175.0f;
+            if (mgr->map_zoom_level > 0) mgr->map_zoom_level--;
+            mgr->refreshMapSource();
             mgr->updateMapRealtime();
         }, LV_EVENT_CLICKED, this);
         lv_obj_t * lbl_zout = lv_label_create(btn_zout);
@@ -670,24 +697,16 @@ public:
         lv_obj_set_style_radius(btn_center, 6, LV_PART_MAIN);
         lv_obj_add_event_cb(btn_center, [](lv_event_t * e) {
             auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
-            if (!mgr->has_custom_center) {
-                mgr->cal_ox = mgr->state.map.x;
-                mgr->cal_oy = mgr->state.map.y;
-                mgr->has_custom_center = true;
-                mgr->trail_count = 0;
-                if (mgr->lbl_btn_center) lv_label_set_text(mgr->lbl_btn_center, "Reset Ref");
-            } else {
-                mgr->cal_ox = 0.0f;
-                mgr->cal_oy = 0.0f;
-                mgr->has_custom_center = false;
-                mgr->trail_count = 0;
-                if (mgr->lbl_btn_center) lv_label_set_text(mgr->lbl_btn_center, "Centrar");
-            }
+            mgr->trail_count = 0;
+            mgr->last_trail_x = -99999.0f;
+            mgr->last_trail_y = -99999.0f;
+            if (mgr->map_zoom_level == 0) mgr->map_zoom_level = 1;
+            mgr->refreshMapSource();
             mgr->updateMapRealtime();
         }, LV_EVENT_CLICKED, this);
         lbl_btn_center = lv_label_create(btn_center);
         lv_obj_set_style_text_font(lbl_btn_center, &lv_font_montserrat_12, LV_PART_MAIN);
-        lv_label_set_text(lbl_btn_center, "Centrar");
+        lv_label_set_text(lbl_btn_center, "Focar");
         lv_obj_center(lbl_btn_center);
 
         loadMapTextures();

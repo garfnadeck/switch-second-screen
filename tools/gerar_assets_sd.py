@@ -98,6 +98,7 @@ def padronizar_quadrado(im: Image.Image, bg=(11, 25, 44)) -> Image.Image:
 def gerar_mapas():
     OUT_MAPS.mkdir(parents=True, exist_ok=True)
     fontes = [
+        ("mapa_lumiose.jpg", "lumiose_zoom.bin", 768),
         ("mapa_lumiose.jpg", "lumiose_radar.bin", 480),
         ("mapa_lumiose.jpg", "lumiose_full.bin", 208),
         ("za_lysandre.png", "lysandre_full.bin", 208),

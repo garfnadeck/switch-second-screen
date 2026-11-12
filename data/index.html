@@ -452,8 +452,8 @@
       $('cfg-link').textContent = d.link || '-';
       $('zone').textContent = d.zone ? `Zona: ${d.zone}  X:${d.x} Z:${d.y}` : 'Zona: -';
       if (d.x !== undefined && d.y !== undefined && (d.x !== 0 || d.y !== 0)) {
-        px = Math.max(4, Math.min(96, 50 + (d.x / 2300) * 100));
-        py = Math.max(4, Math.min(96, 50 + (d.y / 2300) * 100));
+        px = Math.max(4, Math.min(96, 50 + ((d.x - (-830)) / 980) * 100));
+        py = Math.max(4, Math.min(96, 50 - ((d.y - (-500)) / 980) * 100));
         $('pin').style.left = px + '%';
         $('pin').style.top = py + '%';
         $('mcoord').textContent = `X: ${d.x}  Z: ${d.y}  Alt: ${d.z || 0}`;
