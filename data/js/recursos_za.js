@@ -22,7 +22,7 @@
     'Bashful', 'Rash', 'Calm', 'Gentle', 'Sassy', 'Careful', 'Quirky'];
 
   const CSS = `
-  #recursos-za{margin:24px auto;max-width:480px;background:#12121F;border:2px solid #2D3E66;border-radius:12px;padding:12px;color:#fff;font-family:system-ui,sans-serif;font-size:13px;box-sizing:border-box}
+  #recursos-za{margin:0;max-width:none;background:#12121F;border:none;border-radius:0;padding:6px;height:224px;overflow-y:auto;color:#fff;font-family:system-ui,sans-serif;font-size:12px;box-sizing:border-box}
   #recursos-za h2{margin:0 0 10px;font-size:15px;color:#2D8CFF;text-transform:uppercase;letter-spacing:1px}
   #recursos-za .aba{background:#18182C;border:1px solid #2D3E66;border-radius:10px;padding:10px;margin-bottom:10px}
   #recursos-za .aba h3{margin:0 0 8px;font-size:13px;color:#A8B8E0}
@@ -264,7 +264,32 @@
       '<div class="linha"><button class="primario" id="rz-sd-enviar">Enviar</button>' +
       '<button id="rz-sd-recarregar">Recarregar assets</button></div>' +
       '<div class="msg" id="rz-sd-msg"></div></div>';
-    document.body.appendChild(sec);
+    const pagina = document.createElement('div');
+    pagina.className = 'page';
+    pagina.id = 'p-recursos';
+    pagina.style.overflow = 'hidden';
+    pagina.appendChild(sec);
+    (document.querySelector('#stage') || document.body).appendChild(pagina);
+
+    const abas = document.querySelector('#tabs');
+    if (abas) {
+      const botao = document.createElement('div');
+      botao.className = 'tab';
+      botao.id = 't-recursos';
+      botao.textContent = 'Recursos';
+      botao.onclick = () => window.tab('recursos');
+      abas.appendChild(botao);
+    }
+    if (typeof window.tab === 'function') {
+      const original = window.tab;
+      window.tab = function (id) {
+        original(id);
+        const ativo = id === 'recursos';
+        pagina.classList.toggle('active', ativo);
+        const b = document.getElementById('t-recursos');
+        if (b) b.classList.toggle('active', ativo);
+      };
+    }
 
     montarTime($('rz-time'));
     montarEditor();
