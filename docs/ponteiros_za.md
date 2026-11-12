@@ -155,3 +155,11 @@ jogador foram validados ao vivo no console (`192.168.15.5`) e integrados ao firm
 
 - https://github.com/kwsch/SysBot.NET — `SysBot.Pokemon/LZA/Vision/PokeDataOffsetsLZA.cs`
 - https://github.com/berichan/ZAShinyWarper — `ZAShinyWarper/Bot/ZAVision.cs`, `ZAWarpWindow.cs`
+
+## Erros registrados (12/11/2026)
+
+- A cadeia `0x41EC340, 0x248, 0x0` (1.0.1) não resolve na 2.0.2. O ponteiro `0x41EC340` ainda aponta para memória válida, mas o campo `+0x248` é um inteiro (`0x207713`), não um ponteiro. Use a cadeia publicada `0x47D71A0`.
+- O objeto `0x4B4A861C40` não é o personagem: 0 de 8 blocos de 64 bytes mudaram ao andar.
+- Formato dos comandos: `peekMain` e `peekAbsolute` recebem endereço primeiro e tamanho depois. Com a ordem invertida, o tamanho vira um valor enorme e o jogo trava.
+- A busca inicial na web não encontrou a referência SysBot.NET (commit 8621130), que tinha os ponteiros da 2.0.2.
+
