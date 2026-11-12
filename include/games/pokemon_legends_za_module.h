@@ -40,19 +40,26 @@ private:
     lv_obj_t * lbl_hp[PARTY]         = {};
     lv_obj_t * lbl_status[PARTY]     = {};
 
-    // ---- Mini Menu do Pokemon (abre ao clicar num card) ----
+    // ---- Mini Menu do Pokemon (abre ao clicar num card: Pagina 1 = Cura/Itens, Pagina 2 = Level/EV/Nature/Alpha) ----
     lv_obj_t * modal_panel           = nullptr;
     lv_obj_t * modal_img             = nullptr;
     lv_obj_t * modal_lbl_title       = nullptr;
     lv_obj_t * modal_lbl_meta        = nullptr;
     lv_obj_t * modal_lbl_feedback    = nullptr;
+    lv_obj_t * modal_lbl_page_btn    = nullptr;
+    lv_obj_t * modal_page1           = nullptr;
+    lv_obj_t * modal_page2           = nullptr;
     int8_t     modal_slot            = -1;
+    uint8_t    modal_page            = 0;
 
     CachedAsset sprite_cache[PARTY]  = {};
     uint16_t    loaded_species[PARTY] = {0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF};
     PokemonSlot last_party[PARTY]    = {};
     bool        party_drawn          = false;
     bool        last_sd_ready        = false;
+    uint8_t     last_bat_pct         = 255;
+    bool        last_shiny_stash     = false;
+    uint16_t    last_shiny_species   = 0;
     float       last_mx = -99999.0f, last_my = -99999.0f, last_mz = -99999.0f;
     char        last_zone[28]        = {};
 
@@ -133,11 +140,37 @@ private:
     static const char * itemName(uint16_t item_id) {
         switch (item_id) {
             case 0:   return "Nenhum";
-            case 158: return "Sitrus Berry";
-            case 231: return "Lucky Egg";
+            case 158: return "Sitrus";
+            case 231: return "LuckyEgg";
             case 234: return "Leftovers";
-            case 270: return "Life Orb";
+            case 270: return "LifeOrb";
             default:  return "Equipado";
+        }
+    }
+
+    static const char * natureName(uint8_t nat) {
+        static const char * const NAMES[25] = {
+            "Hardy", "Lonely", "Brave", "Adamant", "Naughty",
+            "Bold", "Docile", "Relaxed", "Impish", "Lax",
+            "Timid", "Hasty", "Serious", "Jolly", "Naive",
+            "Modest", "Mild", "Quiet", "Bashful", "Rash",
+            "Calm", "Gentle", "Sassy", "Careful", "Quirky"
+        };
+        return (nat < 25) ? NAMES[nat] : "?";
+    }
+
+    void setModalPage(uint8_t page) {
+        modal_page = (page & 1);
+        if (modal_page1) {
+            if (modal_page == 0) lv_obj_clear_flag(modal_page1, LV_OBJ_FLAG_HIDDEN);
+            else                 lv_obj_add_flag(modal_page1, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (modal_page2) {
+            if (modal_page == 1) lv_obj_clear_flag(modal_page2, LV_OBJ_FLAG_HIDDEN);
+            else                 lv_obj_add_flag(modal_page2, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (modal_lbl_page_btn) {
+            lv_label_set_text(modal_lbl_page_btn, modal_page == 0 ? "Pag 2 >" : "< Pag 1");
         }
     }
 
@@ -158,18 +191,18 @@ private:
                 lv_obj_add_flag(modal_img, LV_OBJ_FLAG_HIDDEN);
             }
         }
-        char title[96];
-        snprintf(title, sizeof(title), "#00F5D4 #%d# %s  #AAAACC Lv%u#%s%s",
+        char title[112];
+        snprintf(title, sizeof(title), "#00F5D4 #%d# %s #AAAACC Lv%u#%s%s%s",
                  (int)modal_slot + 1, p.name, (unsigned)p.level,
                  p.is_shiny ? " #FFD700 *SHINY#" : "",
+                 p.is_alpha ? " #FF5252 *ALPHA#" : "",
                  p.is_max_iv ? " #00E676 6IV#" : "");
         lv_label_set_text(modal_lbl_title, title);
 
         char meta[128];
-        snprintf(meta, sizeof(meta), "HP: %u/%u (%s) | PP: %u/%u/%u/%u | Item: %s",
+        snprintf(meta, sizeof(meta), "HP:%u/%u | %s | EV:%u | Item:%s",
                  (unsigned)p.current_hp, (unsigned)p.max_hp,
-                 p.status[0] ? p.status : "OK",
-                 (unsigned)p.pp[0], (unsigned)p.pp[1], (unsigned)p.pp[2], (unsigned)p.pp[3],
+                 natureName(p.nature), (unsigned)p.ev_total,
                  itemName(p.held_item));
         lv_label_set_text(modal_lbl_meta, meta);
     }
@@ -177,7 +210,8 @@ private:
     void openModal(uint8_t slot) {
         if (slot >= PARTY || !modal_panel) return;
         modal_slot = (int8_t)slot;
-        if (modal_lbl_feedback) lv_label_set_text(modal_lbl_feedback, "Toque numa acao para aplicar na RAM");
+        setModalPage(0);
+        if (modal_lbl_feedback) lv_label_set_text(modal_lbl_feedback, "Pag 1: Cura/Itens | Pag 2: Level/EV/Nature/Alpha");
         paintModal();
         lv_obj_clear_flag(modal_panel, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(modal_panel);
@@ -217,7 +251,10 @@ private:
             lv_obj_set_style_text_color(lbl_name[i], lv_color_hex(p.is_shiny ? 0xFFD700 : 0xFFFFFF), LV_PART_MAIN);
 
             char lv_txt[20];
-            snprintf(lv_txt, sizeof(lv_txt), "%sLv%u", p.is_shiny ? "*" : "", (unsigned)p.level);
+            snprintf(lv_txt, sizeof(lv_txt), "%s%sLv%u",
+                     p.is_shiny ? "*" : "",
+                     p.is_alpha ? "A" : "",
+                     (unsigned)p.level);
             lv_label_set_text(lbl_lv[i], lv_txt);
 
             uint32_t pct = (uint32_t)p.current_hp * 100 / p.max_hp;
@@ -241,7 +278,9 @@ private:
     static bool sameSlot(const PokemonSlot &a, const PokemonSlot &b) {
         return a.species == b.species && a.level == b.level &&
                a.current_hp == b.current_hp && a.max_hp == b.max_hp &&
-               a.held_item == b.held_item && a.is_shiny == b.is_shiny && a.is_max_iv == b.is_max_iv &&
+               a.held_item == b.held_item && a.nature == b.nature &&
+               a.ev_total == b.ev_total && a.is_alpha == b.is_alpha &&
+               a.is_shiny == b.is_shiny && a.is_max_iv == b.is_max_iv &&
                memcmp(a.pp, b.pp, 4) == 0 &&
                strncmp(a.name, b.name, sizeof(a.name)) == 0 &&
                strncmp(a.status, b.status, sizeof(a.status)) == 0;
@@ -407,6 +446,21 @@ public:
         lv_obj_set_pos(modal_lbl_meta, 48, 22);
         lv_label_set_text(modal_lbl_meta, "HP: - | PP: - | Item: -");
 
+        // Botao Alternar Pagina [Pag 2 >] / [< Pag 1]
+        lv_obj_t * btn_page = lv_btn_create(modal_panel);
+        lv_obj_set_size(btn_page, 68, 34);
+        lv_obj_set_pos(btn_page, 320, 2);
+        lv_obj_set_style_bg_color(btn_page, lv_color_hex(0x0D47A1), LV_PART_MAIN);
+        lv_obj_set_style_radius(btn_page, 6, LV_PART_MAIN);
+        lv_obj_add_event_cb(btn_page, [](lv_event_t * e) {
+            auto * mod = static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e));
+            mod->setModalPage(mod->modal_page ^ 1);
+        }, LV_EVENT_CLICKED, this);
+        modal_lbl_page_btn = lv_label_create(btn_page);
+        lv_obj_set_style_text_font(modal_lbl_page_btn, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_label_set_text(modal_lbl_page_btn, "Pag 2 >");
+        lv_obj_center(modal_lbl_page_btn);
+
         // Botao Fechar [X]
         lv_obj_t * btn_close = lv_btn_create(modal_panel);
         lv_obj_set_size(btn_close, 64, 34);
@@ -421,9 +475,23 @@ public:
         lv_label_set_text(lbl_close, LV_SYMBOL_CLOSE " Voltar");
         lv_obj_center(lbl_close);
 
-        auto makeModalBtn = [&](lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h,
+        auto makePageBox = [&](lv_obj_t * parent) {
+            lv_obj_t * box = lv_obj_create(parent);
+            lv_obj_set_size(box, 458, 128);
+            lv_obj_set_pos(box, 0, 42);
+            lv_obj_set_style_bg_opa(box, LV_OPA_TRANSP, LV_PART_MAIN);
+            lv_obj_set_style_border_width(box, 0, LV_PART_MAIN);
+            lv_obj_set_style_pad_all(box, 0, LV_PART_MAIN);
+            lv_obj_clear_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+            return box;
+        };
+        modal_page1 = makePageBox(modal_panel);
+        modal_page2 = makePageBox(modal_panel);
+        lv_obj_add_flag(modal_page2, LV_OBJ_FLAG_HIDDEN);
+
+        auto makeModalBtn = [&](lv_obj_t * page, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h,
                                 uint32_t bg_hex, const char * txt, lv_event_cb_t cb) {
-            lv_obj_t * b = lv_btn_create(modal_panel);
+            lv_obj_t * b = lv_btn_create(page);
             lv_obj_set_size(b, w, h);
             lv_obj_set_pos(b, x, y);
             lv_obj_set_style_bg_color(b, lv_color_hex(bg_hex), LV_PART_MAIN);
@@ -437,58 +505,118 @@ public:
             lv_obj_center(l);
         };
 
-        // Linha 1 (y=44): Curar HP | Curar Status | Restaurar PP | Full Restore
-        makeModalBtn(2, 44, 110, 38, 0x1B5E20, "+ Curar HP", [](lv_event_t * e) {
+        // ---- PAGINA 1: Cura, Shiny, IVs e Itens ----
+        // Linha 1 (y=2): Curar HP | Curar Status | Restaurar PP | Full Restore
+        makeModalBtn(modal_page1, 2, 2, 110, 38, 0x1B5E20, "+ Curar HP", [](lv_event_t * e) {
             static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
                 ->triggerPokeEdit(PokeEditAction::HEAL_HP, 0, "HP restaurado em 100%!");
         });
-        makeModalBtn(116, 44, 110, 38, 0x006064, "Curar Status", [](lv_event_t * e) {
+        makeModalBtn(modal_page1, 116, 2, 110, 38, 0x006064, "Curar Status", [](lv_event_t * e) {
             static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
                 ->triggerPokeEdit(PokeEditAction::HEAL_STATUS, 0, "Status negativo removido!");
         });
-        makeModalBtn(230, 44, 110, 38, 0x4A148C, "Restaurar PP", [](lv_event_t * e) {
+        makeModalBtn(modal_page1, 230, 2, 110, 38, 0x4A148C, "Restaurar PP", [](lv_event_t * e) {
             static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
                 ->triggerPokeEdit(PokeEditAction::RESTORE_PP, 0, "PP dos 4 golpes restaurado!");
         });
-        makeModalBtn(344, 44, 112, 38, 0x00897B, "Full Restore", [](lv_event_t * e) {
+        makeModalBtn(modal_page1, 344, 2, 112, 38, 0x00897B, "Full Restore", [](lv_event_t * e) {
             static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
                 ->triggerPokeEdit(PokeEditAction::FULL_RESTORE, 0, "HP + Status + PP 100%!");
         });
 
-        // Linha 2 (y=88): Shiny ON/OFF | Max 6 IVs (31) | Curar Time Todo
-        makeModalBtn(2, 88, 146, 38, 0x8D6E00, "* Shiny ON/OFF", [](lv_event_t * e) {
+        // Linha 2 (y=46): Shiny ON/OFF | Max 6 IVs (31) | Curar Time Todo
+        makeModalBtn(modal_page1, 2, 46, 146, 38, 0x8D6E00, "* Shiny ON/OFF", [](lv_event_t * e) {
             static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
                 ->triggerPokeEdit(PokeEditAction::TOGGLE_SHINY, 0, "Shiny alternado no PID!");
         });
-        makeModalBtn(154, 88, 146, 38, 0x1A237E, "Max 6 IVs (31)", [](lv_event_t * e) {
+        makeModalBtn(modal_page1, 154, 46, 146, 38, 0x1A237E, "Max 6 IVs (31)", [](lv_event_t * e) {
             static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
                 ->triggerPokeEdit(PokeEditAction::MAX_IVS, 0, "6 IVs definidos em 31!");
         });
-        makeModalBtn(306, 88, 150, 38, 0xAD1457, "+ Curar Time Todo", [](lv_event_t * e) {
+        makeModalBtn(modal_page1, 306, 46, 150, 38, 0xAD1457, "+ Curar Time Todo", [](lv_event_t * e) {
             static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
                 ->triggerPokeEdit(PokeEditAction::HEAL_PARTY_ALL, 0, "Time inteiro 100% curado!");
         });
 
-        // Linha 3 (y=132): Equipar Item Rapido (Leftovers, Sitrus, Lucky Egg, Life Orb, Sem Item)
-        makeModalBtn(2, 132, 88, 36, 0x263238, "Leftovers", [](lv_event_t * e) {
+        // Linha 3 (y=90): Equipar Item Rapido (Leftovers, Sitrus, Lucky Egg, Life Orb, Sem Item)
+        makeModalBtn(modal_page1, 2, 90, 88, 36, 0x263238, "Leftovers", [](lv_event_t * e) {
             static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
                 ->triggerPokeEdit(PokeEditAction::SET_ITEM, 234, "Item equipado: Leftovers!");
         });
-        makeModalBtn(93, 132, 88, 36, 0x263238, "Sitrus B.", [](lv_event_t * e) {
+        makeModalBtn(modal_page1, 93, 90, 88, 36, 0x263238, "Sitrus B.", [](lv_event_t * e) {
             static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
                 ->triggerPokeEdit(PokeEditAction::SET_ITEM, 158, "Item equipado: Sitrus Berry!");
         });
-        makeModalBtn(184, 132, 88, 36, 0x263238, "Lucky Egg", [](lv_event_t * e) {
+        makeModalBtn(modal_page1, 184, 90, 88, 36, 0x263238, "Lucky Egg", [](lv_event_t * e) {
             static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
                 ->triggerPokeEdit(PokeEditAction::SET_ITEM, 231, "Item equipado: Lucky Egg!");
         });
-        makeModalBtn(275, 132, 88, 36, 0x263238, "Life Orb", [](lv_event_t * e) {
+        makeModalBtn(modal_page1, 275, 90, 88, 36, 0x263238, "Life Orb", [](lv_event_t * e) {
             static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
                 ->triggerPokeEdit(PokeEditAction::SET_ITEM, 270, "Item equipado: Life Orb!");
         });
-        makeModalBtn(366, 132, 90, 36, 0x37474F, "Sem Item", [](lv_event_t * e) {
+        makeModalBtn(modal_page1, 366, 90, 90, 36, 0x37474F, "Sem Item", [](lv_event_t * e) {
             static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
                 ->triggerPokeEdit(PokeEditAction::SET_ITEM, 0, "Item removido do Pokemon!");
+        });
+
+        // ---- PAGINA 2: Level, EVs, Nature e Alpha XXL ----
+        // Linha 1 (y=2): +1 Level | +10 Levels | Level 100 | Alpha XXL ON/OFF
+        makeModalBtn(modal_page2, 2, 2, 110, 38, 0x0D47A1, "+1 Level", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::LEVEL_PLUS_1, 0, "Level +1 aplicado!");
+        });
+        makeModalBtn(modal_page2, 116, 2, 110, 38, 0x1565C0, "+10 Levels", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::LEVEL_PLUS_10, 0, "Level +10 aplicado!");
+        });
+        makeModalBtn(modal_page2, 230, 2, 110, 38, 0x1B5E20, "Level 100", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::LEVEL_100, 0, "Level 100 maximo aplicado!");
+        });
+        makeModalBtn(modal_page2, 344, 2, 112, 38, 0xB71C1C, "Alpha XXL", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::TOGGLE_ALPHA, 0, "Alpha XXL alternado!");
+        });
+
+        // Linha 2 (y=46): EV Atk+Spe | EV SpA+Spe | EV HP+Def | Zerar EVs
+        makeModalBtn(modal_page2, 2, 46, 110, 38, 0x4A148C, "EV Atk+Spe", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::EV_ATK_SPE, 0, "EVs: 252 Atk / 252 Spe / 6 HP!");
+        });
+        makeModalBtn(modal_page2, 116, 46, 110, 38, 0x311B92, "EV SpA+Spe", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::EV_SPA_SPE, 0, "EVs: 252 SpA / 252 Spe / 6 HP!");
+        });
+        makeModalBtn(modal_page2, 230, 46, 110, 38, 0x006064, "EV HP+Def", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::EV_HP_TANK, 0, "EVs: 252 HP / 128 Def / 128 SpD!");
+        });
+        makeModalBtn(modal_page2, 344, 46, 112, 38, 0x37474F, "Zerar EVs", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::EV_RESET, 0, "Todos os EVs zerados!");
+        });
+
+        // Linha 3 (y=90): Natures competitivas (Adamant, Jolly, Modest, Timid, Careful)
+        makeModalBtn(modal_page2, 2, 90, 88, 36, 0x263238, "Adamant", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::SET_NATURE, 3, "Nature: Adamant (+Atk -SpA)!");
+        });
+        makeModalBtn(modal_page2, 93, 90, 88, 36, 0x263238, "Jolly", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::SET_NATURE, 13, "Nature: Jolly (+Spe -SpA)!");
+        });
+        makeModalBtn(modal_page2, 184, 90, 88, 36, 0x263238, "Modest", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::SET_NATURE, 15, "Nature: Modest (+SpA -Atk)!");
+        });
+        makeModalBtn(modal_page2, 275, 90, 88, 36, 0x263238, "Timid", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::SET_NATURE, 10, "Nature: Timid (+Spe -Atk)!");
+        });
+        makeModalBtn(modal_page2, 366, 90, 90, 36, 0x263238, "Careful", [](lv_event_t * e) {
+            static_cast<PokemonLegendsZAModule*>(lv_event_get_user_data(e))
+                ->triggerPokeEdit(PokeEditAction::SET_NATURE, 23, "Nature: Careful (+SpD -SpA)!");
         });
 
         modal_lbl_feedback = lv_label_create(modal_panel);
@@ -507,14 +635,22 @@ public:
         menu.build(parent, cats, 5, slotdefs, SLOTS, cb, hctx);
     }
 
-    // Chamado a cada 100 ms pelo UIManager (so para o jogo ativo). So mexe no LVGL quando algo muda.
+    // Chamado pelo UIManager (so para o jogo ativo). So mexe no LVGL quando algo muda.
     void updateStatusTab(const GameState &state) override {
         menu.update(state.active_macro_slot, &state.um);
 
-        if (AssetManager::isSDReady() != last_sd_ready && lbl_sd) {
-            last_sd_ready = AssetManager::isSDReady();
-            lv_obj_set_style_text_color(lbl_sd, lv_color_hex(last_sd_ready ? 0x00E676 : 0x8888AA), LV_PART_MAIN);
-            lv_label_set_text(lbl_sd, last_sd_ready ? LV_SYMBOL_SD_CARD " SD 16GB" : LV_SYMBOL_SD_CARD " Flash");
+        bool sd_now = AssetManager::isSDReady();
+        if ((sd_now != last_sd_ready || state.battery_pct != last_bat_pct) && lbl_sd) {
+            last_sd_ready = sd_now;
+            last_bat_pct = state.battery_pct;
+            lv_obj_set_style_text_color(lbl_sd, lv_color_hex(sd_now ? 0x00E676 : 0x8888AA), LV_PART_MAIN);
+            if (state.battery_mv > 1000) {
+                lv_label_set_text_fmt(lbl_sd, "%s %u%% | %s",
+                                      LV_SYMBOL_BATTERY_FULL, (unsigned)state.battery_pct,
+                                      sd_now ? "SD" : "Flash");
+            } else {
+                lv_label_set_text(lbl_sd, sd_now ? LV_SYMBOL_SD_CARD " SD 16GB" : LV_SYMBOL_SD_CARD " Flash");
+            }
         }
 
         for (uint8_t i = 0; i < PARTY; i++) {
@@ -525,16 +661,21 @@ public:
         }
 
         if (state.map.x != last_mx || state.map.y != last_my || state.map.z != last_mz ||
+            state.shiny_stash_found != last_shiny_stash ||
+            state.shiny_stash_species != last_shiny_species ||
             strncmp(state.map.zone_name, last_zone, sizeof(last_zone)) != 0) {
             last_mx = state.map.x; last_my = state.map.y; last_mz = state.map.z;
+            last_shiny_stash = state.shiny_stash_found;
+            last_shiny_species = state.shiny_stash_species;
             snprintf(last_zone, sizeof(last_zone), "%s", state.map.zone_name);
-            char zb[96];
-            if (last_zone[0]) {
-                snprintf(zb, sizeof(zb), LV_SYMBOL_GPS " %s   #AAAACC X:%.0f  Z:%.0f  Alt:%.0f#",
-                         last_zone, state.map.x, state.map.y, state.map.z);
+            char zb[112];
+            const char * zn = last_zone[0] ? last_zone : "Lumiose";
+            if (state.shiny_stash_found) {
+                snprintf(zb, sizeof(zb), LV_SYMBOL_GPS " %s #FFD700 *SHINY: %s!#",
+                         zn, state.shiny_stash_name[0] ? state.shiny_stash_name : "Spawn");
             } else {
-                snprintf(zb, sizeof(zb), LV_SYMBOL_GPS " Lumiose   #AAAACC X:%.0f  Z:%.0f  Alt:%.0f#",
-                         state.map.x, state.map.y, state.map.z);
+                snprintf(zb, sizeof(zb), LV_SYMBOL_GPS " %s  #AAAACC X:%.0f Z:%.0f Alt:%.0f#",
+                         zn, state.map.x, state.map.y, state.map.z);
             }
             lv_label_set_text(lbl_zone, zb);
         }

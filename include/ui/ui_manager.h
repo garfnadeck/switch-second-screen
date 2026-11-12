@@ -57,12 +57,16 @@ private:
     lv_obj_t * lbl_btn_follow = nullptr;
     lv_obj_t * lbl_btn_layer = nullptr;
     lv_obj_t * lbl_btn_center = nullptr;
+    lv_obj_t * btn_warp_toggle = nullptr;
+    lv_obj_t * lbl_btn_warp = nullptr;
 
     CachedAsset map_zoom_asset;      // 768x768 RGB565 na PSRAM (Zoom 3x Rua)
     CachedAsset map_radar_asset;     // 480x480 RGB565 na PSRAM (Zoom 2x Radar)
     CachedAsset map_full_asset;      // 208x208 RGB565 na PSRAM (Zoom 1x Cidade Inteira / Submapas)
     uint8_t  map_zoom_level = 1;     // 0 = Cidade 208x208 (1x), 1 = Radar 480x480 (2x), 2 = Rua 768x768 (3x)
     uint8_t  map_layer = 0;          // 0 = Lumiose, 1 = Lysandre Lab, 2 = Esgoto Bleu, 3 = Esgoto Saison
+    bool     map_warp_mode = false;  // true = tocar no mapa teleporta o jogador para o ponto tocado
+    int16_t  cur_img_x = 20, cur_img_y = 2, cur_img_side = 208;
     // Calibracao oficial do mapa_lumiose.jpg (medida ao vivo no Switch):
     // Campo 20 (Centro / Torre Prisma) = (-830.0, -500.0) | Raio da cidade = 490.0m
     // Campo 1 (Sul) = (-758..-677, -878..-941) -> cai exatamente sobre o escudo "1" no sul do mapa.
@@ -135,6 +139,16 @@ private:
         if (nx > 0.97f) nx = 0.97f;
         if (ny < 0.03f) ny = 0.03f;
         if (ny > 0.97f) ny = 0.97f;
+    }
+
+    // Inverso de worldToNorm: converte [0.0 .. 1.0] tocado no mapa para (wx, wz_map) em Lumiose City
+    void normToWorld(float nx, float ny, float &wx, float &wz_map) const {
+        if (nx < 0.05f) nx = 0.05f;
+        if (nx > 0.95f) nx = 0.95f;
+        if (ny < 0.05f) ny = 0.05f;
+        if (ny > 0.95f) ny = 0.95f;
+        wx     = WORLD_CENTER_X + (nx - 0.50f) * (2.0f * WORLD_RADIUS);
+        wz_map = WORLD_CENTER_Z - (ny - 0.50f) * (2.0f * WORLD_RADIUS);
     }
 
     const char* zoomLabel() const {
@@ -214,6 +228,7 @@ private:
             if (img_x < MAP_VP_W - scroll_side) img_x = MAP_VP_W - scroll_side;
             if (img_y < MAP_VP_H - scroll_side) img_y = MAP_VP_H - scroll_side;
             lv_obj_set_pos(map_img, img_x, img_y);
+            cur_img_x = img_x; cur_img_y = img_y; cur_img_side = scroll_side;
 
             lv_coord_t dot_x = img_x + px;
             lv_coord_t dot_y = img_y + py;
@@ -236,6 +251,7 @@ private:
             // Mapa inteiro 208x208 centralizado no viewport (ox = 20, oy = 2)
             lv_coord_t ox = (MAP_VP_W - 208) / 2;
             lv_coord_t oy = (MAP_VP_H - 208) / 2;
+            cur_img_x = ox; cur_img_y = oy; cur_img_side = 208;
             lv_coord_t dot_x = ox + (lv_coord_t)(nx * 208.0f);
             lv_coord_t dot_y = oy + (lv_coord_t)(ny * 208.0f);
             lv_obj_set_pos(player_ring, dot_x - 13, dot_y - 13);
@@ -255,10 +271,21 @@ private:
             }
         }
 
+        // Anel do jogador pulsa dourado se houver Shiny no Stash
+        uint32_t ring_col = state.shiny_stash_found ? 0xFFD700 : 0x00F5D4;
+        lv_obj_set_style_bg_color(player_ring, lv_color_hex(ring_col), LV_PART_MAIN);
+        lv_obj_set_style_border_color(player_ring, lv_color_hex(ring_col), LV_PART_MAIN);
+
         // Painel lateral de telemetria do mapa
         if (lbl_map_zone) {
             const char * zn = state.map.zone_name[0] ? state.map.zone_name : "Lumiose City";
-            lv_label_set_text_fmt(lbl_map_zone, LV_SYMBOL_GPS " %s", zn);
+            if (state.shiny_stash_found) {
+                lv_obj_set_style_text_color(lbl_map_zone, lv_color_hex(0xFFD700), LV_PART_MAIN);
+                lv_label_set_text_fmt(lbl_map_zone, "*SHINY: %s!", state.shiny_stash_name[0] ? state.shiny_stash_name : zn);
+            } else {
+                lv_obj_set_style_text_color(lbl_map_zone, lv_color_hex(0x00F5D4), LV_PART_MAIN);
+                lv_label_set_text_fmt(lbl_map_zone, LV_SYMBOL_GPS " %s", zn);
+            }
         }
         if (coord_label) {
             char buf[96];
@@ -266,13 +293,19 @@ private:
             lv_label_set_text(coord_label, buf);
         }
         if (lbl_map_meta) {
-            float dx = state.map.x - WORLD_CENTER_X;
-            float dz = state.map.y - WORLD_CENTER_Z;
-            float dist = (state.map.x == 0.0f && state.map.y == 0.0f) ? 0.0f : sqrtf(dx * dx + dz * dz);
-            const char * zstr = (map_zoom_level == 0) ? "1x" : (map_zoom_level == 1) ? "2x" : "3x";
-            char mb[64];
-            snprintf(mb, sizeof(mb), "Dist C20: %.0fm | Zoom: %s", dist, zstr);
-            lv_label_set_text(lbl_map_meta, mb);
+            if (map_warp_mode) {
+                lv_obj_set_style_text_color(lbl_map_meta, lv_color_hex(0x00E676), LV_PART_MAIN);
+                lv_label_set_text(lbl_map_meta, "WARP: Toque no mapa!");
+            } else {
+                lv_obj_set_style_text_color(lbl_map_meta, lv_color_hex(0x99A2C8), LV_PART_MAIN);
+                float dx = state.map.x - WORLD_CENTER_X;
+                float dz = state.map.y - WORLD_CENTER_Z;
+                float dist = (state.map.x == 0.0f && state.map.y == 0.0f) ? 0.0f : sqrtf(dx * dx + dz * dz);
+                const char * zstr = (map_zoom_level == 0) ? "1x" : (map_zoom_level == 1) ? "2x" : "3x";
+                char mb[64];
+                snprintf(mb, sizeof(mb), "Dist C20: %.0fm | Zoom: %s", dist, zstr);
+                lv_label_set_text(lbl_map_meta, mb);
+            }
         }
     }
 
@@ -385,9 +418,10 @@ public:
 #else
             const char * chip28 = "simulador";
 #endif
-            lv_label_set_text_fmt(lbl_diag, "USB: %s | Tela: %s\nMacro: %s (%lu)\nRAM: %s\nI2C: %s",
+            lv_label_set_text_fmt(lbl_diag, "USB:%s | Tela:%s | Bat:%u%%\nMacro: %s (%lu)\nRAM: %s\nI2C: %s",
                                   conn ? "#00E676 ON#" : "#FF1744 OFF#",
                                   state.screen_flip ? "180°" : "0°",
+                                  (unsigned)state.battery_pct,
                                   act, (unsigned long)diag_exec, state.link_status, chip28);
         }
     }
@@ -540,6 +574,27 @@ public:
         lv_obj_set_style_radius(map_viewport, 8, LV_PART_MAIN);
         lv_obj_set_style_pad_all(map_viewport, 0, LV_PART_MAIN);
         lv_obj_clear_flag(map_viewport, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(map_viewport, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(map_viewport, [](lv_event_t * e) {
+            auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+            if (!mgr->map_warp_mode || mgr->cur_img_side <= 0) return;
+            lv_indev_t * indev = lv_indev_get_act();
+            if (!indev) return;
+            lv_point_t pt;
+            lv_indev_get_point(indev, &pt);
+            lv_area_t a;
+            lv_obj_get_coords(mgr->map_viewport, &a);
+            float lx = (float)(pt.x - a.x1 - mgr->cur_img_x);
+            float ly = (float)(pt.y - a.y1 - mgr->cur_img_y);
+            float nx = lx / (float)mgr->cur_img_side;
+            float ny = ly / (float)mgr->cur_img_side;
+            float wx = 0.0f, wz_map = 0.0f;
+            mgr->normToWorld(nx, ny, wx, wz_map);
+            float wy_alt = (mgr->state.map.z > -50.0f && mgr->state.map.z < 500.0f) ? mgr->state.map.z : 24.0f;
+            mgr->router.teleportPlayer(mgr->state, wx, wy_alt, wz_map);
+            mgr->trail_count = 0;
+            mgr->updateMapRealtime();
+        }, LV_EVENT_CLICKED, this);
 
         // Grade tatica de fundo (visivel nas bordas ou se o SD ainda nao tiver o mapa)
         for (int g = 1; g <= 3; g++) {
@@ -548,6 +603,7 @@ public:
             lv_obj_set_pos(hline, 2, g * 52);
             lv_obj_set_style_bg_color(hline, lv_color_hex(0x1E3E62), LV_PART_MAIN);
             lv_obj_set_style_border_width(hline, 0, LV_PART_MAIN);
+            lv_obj_add_flag(hline, LV_OBJ_FLAG_EVENT_BUBBLE);
         }
         for (int g = 1; g <= 3; g++) {
             lv_obj_t * vline = lv_obj_create(map_viewport);
@@ -555,11 +611,13 @@ public:
             lv_obj_set_pos(vline, g * 62, 2);
             lv_obj_set_style_bg_color(vline, lv_color_hex(0x1E3E62), LV_PART_MAIN);
             lv_obj_set_style_border_width(vline, 0, LV_PART_MAIN);
+            lv_obj_add_flag(vline, LV_OBJ_FLAG_EVENT_BUBBLE);
         }
 
         // Imagem do mapa carregada do MicroSD para a PSRAM
         map_img = lv_img_create(map_viewport);
         lv_obj_set_pos(map_img, 0, 0);
+        lv_obj_add_flag(map_img, LV_OBJ_FLAG_EVENT_BUBBLE);
 
         // Trilha dos ultimos passos do jogador
         for (uint8_t i = 0; i < TRAIL_LEN; i++) {
@@ -701,23 +759,30 @@ public:
         lv_label_set_text(lbl_zout, "Zoom -");
         lv_obj_center(lbl_zout);
 
-        lv_obj_t * btn_center = lv_btn_create(map_panel);
-        lv_obj_set_size(btn_center, 78, 42);
-        lv_obj_set_pos(btn_center, 126, 156);
-        lv_obj_set_style_bg_color(btn_center, lv_color_hex(0x1E3A5F), LV_PART_MAIN);
-        lv_obj_set_style_radius(btn_center, 6, LV_PART_MAIN);
-        lv_obj_add_event_cb(btn_center, [](lv_event_t * e) {
+        btn_warp_toggle = lv_btn_create(map_panel);
+        lv_obj_set_size(btn_warp_toggle, 78, 42);
+        lv_obj_set_pos(btn_warp_toggle, 126, 156);
+        lv_obj_set_style_bg_color(btn_warp_toggle, lv_color_hex(0x1E3A5F), LV_PART_MAIN);
+        lv_obj_set_style_radius(btn_warp_toggle, 6, LV_PART_MAIN);
+        lv_obj_add_event_cb(btn_warp_toggle, [](lv_event_t * e) {
             auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
-            mgr->trail_count = 0;
-            mgr->last_trail_x = -99999.0f;
-            mgr->last_trail_y = -99999.0f;
-            if (mgr->map_zoom_level == 0) mgr->map_zoom_level = 1;
+            mgr->map_warp_mode = !mgr->map_warp_mode;
+            if (mgr->map_warp_mode) {
+                mgr->map_zoom_level = 0; // abre Cidade 1x para facilitar tocar em qualquer Campo 1..20
+            }
+            if (mgr->btn_warp_toggle) {
+                lv_obj_set_style_bg_color(mgr->btn_warp_toggle,
+                    lv_color_hex(mgr->map_warp_mode ? 0x1B5E20 : 0x1E3A5F), LV_PART_MAIN);
+            }
+            if (mgr->lbl_btn_center) {
+                lv_label_set_text(mgr->lbl_btn_center, mgr->map_warp_mode ? "Warp: ON" : "Warp: OFF");
+            }
             mgr->refreshMapSource();
             mgr->updateMapRealtime();
         }, LV_EVENT_CLICKED, this);
-        lbl_btn_center = lv_label_create(btn_center);
+        lbl_btn_center = lv_label_create(btn_warp_toggle);
         lv_obj_set_style_text_font(lbl_btn_center, &lv_font_montserrat_12, LV_PART_MAIN);
-        lv_label_set_text(lbl_btn_center, "Focar");
+        lv_label_set_text(lbl_btn_center, "Warp: OFF");
         lv_obj_center(lbl_btn_center);
 
         loadMapTextures();

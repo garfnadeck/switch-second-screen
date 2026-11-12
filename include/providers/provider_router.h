@@ -48,9 +48,14 @@ public:
     // Parar tudo (macros USB). O sys-botbase nao envia botoes, entao nao ha o que cancelar nele.
     void stopAll(GameState &state) { usb_prov.stopAll(state); }
 
-    // Acoes do Mini Menu do Pokemon (Curar HP, Status, PP, Item, Shiny, 6IVs, Curar Time)
+    // Acoes do Mini Menu do Pokemon (Curar HP, Status, PP, Item, Shiny, 6IVs, Curar Time, Level, EVs, Nature, Alpha)
     void editPokemon(GameState &state, uint8_t slot, PokeEditAction action, uint16_t item_id = 0) {
         tcp_prov.editPokemon(state, slot, action, item_id);
+    }
+
+    // Teleporte rapido no Mapa (escreve X, Y_alt, Z_map via pointerPoke no Switch)
+    void teleportPlayer(GameState &state, float wx, float wy_alt, float wz_map) {
+        tcp_prov.teleportPlayer(state, wx, wy_alt, wz_map);
     }
 
     void switchMode(GameState &state, SwitchMode new_mode) {

@@ -47,13 +47,18 @@ private:
     uint8_t  pending_status = 0;
     uint16_t pending_item = 0;
     uint8_t  pending_pp[4] = {};
+    uint8_t  pending_nature = 0;
+    uint16_t pending_ev_total = 0;
     bool     pending_shiny = false;
     bool     pending_max_iv = false;
+    bool     pending_alpha = false;
     char     pending_name[16] = {};
     uint8_t  slot_claro[6][328] = {};                    // cache do bloco PA9 decifrado de cada slot (para edicao instantanea)
+    uint8_t  slot_extra[6][16] = {};                     // cache da extensao 0x10 decifrada de cada slot (nivel / HP max)
     uint32_t slot_ec[6] = {};                            // ultimo EC visto em cada slot
     uint8_t  slot_ext_age[6] = {};                       // contadores para pular releitura redundante da extensao +0x50
     bool     slot_valid[6] = {};
+    uint8_t  stash_poll_cnt = 0;                         // a cada 12 leituras checa o ShinyStashPointer
     uint32_t sent_ms = 0, last_poll_ms = 0, last_try_ms = 0;
     bool     linked = false;
     bool     telemetry_only = false;
@@ -238,9 +243,14 @@ private:
         memcpy(raw_out + 8, body, 320);
     }
 
-    static void pa9ExtractMeta(const uint8_t * claro, uint16_t &item, uint8_t pp[4], bool &shiny, bool &max_iv) {
+    static void pa9ExtractMeta(const uint8_t * claro, uint16_t &item, uint8_t pp[4],
+                               uint8_t &nature, uint16_t &ev_tot,
+                               bool &shiny, bool &max_iv, bool &alpha) {
         item = rd16(claro + 0x0A);
         for (int m = 0; m < 4; m++) pp[m] = claro[0x7A + m];
+        nature = claro[0x21];
+        ev_tot = 0;
+        for (int e = 0; e < 6; e++) ev_tot = (uint16_t)(ev_tot + claro[0x26 + e]);
         uint16_t tid = rd16(claro + 0x0C);
         uint16_t sid = rd16(claro + 0x0E);
         uint32_t pid = rd32(claro + 0x1C);
@@ -249,6 +259,7 @@ private:
         shiny = ((tid ^ sid ^ p_lo ^ p_hi) < 16u);
         uint32_t iv32 = rd32(claro + 0x8C);
         max_iv = ((iv32 & 0x3FFFFFFFu) == 0x3FFFFFFFu);
+        alpha = (claro[0x23] != 0 || claro[0x4A] >= 250);
     }
 
     static void pa9ExtractName(const uint8_t * claro, uint16_t species, char * out, size_t out_sz) {
@@ -265,7 +276,8 @@ private:
     static void clearSlot(PokemonSlot &p) {
         p.species = 0; p.max_hp = 0; p.current_hp = 0; p.level = 0;
         p.held_item = 0; p.pp[0] = p.pp[1] = p.pp[2] = p.pp[3] = 0;
-        p.is_shiny = false; p.is_max_iv = false;
+        p.nature = 0; p.ev_total = 0;
+        p.is_shiny = false; p.is_max_iv = false; p.is_alpha = false;
         p.name[0] = 0; p.status[0] = 0; p.active = false;
     }
 
@@ -333,7 +345,12 @@ private:
     void advancePartySlot() {
         uint8_t cnt = (map.party_count > 0 && map.party_count <= 6) ? map.party_count : 6;
         party_idx = (uint8_t)((party_idx + 1) % cnt);
-        next_req = map.pos.count ? 2 : 0;
+        if (++stash_poll_cnt >= 12) {
+            stash_poll_cnt = 0;
+            next_req = 3; // checa ShinyStashPointer
+        } else {
+            next_req = map.pos.count ? 2 : 0;
+        }
     }
 
     void sendChain(const char * name, uint16_t size, const MemChain &c) {
@@ -354,20 +371,39 @@ private:
         sendChain("pointerPeek", is_extra ? 16 : map.party_stride, c);
     }
 
-    void sendPartySlotPoke(uint8_t slot, const uint8_t * raw328) {
+    void sendPartySlotPoke(uint8_t slot, const uint8_t * raw_bytes, uint16_t len, bool is_extra = false) {
         if (!isConnected() || slot >= 6 || map.party.count < 6) return;
         static char cmd[760];
         int n = snprintf(cmd, sizeof(cmd), "pointerPoke 0x");
         static const char HEX_DIGITS[] = "0123456789ABCDEF";
-        for (int i = 0; i < 328 && n + 2 < (int)sizeof(cmd); i++) {
-            cmd[n++] = HEX_DIGITS[(raw328[i] >> 4) & 0x0F];
-            cmd[n++] = HEX_DIGITS[raw328[i] & 0x0F];
+        for (uint16_t i = 0; i < len && n + 2 < (int)sizeof(cmd); i++) {
+            cmd[n++] = HEX_DIGITS[(raw_bytes[i] >> 4) & 0x0F];
+            cmd[n++] = HEX_DIGITS[raw_bytes[i] & 0x0F];
         }
         MemChain c = map.party;
         c.jumps[3] = map.party.jumps[3] + (uint32_t)slot * 8u;
-        c.jumps[5] = 0x30u;
+        c.jumps[5] = is_extra ? 0x50u : 0x30u;
         for (uint8_t i = 0; i < c.count && n < (int)sizeof(cmd) - 16; i++)
             n += snprintf(cmd + n, sizeof(cmd) - n, " 0x%X", (unsigned)c.jumps[i]);
+        snprintf(cmd + n, sizeof(cmd) - n, "\r\n");
+        sendRaw(cmd);
+    }
+
+    void sendPositionPoke(float wx, float wy_alt, float wz_map) {
+        if (!isConnected() || map.pos.count == 0) return;
+        uint8_t raw12[12];
+        memcpy(raw12 + 0, &wx, 4);
+        memcpy(raw12 + 4, &wy_alt, 4);
+        memcpy(raw12 + 8, &wz_map, 4);
+        char cmd[180];
+        int n = snprintf(cmd, sizeof(cmd), "pointerPoke 0x");
+        static const char HEX_DIGITS[] = "0123456789ABCDEF";
+        for (int i = 0; i < 12; i++) {
+            cmd[n++] = HEX_DIGITS[(raw12[i] >> 4) & 0x0F];
+            cmd[n++] = HEX_DIGITS[raw12[i] & 0x0F];
+        }
+        for (uint8_t i = 0; i < map.pos.count && n < (int)sizeof(cmd) - 16; i++)
+            n += snprintf(cmd + n, sizeof(cmd) - n, " 0x%X", (unsigned)map.pos.jumps[i]);
         snprintf(cmd + n, sizeof(cmd) - n, "\r\n");
         sendRaw(cmd);
     }
@@ -380,6 +416,10 @@ private:
         }
         if ((next_req == 0 || next_req == 1) && map.party.count) {
             sendPartySlotChain(party_idx, next_req == 1);
+        } else if (next_req == 3 && map.party.count) {
+            // ShinyStashPointer: [0x610A710, 0x120, 0x168, 0x0] (328 bytes)
+            MemChain stash = { 4, { map.party.jumps[0], 0x120, 0x168, 0x0 } };
+            sendChain("pointerPeek", 328, stash);
         } else if (map.pos.count) {
             next_req = 2;
             sendChain("pointerPeek", 12, map.pos);
@@ -419,7 +459,8 @@ private:
                 pending_species = rd16(claro + map.off_species);
                 pending_hp_cur  = rd16(claro + map.off_hp_cur);
                 pending_status  = claro[map.off_status];
-                pa9ExtractMeta(claro, pending_item, pending_pp, pending_shiny, pending_max_iv);
+                pa9ExtractMeta(claro, pending_item, pending_pp, pending_nature, pending_ev_total,
+                               pending_shiny, pending_max_iv, pending_alpha);
                 pa9ExtractName(claro, pending_species, pending_name, sizeof(pending_name));
 
                 PokemonSlot &p = state.party[party_idx];
@@ -433,8 +474,11 @@ private:
                     p.current_hp = pending_hp_cur > p.max_hp ? p.max_hp : pending_hp_cur;
                     p.held_item = pending_item;
                     for (int m = 0; m < 4; m++) p.pp[m] = pending_pp[m];
+                    p.nature = pending_nature;
+                    p.ev_total = pending_ev_total;
                     p.is_shiny = pending_shiny;
                     p.is_max_iv = pending_max_iv;
+                    p.is_alpha = pending_alpha;
                     p.active = true;
                     snprintf(p.name, sizeof(p.name), "%s", pending_name);
                     snprintf(p.status, sizeof(p.status), "%s", statusName(pending_status));
@@ -454,6 +498,7 @@ private:
         } else if (next_req == 1 && map.party.count) {
             if (n >= 16 && party_idx < 6) {
                 pa9Xor(buf, 16, pending_ec);
+                memcpy(slot_extra[party_idx], buf, 16);
                 uint16_t off_lv = map.off_level >= 0x148 ? (uint16_t)(map.off_level - 0x148) : 0;
                 uint16_t off_hm = map.off_hp_max >= 0x148 ? (uint16_t)(map.off_hp_max - 0x148) : 2;
                 uint8_t  lv    = (off_lv < 16) ? buf[off_lv] : 0;
@@ -469,8 +514,11 @@ private:
                     p.level = lv;
                     p.held_item = pending_item;
                     for (int m = 0; m < 4; m++) p.pp[m] = pending_pp[m];
+                    p.nature = pending_nature;
+                    p.ev_total = pending_ev_total;
                     p.is_shiny = pending_shiny;
                     p.is_max_iv = pending_max_iv;
+                    p.is_alpha = pending_alpha;
                     p.active = true;
                     snprintf(p.name, sizeof(p.name), "%s", pending_name);
                     snprintf(p.status, sizeof(p.status), "%s", statusName(pending_status));
@@ -480,6 +528,20 @@ private:
                 clearSlot(state.party[party_idx]);
             }
             advancePartySlot();
+        } else if (next_req == 3) {
+            static uint8_t claro_st[328];
+            uint32_t ec_st = 0;
+            if (n >= 328 && pa9DecryptBlock(buf, claro_st, ec_st)) {
+                uint16_t sp = rd16(claro_st + map.off_species);
+                state.shiny_stash_found = (sp > 0);
+                state.shiny_stash_species = sp;
+                pa9ExtractName(claro_st, sp, state.shiny_stash_name, sizeof(state.shiny_stash_name));
+            } else {
+                state.shiny_stash_found = false;
+                state.shiny_stash_species = 0;
+                state.shiny_stash_name[0] = 0;
+            }
+            next_req = map.pos.count ? 2 : 0;
         } else {
             if (n >= 12) {
                 state.map.x = rdf(buf + map.off_x);
@@ -566,10 +628,33 @@ private:
         if (action == PokeEditAction::SET_ITEM) {
             p.held_item = item_id;
         }
+        if (action == PokeEditAction::LEVEL_PLUS_1 || action == PokeEditAction::LEVEL_PLUS_10 || action == PokeEditAction::LEVEL_100) {
+            uint8_t old_lv = p.level ? p.level : 1;
+            uint8_t new_lv = (action == PokeEditAction::LEVEL_PLUS_1)  ? (old_lv < 100 ? old_lv + 1 : 100) :
+                             (action == PokeEditAction::LEVEL_PLUS_10) ? (old_lv <= 90 ? old_lv + 10 : 100) : 100;
+            uint16_t new_max = (uint16_t)((uint32_t)p.max_hp * new_lv / old_lv);
+            if (new_max <= p.max_hp && new_lv > old_lv) new_max = (uint16_t)(p.max_hp + (new_lv - old_lv) * 2u);
+            p.level = new_lv;
+            p.max_hp = new_max;
+            p.current_hp = new_max;
+        }
+        if (action == PokeEditAction::EV_ATK_SPE || action == PokeEditAction::EV_SPA_SPE || action == PokeEditAction::EV_HP_TANK) {
+            p.ev_total = 510;
+        }
+        if (action == PokeEditAction::EV_RESET) {
+            p.ev_total = 0;
+        }
+        if (action == PokeEditAction::SET_NATURE) {
+            p.nature = (uint8_t)(item_id & 0xFF);
+        }
+        if (action == PokeEditAction::TOGGLE_ALPHA) {
+            p.is_alpha = !p.is_alpha;
+        }
 
         if (!slot_valid[s] || !isConnected()) return;
 
         uint8_t * claro = slot_claro[s];
+        bool poke_extra = false;
         if (action == PokeEditAction::HEAL_HP || action == PokeEditAction::FULL_RESTORE) {
             wr16(claro + map.off_hp_cur, p.max_hp);
         }
@@ -597,10 +682,50 @@ private:
         if (action == PokeEditAction::SET_ITEM) {
             wr16(claro + 0x0A, item_id);
         }
+        if (action == PokeEditAction::LEVEL_PLUS_1 || action == PokeEditAction::LEVEL_PLUS_10 || action == PokeEditAction::LEVEL_100) {
+            uint32_t lv3 = (uint32_t)p.level * (uint32_t)p.level * (uint32_t)p.level;
+            wr32(claro + 0x10, lv3);
+            wr16(claro + map.off_hp_cur, p.max_hp);
+            uint16_t off_lv = map.off_level >= 0x148 ? (uint16_t)(map.off_level - 0x148) : 0;
+            uint16_t off_hm = map.off_hp_max >= 0x148 ? (uint16_t)(map.off_hp_max - 0x148) : 2;
+            if (off_lv < 16) slot_extra[s][off_lv] = p.level;
+            if (off_hm + 1 < 16) wr16(slot_extra[s] + off_hm, p.max_hp);
+            poke_extra = true;
+        }
+        if (action == PokeEditAction::EV_ATK_SPE) {
+            const uint8_t evs[6] = {6, 252, 0, 252, 0, 0}; // HP, ATK, DEF, SPE, SPA, SPD
+            memcpy(claro + 0x26, evs, 6);
+        }
+        if (action == PokeEditAction::EV_SPA_SPE) {
+            const uint8_t evs[6] = {6, 0, 0, 252, 252, 0};
+            memcpy(claro + 0x26, evs, 6);
+        }
+        if (action == PokeEditAction::EV_HP_TANK) {
+            const uint8_t evs[6] = {252, 0, 128, 0, 0, 128};
+            memcpy(claro + 0x26, evs, 6);
+        }
+        if (action == PokeEditAction::EV_RESET) {
+            memset(claro + 0x26, 0, 6);
+        }
+        if (action == PokeEditAction::SET_NATURE) {
+            claro[0x20] = (uint8_t)(item_id & 0xFF);
+            claro[0x21] = (uint8_t)(item_id & 0xFF);
+        }
+        if (action == PokeEditAction::TOGGLE_ALPHA) {
+            claro[0x23] = p.is_alpha ? 1 : 0;
+            claro[0x4A] = p.is_alpha ? 255 : 128;
+            claro[0x4B] = p.is_alpha ? 255 : 128;
+        }
 
         static uint8_t raw_out[328];
         pa9EncryptBlock(claro, raw_out);
-        sendPartySlotPoke(s, raw_out);
+        sendPartySlotPoke(s, raw_out, 328, false);
+        if (poke_extra) {
+            uint8_t raw_ext[16];
+            memcpy(raw_ext, slot_extra[s], 16);
+            pa9Xor(raw_ext, 16, slot_ec[s]);
+            sendPartySlotPoke(s, raw_ext, 16, true);
+        }
     }
 
 public:
@@ -616,6 +741,16 @@ public:
         }
         applySlotEdit(state, slot, action, item_id);
         setLink(state, "pokemon atualizado (RAM)");
+    }
+
+    void teleportPlayer(GameState &state, float wx, float wy_alt, float wz_map) {
+        state.map.x = wx;
+        state.map.y = wz_map;
+        state.map.z = wy_alt;
+        snprintf(state.map.zone_name, sizeof(state.map.zone_name), "%s",
+                 lumioseZoneName(wx, wz_map, wy_alt));
+        sendPositionPoke(wx, wy_alt, wz_map);
+        setLink(state, "teleporte enviado!");
     }
 
     // ---- telemetria paralela (USB HID continua sendo o provider ativo) ----

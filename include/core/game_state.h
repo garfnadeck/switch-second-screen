@@ -105,7 +105,16 @@ enum class PokeEditAction : uint8_t {
     TOGGLE_SHINY   = 4,
     MAX_IVS        = 5,
     SET_ITEM       = 6,
-    HEAL_PARTY_ALL = 7
+    HEAL_PARTY_ALL = 7,
+    LEVEL_PLUS_1   = 8,
+    LEVEL_PLUS_10  = 9,
+    LEVEL_100      = 10,
+    EV_ATK_SPE     = 11,
+    EV_SPA_SPE     = 12,
+    EV_HP_TANK     = 13,
+    EV_RESET       = 14,
+    SET_NATURE     = 15,
+    TOGGLE_ALPHA   = 16
 };
 
 struct PokemonSlot {
@@ -117,8 +126,11 @@ struct PokemonSlot {
     char status[8] = {};
     uint16_t held_item = 0;
     uint8_t pp[4] = {0, 0, 0, 0};
+    uint8_t nature = 0;
+    uint16_t ev_total = 0;
     bool is_shiny = false;
     bool is_max_iv = false;
+    bool is_alpha = false;
     bool active = true;
 };
 
@@ -168,6 +180,14 @@ struct GameState {
     char switch_ip[16] = "192.168.1.50";
     char board_ip[24] = "-";               // IP da propria placa (Wi-Fi ou AP), para mostrar na Config
     uint16_t switch_port = 6000;
+
+    // Radar de Shiny no Mapa (ShinyStashPointer do Z-A 2.0.2) + Bateria + Treinador
+    bool     shiny_stash_found = false;
+    uint16_t shiny_stash_species = 0;
+    char     shiny_stash_name[16] = {};
+    char     trainer_name[16] = "Laila";
+    uint8_t  battery_pct = 100;
+    uint16_t battery_mv  = 4200;
 
     FireRedStats fr;
     UserMacroStore um;           // macros criados pelo usuario (6 slots)

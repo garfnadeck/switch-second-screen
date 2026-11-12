@@ -16,6 +16,7 @@
 #include "../include/core/user_macros.h"
 #include "net/wifi_scanner.h"
 #include "hardware/es3c35p_display.h"
+#include "hardware/es3c35p_extra.h"
 
 // Tela fisica (LVGL) so existe na placa ESP32-S3 3.5" -> build com -DHAS_DISPLAY.
 // No Pico W de teste (sem tela) o MVP roda so com USB HID + pagina web.
@@ -270,6 +271,8 @@ void setup() {
     loadUserMacros();
 
     // 2. MicroSD (SDIO 4-bit 16GB) + Tela fisica + UI (so ESP32-S3 com tela)
+    es3c35p_extra::init();
+    state.battery_mv = es3c35p_extra::readBatteryMv(state.battery_pct);
     AssetManager::initSD();
 #ifdef HAS_DISPLAY
     init_hardware_display_touch();
@@ -441,6 +444,10 @@ void setup() {
         auto clean = jsonClean;
         String j = "{\"zone\":\"" + clean(state.map.zone_name) + "\",\"x\":" + String((int)state.map.x) +
                    ",\"y\":" + String((int)state.map.y) + ",\"z\":" + String((int)state.map.z) +
+                   ",\"shiny_stash\":" + (state.shiny_stash_found ? "true" : "false") +
+                   ",\"shiny_name\":\"" + clean(state.shiny_stash_name) + "\"" +
+                   ",\"bat_pct\":" + String(state.battery_pct) +
+                   ",\"bat_mv\":" + String(state.battery_mv) +
                    ",\"link\":\"" + clean(state.link_status) + "\",\"party\":[";
         for (int i = 0; i < 6; i++) {
             const PokemonSlot &p = state.party[i];
@@ -448,6 +455,7 @@ void setup() {
             j += "{\"sp\":" + String(p.species) + ",\"n\":\"" + clean(p.name) + "\",\"lv\":" + String(p.level) +
                  ",\"hp\":" + String(p.current_hp) + ",\"max\":" + String(p.max_hp) + ",\"st\":\"" + clean(p.status) + "\"" +
                  ",\"item\":" + String(p.held_item) + ",\"shiny\":" + (p.is_shiny ? "true" : "false") +
+                 ",\"alpha\":" + (p.is_alpha ? "true" : "false") + ",\"ev\":" + String(p.ev_total) +
                  ",\"iv\":" + (p.is_max_iv ? "true" : "false") + "}";
         }
         j += "]}";
@@ -563,12 +571,24 @@ void setup() {
         uint8_t slot = server.hasArg("slot") ? (uint8_t)server.arg("slot").toInt() : 0;
         uint8_t act  = server.hasArg("action") ? (uint8_t)server.arg("action").toInt() : 0;
         uint16_t itm = server.hasArg("item") ? (uint16_t)server.arg("item").toInt() : 0;
-        if (slot < 6 && act <= 7) {
+        if (slot < 6 && act <= 16) {
             router.editPokemon(state, slot, static_cast<PokeEditAction>(act), itm);
             server.send(200, "application/json", "{\"ok\":true}");
         } else {
             server.send(400, "application/json", "{\"ok\":false}");
         }
+    });
+
+    server.on("/api/teleport", HTTP_POST, []() {
+        if (!server.hasArg("wx") || !server.hasArg("wz")) {
+            server.send(400, "application/json", "{\"ok\":false}");
+            return;
+        }
+        float wx = server.arg("wx").toFloat();
+        float wz = server.arg("wz").toFloat();
+        float wy = server.hasArg("wy") ? server.arg("wy").toFloat() : state.map.z;
+        router.teleportPlayer(state, wx, wy, wz);
+        server.send(200, "application/json", "{\"ok\":true}");
     });
 
     server.on("/api/display/flip", HTTP_POST, []() {
@@ -593,6 +613,7 @@ void loop() {
         static uint32_t ultimoIp = 0;
         if (millis() - ultimoIp >= 2000) {
             ultimoIp = millis();
+            state.battery_mv = es3c35p_extra::readBatteryMv(state.battery_pct);
             IPAddress ip = apMode ? WiFi.softAPIP() : WiFi.localIP();
             snprintf(state.board_ip, sizeof(state.board_ip), "%s", ip.toString().c_str());
             // IP digitado no teclado da tela, ou achado pela busca disparada na tela: grava na flash
