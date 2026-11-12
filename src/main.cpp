@@ -91,6 +91,18 @@ static String jsonClean(const char * in) {
     return o;
 }
 
+static bool saveSettings() {
+    File f = LittleFS.open("/config.txt", "w");
+    if (!f) return false;
+    f.print("ssid=");        f.print(cfg.ssid);  f.print("\n");
+    f.print("pass=");        f.print(cfg.pass);  f.print("\n");
+    f.print("switch_ip=");   f.print(cfg.sw_ip); f.print("\n");
+    f.print("compiled_ip="); f.print(SWITCH_IP); f.print("\n");
+    f.print("port=");        f.print((int)cfg.sw_port); f.print("\n");
+    f.close();
+    return true;
+}
+
 static void loadSettings() {
     snprintf(cfg.ssid, sizeof(cfg.ssid), "%s", WIFI_SSID);
     snprintf(cfg.pass, sizeof(cfg.pass), "%s", WIFI_PASSWORD);
@@ -98,27 +110,23 @@ static void loadSettings() {
     cfg.sw_port = SWITCH_PORT;
     File f = LittleFS.open("/config.txt", "r");
     if (!f) return;
+    String file_sw_ip = "", compiled_sw_ip = "";
     while (f.available()) {
         String l = f.readStringUntil('\n'); l.trim();
         int e = l.indexOf('='); if (e < 0) continue;
         String k = l.substring(0, e), v = l.substring(e + 1);
-        if (k == "ssid")           snprintf(cfg.ssid, sizeof(cfg.ssid), "%s", v.c_str());
-        else if (k == "pass")      snprintf(cfg.pass, sizeof(cfg.pass), "%s", v.c_str());
-        else if (k == "switch_ip") { if (validIp(v.c_str())) snprintf(cfg.sw_ip, sizeof(cfg.sw_ip), "%s", v.c_str()); }
-        else if (k == "port")      { int p = v.toInt(); if (p > 0 && p < 65536) cfg.sw_port = (uint16_t)p; }
+        if (k == "ssid")              snprintf(cfg.ssid, sizeof(cfg.ssid), "%s", v.c_str());
+        else if (k == "pass")         snprintf(cfg.pass, sizeof(cfg.pass), "%s", v.c_str());
+        else if (k == "switch_ip")    file_sw_ip = v;
+        else if (k == "compiled_ip")  compiled_sw_ip = v;
+        else if (k == "port")         { int p = v.toInt(); if (p > 0 && p < 65536) cfg.sw_port = (uint16_t)p; }
     }
     f.close();
-}
-
-static bool saveSettings() {
-    File f = LittleFS.open("/config.txt", "w");
-    if (!f) return false;
-    f.print("ssid=");      f.print(cfg.ssid);  f.print("\n");
-    f.print("pass=");      f.print(cfg.pass);  f.print("\n");
-    f.print("switch_ip="); f.print(cfg.sw_ip); f.print("\n");
-    f.print("port=");      f.print((int)cfg.sw_port); f.print("\n");
-    f.close();
-    return true;
+    if (compiled_sw_ip == SWITCH_IP && validIp(file_sw_ip.c_str())) {
+        snprintf(cfg.sw_ip, sizeof(cfg.sw_ip), "%s", file_sw_ip.c_str());
+    } else {
+        saveSettings();   // SWITCH_IP do wifi_config.h mudou nesta compilacao: atualiza /config.txt
+    }
 }
 
 // ---------------- Estatisticas do FireRed (LittleFS /fr_stats.txt) ----------------
