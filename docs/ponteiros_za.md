@@ -7,11 +7,11 @@ Título: `0100F43008C44000`. Cadeias a partir do `main` (comando `pointerPeek` d
 
 | Versão | Base "save" | Time (PartyPointer) | Posição do jogador (+0x90 = x,y,z float) | Fonte |
 |---|---|---|---|---|
-| 1.0.0 / 1.0.1 (não rotulado, out/2025) — **é a do usuário** | `0x5F0B250` | não publicado | `0x41EC340, 0x248, 0x00, 0x138` | ZAShinyWarper, commit inicial 5d3696c |
+| 1.0.0 / 1.0.1 (não rotulado, out/2025) | `0x5F0B250` | não publicado | `0x41EC340, 0x248, 0x00, 0x138` | ZAShinyWarper, commit inicial 5d3696c |
 | 1.0.2 | `0x5F0C250` | `0x5F0C250, 0x18, 0x1B0, 0xF0, 0x50, 0x30, 0x0` | `0x41ED340, 0x248, 0x00, 0x138` | SysBot.NET e675d1e; ZAShinyWarper 86674aa |
 | 1.0.3 | `0x5F0E250` | `0x5F0E250, 0x18, 0x1B0, 0xF0, 0x50, 0x30, 0x0` | (ver ZAShinyWarper c01c080) | SysBot.NET ae0acb6 |
 | 2.0.0 | `0x6105710` | (ver SysBot.NET 839d99c) | `0x47D21A0, 0x248, 0x00, 0x138` | ZAShinyWarper fa2e03b |
-| 2.0.2 | `0x610A710` | `0x610A710, 0x18, 0x1B0, 0xF0, 0x50, 0x30, 0x0` | — | SysBot.NET 8621130 |
+| 2.0.2 — **atual do usuário** (`b1f12fd919eae86a`) | `0x610A710` | `0x610A710, 0x18, 0x1B0, 0xF0+i*8, 0x50, 0x30/0x50, 0x0` | `0x47D71A0, 0x248, 0x00, 0x138` | SysBot.NET 8621130 + validado ao vivo (12/11/2026) |
 
 ## Hipótese para o jogo base (a testar)
 
@@ -120,10 +120,35 @@ Falta: a cadeia fixa até o objeto. Ferramentas: `za_dump_mem.py` (copia a memó
   ponteiros: objetos vivos), `0x59F8..0x5A2D` (848 MB), `0x5C89..0x5C9B` (288 MB),
   `0x5CA7..0x5CB1` (160 MB). Endereços da sessão de 10-11/11; mudam ao reabrir o jogo.
 
+## Validado ao vivo na 2.0.2 (12/11/2026 — build `b1f12fd919eae86a`)
+
+Com o jogo atualizado para a versão **2.0.2**, todos os ponteiros do time (6 slots) e da posição do
+jogador foram validados ao vivo no console (`192.168.15.5`) e integrados ao firmware
+(`include/providers/za_memory_map.h` e `include/providers/sysbotbase_provider.h`):
+
+1. **Time (6 slots, `i = 0..5`, `SLOT_OFF = 0xF0 + i * 8` → `0xF0, 0xF8, 0x100, 0x108, 0x110, 0x118`):**
+   - **Bloco principal PA9 (`0x148` = 328 bytes, cifrado):**
+     `pointerPeek 328 0x610A710 0x18 0x1B0 0x<SLOT_OFF> 0x50 0x30 0x0`
+   - **Extensão de time (`0x10` = 16 bytes, cifrada com a mesma semente `chave` dos primeiros 4 bytes do bloco):**
+     `pointerPeek 16 0x610A710 0x18 0x1B0 0x<SLOT_OFF> 0x50 0x50 0x0`
+   - Validado com os 6 Pokémon reais do time (OT `Laila`):
+     - Slot 1 (`0xF0`): Chikorita (`#152`), Nv 10, HP 10/32
+     - Slot 2 (`0xF8`): Fletchling (`#661`), Nv 7, HP 24/24
+     - Slot 3 (`0x100`): Bunnelby (`#659`), Nv 7, HP 24/24
+     - Slot 4 (`0x108`): Scatterbug (`#664`), Nv 6, HP 22/22
+     - Slot 5 (`0x110`): Scatterbug (`#664`), Nv 5, HP 20/20
+     - Slot 6 (`0x118`): Fletchling (`#661`), Nv 6, HP 22/22
+
+2. **Posição do jogador (`x, y, z` float32):**
+   - **`pointerPeek 12 0x47D71A0 0x248 0x0 0x138 0x90`** (`0x47D71A0 = 0x47D21A0 + 0x5000`, mesmo
+     deslocamento `+0x5000` da base do save entre a 2.0.0 e a 2.0.2).
+
 ## Formato dos dados
 
 - Cada Pokémon: bloco de `0x148` bytes no formato PA9 (cifrado e embaralhado, como no PKHeX).
-- HP atual e status: fora do bloco de caixa; tamanho da extensão de time a confirmar no PKHeX.
+- Extensão de time: `0x10` bytes em ponteiro separado (`+0x50` do registro do slot), cifrada com o
+  mesmo LCG semeado pela `chave` (`uint32_t` nos bytes `0..3` do bloco PA9). Contém nível em `+0x00`
+  (`0x148`) e HP máximo em `+0x02` (`0x14A`).
 - Posição: três float32 seguidos, sem cifra.
 
 ## Fontes
