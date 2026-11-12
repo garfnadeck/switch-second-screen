@@ -98,6 +98,7 @@ struct FireRedStats {
 };
 
 struct PokemonSlot {
+    uint16_t species = 0;
     char name[16];
     uint8_t level;
     uint16_t current_hp;

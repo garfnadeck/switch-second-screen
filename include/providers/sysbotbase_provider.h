@@ -211,7 +211,26 @@ private:
     }
 
     static void clearSlot(PokemonSlot &p) {
-        p.max_hp = 0; p.current_hp = 0; p.level = 0; p.name[0] = 0; p.status[0] = 0;
+        p.species = 0; p.max_hp = 0; p.current_hp = 0; p.level = 0; p.name[0] = 0; p.status[0] = 0; p.active = false;
+    }
+
+    static const char * lumioseZoneName(float x, float z_map, float alt_y) {
+        if (alt_y < -8.0f) return "Lumiose (Subsolo)";
+        float r2 = x * x + z_map * z_map;
+        if (r2 < 180.0f * 180.0f) return "Torre Prisma (Centro)";
+        if (alt_y > 14.0f) return "Lumiose (Telhados)";
+        // 5 setores de Lumiose (Rouge=N, Jaune=NE/E, Vert=S, Magenta=SW, Bleu=NW/SE)
+        if (z_map < -250.0f) {
+            if (x < -250.0f) return "Distrito Bleu / Oeste";
+            if (x >  250.0f) return "Distrito Jaune / Leste";
+            return "Distrito Rouge / Norte";
+        }
+        if (z_map > 250.0f) {
+            if (x < -250.0f) return "Distrito Magenta / SO";
+            if (x >  250.0f) return "Bulevar Sul / SE";
+            return "Distrito Vert / Sul";
+        }
+        return (x < 0.0f) ? "Lumiose Oeste" : "Lumiose Leste";
     }
 
     void advancePartySlot() {
@@ -299,9 +318,11 @@ private:
                 if (hpmax == 0 || hpmax > 9999 || lv == 0 || lv > 100) {
                     clearSlot(p);
                 } else {
+                    p.species = pending_species;
                     p.max_hp = hpmax;
                     p.current_hp = pending_hp_cur > hpmax ? hpmax : pending_hp_cur;
                     p.level = lv;
+                    p.active = true;
                     snprintf(p.name, sizeof(p.name), "%s", pending_name);
                     snprintf(p.status, sizeof(p.status), "%s", statusName(pending_status));
                 }
@@ -314,6 +335,8 @@ private:
                 state.map.x = rdf(buf + map.off_x);
                 state.map.y = rdf(buf + map.off_z);   // no mapa 2D: horizontal = x, vertical = z do jogo
                 state.map.z = rdf(buf + map.off_y);
+                snprintf(state.map.zone_name, sizeof(state.map.zone_name), "%s",
+                         lumioseZoneName(state.map.x, state.map.y, state.map.z));
             }
             next_req = map.party.count ? 0 : 2;
         }
@@ -367,7 +390,7 @@ private:
             else if (now - sent_ms > 800) { awaiting = false; rx_len = 0; next_req = 0; setLink(state, "timeout"); }
             return;
         }
-        if (now - last_poll_ms >= 250) requestNext(state);   // ~4 leituras/s no total
+        if (now - last_poll_ms >= 140) requestNext(state);   // ~7 leituras/s (posicao em tempo real + time)
     }
 
 public:

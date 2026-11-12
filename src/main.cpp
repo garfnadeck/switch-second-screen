@@ -267,7 +267,8 @@ void setup() {
     loadFrStats();
     loadUserMacros();
 
-    // 2. Tela fisica + UI (so ESP32-S3 com tela)
+    // 2. MicroSD (SDIO 4-bit 16GB) + Tela fisica + UI (so ESP32-S3 com tela)
+    AssetManager::initSD();
 #ifdef HAS_DISPLAY
     init_hardware_display_touch();
     ui.buildUI();
@@ -434,15 +435,49 @@ void setup() {
     server.on("/api/party", HTTP_GET, []() {
         auto clean = jsonClean;
         String j = "{\"zone\":\"" + clean(state.map.zone_name) + "\",\"x\":" + String((int)state.map.x) +
-                   ",\"y\":" + String((int)state.map.y) + ",\"link\":\"" + clean(state.link_status) + "\",\"party\":[";
+                   ",\"y\":" + String((int)state.map.y) + ",\"z\":" + String((int)state.map.z) +
+                   ",\"link\":\"" + clean(state.link_status) + "\",\"party\":[";
         for (int i = 0; i < 6; i++) {
             const PokemonSlot &p = state.party[i];
             if (i) j += ",";
-            j += "{\"n\":\"" + clean(p.name) + "\",\"lv\":" + String(p.level) + ",\"hp\":" + String(p.current_hp) +
-                 ",\"max\":" + String(p.max_hp) + ",\"st\":\"" + clean(p.status) + "\"}";
+            j += "{\"sp\":" + String(p.species) + ",\"n\":\"" + clean(p.name) + "\",\"lv\":" + String(p.level) +
+                 ",\"hp\":" + String(p.current_hp) + ",\"max\":" + String(p.max_hp) + ",\"st\":\"" + clean(p.status) + "\"}";
         }
         j += "]}";
         server.send(200, "application/json", j);
+    });
+
+    // ---- MicroSD de 16 GB: status, upload de assets via Wi-Fi e reload na PSRAM ----
+    server.on("/api/sd/status", HTTP_GET, []() {
+        String j = String("{\"ok\":true,\"sd_ready\":") + (AssetManager::isSDReady() ? "true" : "false") +
+                   ",\"total_mb\":" + String((unsigned long)AssetManager::sdTotalMB()) +
+                   ",\"used_mb\":" + String((unsigned long)AssetManager::sdUsedMB()) + "}";
+        server.send(200, "application/json", j);
+    });
+
+    static bool sdUploadOk = false;
+    static String sdUploadPath = "";
+    server.on("/api/sd/upload", HTTP_POST, []() {
+        server.send(sdUploadOk ? 200 : 500, "application/json",
+                    String("{\"ok\":") + (sdUploadOk ? "true" : "false") + ",\"path\":\"" + sdUploadPath + "\"}");
+    }, []() {
+        HTTPUpload &up = server.upload();
+        if (up.status == UPLOAD_FILE_START) {
+            sdUploadPath = server.hasArg("path") ? server.arg("path") : ("/" + up.filename);
+            if (!sdUploadPath.startsWith("/")) sdUploadPath = "/" + sdUploadPath;
+            sdUploadOk = AssetManager::writeFile(sdUploadPath.c_str(), nullptr, 0, false);
+        } else if (up.status == UPLOAD_FILE_WRITE) {
+            if (sdUploadOk && up.currentSize > 0) {
+                sdUploadOk = AssetManager::writeFile(sdUploadPath.c_str(), up.buf, up.currentSize, true);
+            }
+        }
+    });
+
+    server.on("/api/sd/reload", HTTP_POST, []() {
+#ifdef HAS_DISPLAY
+        ui.reloadAssets();
+#endif
+        server.send(200, "application/json", "{\"ok\":true}");
     });
 
     // ---- Rede: IP do Switch + Wi-Fi (gravados na placa) ----

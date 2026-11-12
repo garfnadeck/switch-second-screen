@@ -16,6 +16,10 @@ class AssetManager {
 public:
     static bool initSD(int csPin = 10, int sckPin = 12, int misoPin = 13, int mosiPin = 11);
     static bool isSDReady();
+    static uint64_t sdTotalMB();
+    static uint64_t sdUsedMB();
+    static bool ensureDir(const char* dirPath);
+    static bool writeFile(const char* sdPath, const uint8_t* data, size_t len, bool append = false);
     static bool preloadToPSRAM(const char* sdPath, CachedAsset& outAsset, uint16_t width, uint16_t height, lv_img_cf_t colorFormat = LV_IMG_CF_TRUE_COLOR_ALPHA);
     static void freeAsset(CachedAsset& asset);
 

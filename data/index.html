@@ -450,7 +450,15 @@
     try {
       const d = await (await fetch('/api/party', { cache: 'no-store' })).json();
       $('cfg-link').textContent = d.link || '-';
-      $('zone').textContent = d.zone ? `Zona: ${d.zone}  X:${d.x} Y:${d.y}` : 'Zona: -';
+      $('zone').textContent = d.zone ? `Zona: ${d.zone}  X:${d.x} Z:${d.y}` : 'Zona: -';
+      if (d.x !== undefined && d.y !== undefined && (d.x !== 0 || d.y !== 0)) {
+        px = Math.max(4, Math.min(96, 50 + (d.x / 2300) * 100));
+        py = Math.max(4, Math.min(96, 50 + (d.y / 2300) * 100));
+        $('pin').style.left = px + '%';
+        $('pin').style.top = py + '%';
+        $('mcoord').textContent = `X: ${d.x}  Z: ${d.y}  Alt: ${d.z || 0}`;
+        if (d.zone) $('mzone').textContent = 'Zona: ' + d.zone;
+      }
       d.party.forEach((m, i) => {
         const has = m.max > 0, pct = has ? Math.min(100, m.hp * 100 / m.max) : 0;
         $('pn' + i).textContent = has ? `${m.n} Lv${m.lv}` : '---';
