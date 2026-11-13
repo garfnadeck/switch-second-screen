@@ -652,26 +652,26 @@ class SysBotbaseClient extends ChangeNotifier {
   Future<void> pokeBotwPosition(double x, double y, double z) async {
     final p = activeBotwProfile;
     if (p == null || !connected) return;
+    // Verifica se o ponteiro de posicao esta valido antes de escrever (evita travar o jogo)
+    final checkHex = await _sendAndWait('pointerPeek 4 0x02D3E8E8 0x370 0xC0 0x5E0');
+    final checkRaw = checkHex != null ? Pa9Crypto.hexToBytes(checkHex) : null;
+    if (checkRaw == null || checkRaw.length < 4) {
+      lastLog = 'Teleporte indisponivel neste boot (use viagem rapida do jogo)';
+      notifyListeners();
+      return;
+    }
     final b = ByteData(12)
       ..setFloat32(0, x, Endian.little)
       ..setFloat32(4, y, Endian.little)
       ..setFloat32(8, z, Endian.little);
     final hex = _toLittleEndianHex(b.buffer.asUint8List());
-    // 1) Havok RigidBody translation (botw-save-state 1.6.0)
     _sendFireAndForget('pointerPoke 0x$hex 0x02D3E8E8 0x370 0xC0 0x5E0');
-    // 2) Live Player sead::Matrix34f translation [0x02CA1140, 0x60, 0x3A4/0x3B4/0x3C4]
     final hx = _toLittleEndianHex((ByteData(4)..setFloat32(0, x, Endian.little)).buffer.asUint8List());
     final hy = _toLittleEndianHex((ByteData(4)..setFloat32(0, y, Endian.little)).buffer.asUint8List());
     final hz = _toLittleEndianHex((ByteData(4)..setFloat32(0, z, Endian.little)).buffer.asUint8List());
     _sendFireAndForget('pointerPoke 0x$hx 0x02CA1140 0x60 0x3A4');
     _sendFireAndForget('pointerPoke 0x$hy 0x02CA1140 0x60 0x3B4');
     _sendFireAndForget('pointerPoke 0x$hz 0x02CA1140 0x60 0x3C4');
-    // 3) Cached actor pos + body
-    if (p.posChain.isNotEmpty) {
-      _sendFireAndForget('pointerPoke 0x$hex ${_chainArgs(p.posChain)}');
-      final bodyChain = List<int>.from(p.posChain)..last = 0x1B8;
-      _sendFireAndForget('pointerPoke 0x$hex ${_chainArgs(bodyChain)}');
-    }
     posX = x;
     posAlt = y;
     posY = z;
