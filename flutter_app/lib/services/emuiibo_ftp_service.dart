@@ -289,8 +289,38 @@ class _FtpConn {
     return Socket.connect(ip, port, timeout: const Duration(seconds: 4));
   }
 
+  Future<(ServerSocket, Future<Socket>)> _openPort() async {
+    final localIp = _ctrl!.address.address;
+    final srv = await ServerSocket.bind(InternetAddress.anyIPv4, 0);
+    final p = srv.port;
+    final ipParts = localIp.split('.');
+    final r = await cmd('PORT ${ipParts.join(',')},${p >> 8},${p & 0xFF}');
+    if (!r.startsWith('2')) {
+      await srv.close();
+      throw Exception('PORT erro: $r');
+    }
+    return (srv, srv.first.timeout(const Duration(seconds: 5)));
+  }
+
   Future<String> dataText(String c) async {
-    final ds = await _openPasv();
+    Socket? ds;
+    ServerSocket? srv;
+    Future<Socket>? acceptFut;
+    try {
+      ds = await _openPasv();
+    } catch (_) {
+      final res = await _openPort();
+      srv = res.$1;
+      acceptFut = res.$2;
+    }
+
+    final r = await cmd(c);
+    if (!r.startsWith('1')) {
+      await ds?.close();
+      await srv?.close();
+      return '';
+    }
+    ds ??= await acceptFut!;
     final chunks = <int>[];
     final done = Completer<void>();
     ds.listen(chunks.addAll, onDone: () {
@@ -298,27 +328,36 @@ class _FtpConn {
     }, onError: (_) {
       if (!done.isCompleted) done.complete();
     });
-    final r = await cmd(c);
-    if (!r.startsWith('1')) {
-      await ds.close();
-      return '';
-    }
     await done.future.timeout(const Duration(seconds: 5), onTimeout: () {});
+    await srv?.close();
     await _readReply(); // 226
     return utf8.decode(chunks, allowMalformed: true);
   }
 
   Future<void> stor(String path, List<int> bytes) async {
-    final ds = await _openPasv();
+    Socket? ds;
+    ServerSocket? srv;
+    Future<Socket>? acceptFut;
+    try {
+      ds = await _openPasv();
+    } catch (_) {
+      final res = await _openPort();
+      srv = res.$1;
+      acceptFut = res.$2;
+    }
+
     _ctrl!.write('STOR $path\r\n');
     final r = await _readReply();
     if (!r.startsWith('1')) {
-      await ds.close();
+      await ds?.close();
+      await srv?.close();
       throw Exception('STOR falhou: $r');
     }
+    ds ??= await acceptFut!;
     ds.add(bytes);
     await ds.flush();
     await ds.close();
+    await srv?.close();
     await _readReply(); // 226
   }
 
