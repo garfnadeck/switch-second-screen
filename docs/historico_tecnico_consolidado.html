@@ -699,10 +699,13 @@
             <summary><span>📅 2026</span><span class="chev"></span></summary>
 
             <details class="month" open>
-                <summary><span>Novembro</span><span class="count">2</span></summary>
+                <summary><span>Novembro</span><span class="count">3</span></summary>
                 <div class="date-list">
+                    <button class="date-btn" data-date="2026-11-13" onclick="selectDate('2026-11-13', this)">
+                        <span>13/11/2026</span><span class="tag-version new">Atual</span>
+                    </button>
                     <button class="date-btn" data-date="2026-11-12" onclick="selectDate('2026-11-12', this)">
-                        <span>12/11/2026</span><span class="tag-version new">Atual</span>
+                        <span>12/11/2026</span>
                     </button>
                     <button class="date-btn" data-date="2026-11-09" onclick="selectDate('2026-11-09', this)">
                         <span>09/11/2026</span>
@@ -738,13 +741,42 @@
 
     <main class="content-area">
         <select id="mobile-date" class="sidebar-mobile" aria-label="Data" onchange="selectDate(this.value)" style="margin-bottom:14px;">
-            <option value="2026-11-12">12/11/2026 · Atual</option>
+            <option value="2026-11-13">13/11/2026 · Atual</option>
+            <option value="2026-11-12">12/11/2026 · Anterior</option>
             <option value="2026-11-09">09/11/2026 · Anterior</option>
             <option value="2026-10-23">23/10/2026 · Anterior</option>
             <option value="2026-10-22">22/10/2026 · Anterior</option>
             <option value="2026-04-15">15/04/2026 · Atualizado</option>
             <option value="2026-04-14">14/04/2026 · Base</option>
         </select>
+
+        <!-- CONTEÚDO: 13/11/2026 -->
+        <div id="content-2026-11-13" class="date-content-view">
+            <div class="hero">
+                <div class="eyebrow">REGISTRO DE 13/11/2026 // ZELDA BOTW 1.6.0 (8E9978D50BDD20B4) // AUTO-SCAN + 24 AMIIBOS</div>
+                <h2>Zelda BOTW v1.6.0 ao vivo, Detecção Automática na Rede, 24 Amiibos BOTW e Guia de Distribuição (Original vs Atmosphère)</h2>
+                <p>Implementada a varredura automática do Switch na rede local, troca automática de jogo e versão via <code>getTitleID</code>/<code>getBuildID</code>, telemetria e edição em tempo real para Zelda BOTW 1.6.0 (Corações, Stamina e Rupees), além do catálogo completo de 24 Amiibos BOTW com envio em lote via FTP.</p>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h2>🔒 Switch Original (Bloqueado)</h2>
+                    <p><strong>O que funciona:</strong> apenas <strong>macros de controle via cabo USB (USB-HID)</strong> usando a ESP32-S3 conectada no dock/console (o Switch enxerga a placa como controle USB comum).<br><br><strong>O que NÃO funciona:</strong> telemetria em tempo real, edição de memória, detecção automática de jogo/versão e Amiibos virtuais pelo app (pois dependem de sysmodules do Atmosphère).</p>
+                </div>
+                <div class="card">
+                    <h2>🔓 Switch Desbloqueado (Atmosphère)</h2>
+                    <p><strong>1. Telemetria, Edição &amp; Auto-Detecção:</strong> exige <code>sys-botbase</code> ativo na porta <code>6000</code>.<br><strong>2. Amiibos Virtuais (aba Amiibos):</strong> exige <code>emuiibo</code> (<code>/atmosphere/contents/0100000000000352/</code>) + <code>sys-ftpd</code> (<code>/atmosphere/contents/420000000000000E/</code> na porta <code>5000</code>, com <code>anonymous:=1</code> em <code>/config/sys-ftpd/config.ini</code> e <code>flags/boot2.flag</code>).</p>
+                </div>
+                <div class="card">
+                    <h2>⚔️ Zelda BOTW v1.6.0 (8E9978D50BDD20B4)</h2>
+                    <p>Ponteiros validados ao vivo:<br>• <strong>Stamina:</strong> <code>[0x02C9FD70, 0x38, 0x2AC]</code> (2 floats: atual/máx)<br>• <strong>Corações:</strong> <code>[0x02CA1A78, 0x80, 0x848]</code> (u32 quartos) e máx <code>[0x02C9FD70, 0x38, 0x2A8]</code><br>• <strong>Rupees:</strong> <code>[0x02CC5FE0, 0xE40, 0x5B08, 0x5D90]</code> (u32)<br>Botões ao vivo no app: <em>Curar Full</em>, <em>30 Corações</em>, <em>Stamina 3x</em>, <em>+10k / 999k Rupees</em>.</p>
+                </div>
+                <div class="card">
+                    <h2>🎁 24 Amiibos BOTW + Habilitar no Jogo</h2>
+                    <p>Catálogo filtrado automaticamente para exibir os <strong>24 Amiibos compatíveis com BotW</strong> (Campeões, Wolf Link, Guardian, Ocarina/Majora/Twilight/Skyward/8-Bit/Wind Waker/Smash), com botão <strong>Enviar 24</strong> via FTP. No jogo, após sair do <em>Shrine of Resurrection</em> com o Sheikah Slate, ative em <code>+ → System → Options → Amiibo → Use amiibo</code> e use o overlay <code>L + D-Pad Baixo + R3</code>.</p>
+                </div>
+            </div>
+        </div>
 
         <!-- CONTEÚDO: 12/11/2026 -->
         <div id="content-2026-11-12" class="date-content-view">
