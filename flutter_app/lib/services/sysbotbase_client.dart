@@ -787,17 +787,37 @@ class SysBotbaseClient extends ChangeNotifier {
     String prefix = '';
     try {
       final ifaces = await NetworkInterface.list(type: InternetAddressType.IPv4);
+      final candidates = <({int score, String prefix})>[];
       for (final iface in ifaces) {
-        for (final addr in iface.addresses) {
-          if (!addr.isLoopback && addr.address.contains('.')) {
-            final parts = addr.address.split('.');
-            if (parts.length == 4) {
-              prefix = '${parts[0]}.${parts[1]}.${parts[2]}.';
-              break;
-            }
-          }
+        final name = iface.name.toLowerCase();
+        if (name.startsWith('pdp_') ||
+            name.startsWith('utun') ||
+            name.startsWith('ipsec') ||
+            name.startsWith('awdl') ||
+            name.startsWith('llw')) {
+          continue;
         }
-        if (prefix.isNotEmpty) break;
+        for (final addr in iface.addresses) {
+          if (addr.isLoopback) continue;
+          final ip = addr.address;
+          if (ip.startsWith('192.0.0.') || ip.startsWith('169.254.')) continue;
+          final parts = ip.split('.');
+          if (parts.length != 4) continue;
+          int score = 0;
+          if (name == 'en0' || name == 'wlan0' || name == 'eth0') score += 100;
+          if (ip.startsWith('192.168.')) {
+            score += 50;
+          } else if (ip.startsWith('10.')) {
+            score += 40;
+          } else if (ip.startsWith('172.')) {
+            score += 30;
+          }
+          candidates.add((score: score, prefix: '${parts[0]}.${parts[1]}.${parts[2]}.'));
+        }
+      }
+      if (candidates.isNotEmpty) {
+        candidates.sort((a, b) => b.score.compareTo(a.score));
+        prefix = candidates.first.prefix;
       }
     } catch (_) {}
 
