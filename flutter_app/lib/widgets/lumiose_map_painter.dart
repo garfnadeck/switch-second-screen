@@ -34,9 +34,6 @@ class LumioseMapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final bgPaint = Paint()..color = const Color(0xFF0C1020);
-    canvas.drawRect(Offset.zero & size, bgPaint);
-
     final playerNorm = worldToNorm(posX, posY);
 
     canvas.save();

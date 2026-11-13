@@ -18,6 +18,14 @@ class _HudHomeState extends State<HudHome> {
   bool _followCam = true;
   double _mapZoom = 2.0;
   bool _warpMode = false;
+  int _mapLayerIdx = 0;
+
+  static const _mapLayers = [
+    (id: 'lumiose', name: 'Lumiose', grid: 4),
+    (id: 'lysandre', name: 'Lysandre', grid: 3),
+    (id: 'sewers_bleu', name: 'Bleu', grid: 2),
+    (id: 'sewers_saison', name: 'Saison', grid: 2),
+  ];
 
   late final TextEditingController _ipCtrl;
   late final TextEditingController _portCtrl;
@@ -508,6 +516,9 @@ class _HudHomeState extends State<HudHome> {
 
   Widget _buildMapTab(SysBotbaseClient c, HudThemeConfig th) {
     final distC20 = sqrt(pow(c.posX - (-830.0), 2) + pow(c.posY - (-500.0), 2)).round();
+    final layer = _mapLayers[_mapLayerIdx];
+    final pn = LumioseMapPainter.worldToNorm(c.posX, c.posY);
+
     return LayoutBuilder(
       builder: (context, box) {
         final wide = box.maxWidth > 520;
@@ -515,40 +526,77 @@ class _HudHomeState extends State<HudHome> {
           flex: 3,
           child: LayoutBuilder(
             builder: (_, mbox) {
+              final w = mbox.maxWidth;
+              final h = mbox.maxHeight;
+              final tx = _followCam ? (w / 2 - pn.dx * w * _mapZoom) : (w / 2 * (1 - _mapZoom));
+              final ty = _followCam ? (h / 2 - pn.dy * h * _mapZoom) : (h / 2 * (1 - _mapZoom));
+              final n = layer.grid;
+
               return GestureDetector(
                 onTapUp: (d) {
                   if (!_warpMode) return;
                   final local = d.localPosition;
-                  double nx = local.dx / mbox.maxWidth;
-                  double ny = local.dy / mbox.maxHeight;
+                  double nx = local.dx / w;
+                  double ny = local.dy / h;
                   if (_followCam) {
-                    final pn = LumioseMapPainter.worldToNorm(c.posX, c.posY);
                     nx = pn.dx + (nx - 0.5) / _mapZoom;
                     ny = pn.dy + (ny - 0.5) / _mapZoom;
                   } else if (_mapZoom != 1.0) {
                     nx = 0.5 + (nx - 0.5) / _mapZoom;
                     ny = 0.5 + (ny - 0.5) / _mapZoom;
                   }
-                  final w = LumioseMapPainter.normToWorld(nx.clamp(0.0, 1.0), ny.clamp(0.0, 1.0));
-                  c.teleportPlayer(w.dx, c.posAlt, w.dy);
+                  final target = LumioseMapPainter.normToWorld(nx.clamp(0.0, 1.0), ny.clamp(0.0, 1.0));
+                  c.teleportPlayer(target.dx, c.posAlt, target.dy);
                 },
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(th.cardRadius),
                   child: Container(
                     decoration: BoxDecoration(
+                      color: const Color(0xFF0C1020),
                       border: Border.all(color: _warpMode ? const Color(0xFFFFD700) : th.cardBorder, width: 1.5),
                     ),
-                    child: CustomPaint(
-                      size: Size.infinite,
-                      painter: LumioseMapPainter(
-                        posX: c.posX,
-                        posY: c.posY,
-                        trail: c.trail,
-                        shinyAlert: c.testShinyActive || c.shinyStashFound,
-                        accent: th.accent,
-                        zoom: _mapZoom,
-                        followCam: _followCam,
-                      ),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRect(
+                          child: Transform(
+                            transform: Matrix4.translationValues(tx, ty, 0)..scaleByDouble(_mapZoom, _mapZoom, 1.0, 1.0),
+                            child: SizedBox(
+                              width: w,
+                              height: h,
+                              child: Column(
+                                children: List.generate(n, (row) {
+                                  return Expanded(
+                                    child: Row(
+                                      children: List.generate(n, (col) {
+                                        return Expanded(
+                                          child: Image.asset(
+                                            'assets/m/pkmn_za/${layer.id}/${col}_$row.jpg',
+                                            fit: BoxFit.fill,
+                                            gaplessPlayback: true,
+                                          ),
+                                        );
+                                      }),
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ),
+                          ),
+                        ),
+                        CustomPaint(
+                          size: Size.infinite,
+                          painter: LumioseMapPainter(
+                            posX: c.posX,
+                            posY: c.posY,
+                            trail: c.trail,
+                            shinyAlert: c.testShinyActive || c.shinyStashFound,
+                            accent: th.accent,
+                            zoom: _mapZoom,
+                            followCam: _followCam,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -598,6 +646,14 @@ class _HudHomeState extends State<HudHome> {
                   children: [
                     Row(
                       children: [
+                        Expanded(
+                          child: _miniBtn(
+                            'Mapa: ${layer.name}',
+                            const Color(0xFF23294E),
+                            () => setState(() => _mapLayerIdx = (_mapLayerIdx + 1) % _mapLayers.length),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: _miniBtn(
                             _followCam ? 'Cam: Radar' : 'Cam: Fixo',
