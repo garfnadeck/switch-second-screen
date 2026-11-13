@@ -749,9 +749,9 @@
         <!-- CONTEÚDO: 12/11/2026 -->
         <div id="content-2026-11-12" class="date-content-view">
             <div class="hero">
-                <div class="eyebrow">REGISTRO DE 12/11/2026 // BUILD 2.0.2 (b1f12fd919eae86a) // COMMIT 987f19c</div>
-                <h2>Legends Z-A 2.0.2 completo: Telemetria 20 Hz, MicroSD + Mapa Calibrado, Mini Menu 2.0, Radar Shiny, Teleporte e Rotação 180°</h2>
-                <p>Com os ponteiros da versão 2.0.2 validados ao vivo no Switch (<code>192.168.15.5:6000</code>), a HUD da ESP32-S3 recebeu suporte ao MicroSD 16 GB com cache em PSRAM, mapa de Lumiose calibrado (1x/2x/3x), leitura RAM de baixo lag (20 Hz), rotação 180°, Mini Menu interativo em 2 páginas (cura, itens, Level, EVs, Nature e Alpha XXL), radar automático de Shiny Stash, teleporte por toque no mapa e leitura de bateria no GPIO 8.</p>
+                <div class="eyebrow">REGISTRO DE 12/11/2026 // BUILD 2.0.2 (b1f12fd919eae86a) // COMMIT 364a49d</div>
+                <h2>Legends Z-A 2.0.2 completo: Telemetria 20 Hz, MicroSD + Mapa Calibrado, Áudio ES8311 + RGB, Automação Shiny, PWM, OTA e Web UI</h2>
+                <p>Com os ponteiros da versão 2.0.2 validados ao vivo no Switch (<code>192.168.15.5:6000</code>), a HUD da ESP32-S3 recebeu suporte ao MicroSD 16 GB com cache em PSRAM, mapa de Lumiose calibrado (1x/2x/3x) com presets e 3 favoritos, leitura RAM de baixo lag (20 Hz), rotação 180°, Mini Menu interativo em 2 páginas, radar automático de Shiny Stash com alerta sonoro I2S (ES8311) e LED RGB (IO40), AutoStop/AutoCura, brilho PWM + auto-dim, Wi-Fi OTA e sincronização da interface Web.</p>
             </div>
 
             <div class="kpis">
@@ -762,7 +762,7 @@
                 <div class="kpi"><b>16 GB</b><span>MicroSD SDIO 4-bit + PSRAM</span></div>
             </div>
 
-            <h2>✅ Evolução do dia 12/11/2026 (Commits 41fe488 → 987f19c)</h2>
+            <h2>✅ Evolução do dia 12/11/2026 (Commits 41fe488 → 364a49d)</h2>
             <div class="grid-2">
                 <div class="card">
                     <h2>🟢 Time completo (6 slots + PA9) &amp; Polling 20 Hz</h2>
@@ -779,6 +779,14 @@
                 <div class="card">
                     <h2>🔄 MicroSD + PSRAM + Rotação 180°</h2>
                     <p>Sprites (40×40) e mapas (208×208, 480×480 e 768×768) carregados do MicroSD (SDIO 4-bit) direto para a PSRAM via <code>AssetManager</code>. Na aba <strong>Config</strong>, o botão <code>[Girar 180]</code> inverte tela e toque (<code>es3c35p_lvgl_set_flip</code>) e persiste em <code>/config.txt</code>. Removido o rótulo amarelo <code>s_dbg</code> para eliminar redesenhos extras.</p>
+                </div>
+                <div class="card">
+                    <h2>🔊 Áudio I2S (ES8311 0x18) + LED RGB (IO40)</h2>
+                    <p><code>es3c35p_extra::initAudio()</code> sonda o codec ES8311 no endereço <code>0x18</code> após inicializar o I2C0 e configura I2S TX (16 kHz, 16-bit) em tarefa FreeRTOS sem travar a UI (seguro mesmo sem alto-falante soldado). LED RGB indica: <strong>dourado piscando</strong> (Shiny Stash), <strong>roxo</strong> (macro ativa), <strong>verde</strong> (Switch conectado) e <strong>azul</strong> (aguardando).</p>
+                </div>
+                <div class="card">
+                    <h2>🤖 Automação, Presets, Brilho PWM &amp; OTA</h2>
+                    <p><strong>AutoStop</strong> interrompe macros e toca arpejo ao detectar Shiny; <strong>AutoCura</strong> cura HP &lt; 25% a cada 5s. Aba <strong>Mapa</strong> ganhou <code>[Zoom]</code> cíclico e <code>[Pontos]</code> (Torre Prisma, Campos 1/5/10/15 e 3 Favoritos em <code>/warps.txt</code>). Backlight PWM (<code>IO41</code>, 5 kHz) com níveis <code>25..100%</code> + auto-dim (<code>15%</code> após 2 min). Atualização sem fio via <code>ArduinoOTA</code> (<code>switch-hud</code>) e <code>POST /api/ota</code>.</p>
                 </div>
             </div>
 
@@ -809,6 +817,7 @@
                     <tr><td><code>/api/pokemon/edit</code></td><td>POST</td><td>Aplica ações do Mini Menu (<code>slot</code> 0..5, <code>action</code> 0..16, <code>item</code>) direto na RAM do Switch</td></tr>
                     <tr><td><code>/api/teleport</code></td><td>POST</td><td>Teleporta o jogador para <code>wx</code>, <code>wz</code> (e opcional <code>wy</code>) via <code>pointerPoke</code></td></tr>
                     <tr><td><code>/api/display/flip</code></td><td>POST</td><td>Alterna/define rotação 180° da tela e toque e grava em <code>/config.txt</code></td></tr>
+                    <tr><td><code>/api/ota</code></td><td>POST</td><td>Recebe <code>firmware.bin</code> via multipart/form-data (<code>Update.h</code>) e reinicia a placa sem cabo USB</td></tr>
                     <tr><td><code>/api/sd/status</code> / <code>upload</code> / <code>reload</code></td><td>GET / POST</td><td>Consulta espaço do MicroSD 16 GB, envia assets via Wi-Fi e recarrega texturas na PSRAM</td></tr>
                     <tr><td><code>/api/party</code></td><td>GET</td><td>Agora inclui <code>shiny_stash</code>, <code>shiny_name</code>, <code>bat_pct</code>, <code>bat_mv</code>, <code>alpha</code> e <code>ev</code> por slot</td></tr>
                 </tbody>
