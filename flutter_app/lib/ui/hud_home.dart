@@ -1701,8 +1701,8 @@ class _HudHomeState extends State<HudHome> {
       ('Korok Forest', 420.0, 255.0, -2140.0),
     ];
 
-    final nx = ((c.posX + 5000.0) / 10000.0).clamp(0.0, 1.0);
-    final nz = ((c.posY + 4000.0) / 8000.0).clamp(0.0, 1.0);
+    final nx = ((c.posX + 6000.0) / 12000.0).clamp(0.0, 1.0);
+    final nz = ((c.posY + 5000.0) / 10000.0).clamp(0.0, 1.0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1726,28 +1726,42 @@ class _HudHomeState extends State<HudHome> {
         ),
         const SizedBox(height: 6),
         Expanded(
-          child: LayoutBuilder(
-            builder: (_, box) => GestureDetector(
-              onTapDown: (d) {
-                if (!_warpMode) return;
-                final tx = (d.localPosition.dx / box.maxWidth) * 10000.0 - 5000.0;
-                final tz = (d.localPosition.dy / box.maxHeight) * 8000.0 - 4000.0;
-                final ty = max(c.posAlt, 260.0);
-                c.pokeBotwPosition(tx, ty, tz);
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0A141E),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _warpMode ? Colors.redAccent : th.cardBorder),
-                ),
-                child: CustomPaint(
-                  size: Size(box.maxWidth, box.maxHeight),
-                  painter: _BotwMapPainter(
-                    linkNormX: nx,
-                    linkNormZ: nz,
-                    spots: spots,
-                    accent: th.accent,
+          child: Center(
+            child: AspectRatio(
+              aspectRatio: 1.2,
+              child: LayoutBuilder(
+                builder: (_, box) => GestureDetector(
+                  onTapDown: (d) {
+                    if (!_warpMode) return;
+                    final tx = (d.localPosition.dx / box.maxWidth) * 12000.0 - 6000.0;
+                    final tz = (d.localPosition.dy / box.maxHeight) * 10000.0 - 5000.0;
+                    final ty = max(c.posAlt, 260.0);
+                    c.pokeBotwPosition(tx, ty, tz);
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0A141E),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _warpMode ? Colors.redAccent : th.cardBorder),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(9),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.asset('assets/m/zelda_botw/hyrule.png', fit: BoxFit.fill),
+                          CustomPaint(
+                            size: Size(box.maxWidth, box.maxHeight),
+                            painter: _BotwMapPainter(
+                              linkNormX: nx,
+                              linkNormZ: nz,
+                              spots: spots,
+                              accent: th.accent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -1815,8 +1829,8 @@ class _BotwMapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = const Color(0xFF1A2D40)
-      ..strokeWidth = 1;
+      ..color = Colors.white.withValues(alpha: 0.08)
+      ..strokeWidth = 0.8;
     for (int i = 1; i < 5; i++) {
       final dx = size.width * (i / 5);
       final dy = size.height * (i / 5);
@@ -1825,14 +1839,24 @@ class _BotwMapPainter extends CustomPainter {
     }
 
     final spotPaint = Paint()..color = const Color(0xFF4ECDC4);
+    final spotBorder = Paint()
+      ..color = Colors.black.withValues(alpha: 0.75)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
     for (final s in spots) {
-      final sx = ((s.$2 + 5000.0) / 10000.0).clamp(0.0, 1.0) * size.width;
-      final sz = ((s.$4 + 4000.0) / 8000.0).clamp(0.0, 1.0) * size.height;
+      final sx = ((s.$2 + 6000.0) / 12000.0).clamp(0.0, 1.0) * size.width;
+      final sz = ((s.$4 + 5000.0) / 10000.0).clamp(0.0, 1.0) * size.height;
       canvas.drawCircle(Offset(sx, sz), 3.5, spotPaint);
+      canvas.drawCircle(Offset(sx, sz), 3.5, spotBorder);
       final tp = TextPainter(
         text: TextSpan(
           text: s.$1,
-          style: const TextStyle(color: Color(0xFFB0C8DC), fontSize: 9),
+          style: const TextStyle(
+            color: Color(0xFFE8F4FA),
+            fontSize: 9,
+            fontWeight: FontWeight.w600,
+            shadows: [Shadow(color: Colors.black, blurRadius: 3)],
+          ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
