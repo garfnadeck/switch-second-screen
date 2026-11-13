@@ -534,6 +534,11 @@ class _HudHomeState extends State<HudHome> {
 
   Widget _buildBotwStatusTab(SysBotbaseClient c, HudThemeConfig th) {
     const beasts = ['Vah Ruta', 'Vah Rudania', 'Vah Medoh', 'Vah Naboris'];
+    final maxHearts = (c.botwHeartsMax / 4).ceil().clamp(1, 30);
+    final fullHearts = (c.botwHeartsCur ~/ 4).clamp(0, maxHearts);
+    final hasPartial = (c.botwHeartsCur % 4) > 0;
+    final staminaWheel = (c.botwStaminaPct / 100.0).clamp(0.0, 3.0);
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -542,7 +547,7 @@ class _HudHomeState extends State<HudHome> {
             children: [
               Expanded(
                 child: Text(
-                  'Hyrule HUD (Breath of the Wild)',
+                  'Hyrule HUD (BotW)',
                   style: TextStyle(color: th.titleColor, fontWeight: FontWeight.w700, fontSize: 13),
                 ),
               ),
@@ -554,24 +559,104 @@ class _HudHomeState extends State<HudHome> {
               ),
             ],
           ),
-          if (c.titleId.isNotEmpty || c.buildId.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Title: ${c.titleId} | Build: ${c.buildId} | Perfil: ${c.activeBotwProfile?.versionLabel ?? "sem offsets mapeados para esta build"}',
-              style: const TextStyle(fontSize: 10, color: Color(0xFF00F5D4)),
+          const SizedBox(height: 6),
+          // Visual Hearts + Stamina + Rupees bar
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: th.cardBg,
+              borderRadius: BorderRadius.circular(th.cardRadius),
+              border: Border.all(color: th.cardBorder),
             ),
-          ],
+            child: Row(
+              children: [
+                // Hearts visual
+                Expanded(
+                  flex: 3,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Coracoes (${(c.botwHeartsCur / 4).toStringAsFixed(1)}/$maxHearts)',
+                        style: const TextStyle(fontSize: 11, color: Color(0xFFFF6E88), fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 2,
+                        runSpacing: 2,
+                        children: List.generate(maxHearts, (i) {
+                          if (i < fullHearts) {
+                            return const Icon(Icons.favorite, size: 16, color: Color(0xFFFF1744));
+                          } else if (i == fullHearts && hasPartial) {
+                            return const Icon(Icons.favorite, size: 16, color: Color(0x99FF5252));
+                          }
+                          return const Icon(Icons.favorite_border, size: 16, color: Color(0xFF4A2230));
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Stamina Ring
+                Column(
+                  children: [
+                    SizedBox(
+                      width: 38,
+                      height: 38,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            value: (staminaWheel / 3.0).clamp(0.05, 1.0),
+                            strokeWidth: 5,
+                            backgroundColor: const Color(0xFF10241A),
+                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00E676)),
+                          ),
+                          Text(
+                            '${c.botwStaminaPct}%',
+                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF00E676)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text('Stamina', style: TextStyle(fontSize: 9, color: Color(0xFF88AA99))),
+                  ],
+                ),
+                const SizedBox(width: 10),
+                // Rupees badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF101324),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF00E676).withValues(alpha: 0.4)),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.diamond_rounded, size: 18, color: Color(0xFF00E676)),
+                      Text(
+                        '${c.botwRupees}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white),
+                      ),
+                      const Text('Rupees', style: TextStyle(fontSize: 9, color: Color(0xFF8888AA))),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 6),
           Row(
             children: [
-              const Text('Versao BotW:', style: TextStyle(fontSize: 11, color: Color(0xFF99A2C8))),
-              const SizedBox(width: 8),
+              const Text('Versao:', style: TextStyle(fontSize: 11, color: Color(0xFF99A2C8))),
+              const SizedBox(width: 6),
               ...['auto', '1.0.0', '1.6.0'].map((v) {
                 final sel = c.botwSelectedVersion == v;
                 return Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
-                    label: Text(v == 'auto' ? 'Auto (BuildID)' : v, style: const TextStyle(fontSize: 11)),
+                    label: Text(v == 'auto' ? 'Auto (BuildID)' : v, style: const TextStyle(fontSize: 10)),
                     selected: sel,
                     selectedColor: const Color(0xFF0F3460),
                     backgroundColor: const Color(0xFF101324),

@@ -113,7 +113,11 @@ class SysBotbaseClient extends ChangeNotifier {
 
   List<FavWarp> favWarps = List.generate(3, (_) => const FavWarp());
 
-  // Zelda BotW progress
+  // Zelda BotW progress & HUD stats
+  int botwHeartsCur = 12; // em quartos de coracao (12 = 3 coracoes)
+  int botwHeartsMax = 12;
+  int botwStaminaPct = 100; // 100 = 1 roda, 300 = 3 rodas
+  int botwRupees = 0;
   int botwShrines = 0;
   int botwKoroks = 0;
   int botwBeasts = 0; // bitmask 0..3: Ruta, Rudania, Medoh, Naboris

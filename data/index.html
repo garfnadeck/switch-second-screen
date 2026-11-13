@@ -202,6 +202,7 @@
       <select id='gamesel' onchange='pickGame(this.value)'>
         <option value='pkmn_za'>Pokemon Legends ZA</option>
         <option value='pkmn_fr'>Pokemon FireRed</option>
+        <option value='zelda_botw'>Zelda BOTW</option>
       </select>
     </div>
 
@@ -231,6 +232,31 @@
         <div class='cap' style='top:106px'>INSIGNIAS DE KANTO</div>
         <div id='frbadges'></div>
         <div id='frach'></div>
+      </div>
+      <div id='botwdash' style='display:none;padding:10px;color:#E6EEF8'>
+        <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:10px'>
+          <span style='font-size:13px;font-weight:700;color:#4ECDC4'>HYRULE HUD — BOTW</span>
+          <span id='botw-rupees' style='font-size:13px;font-weight:700;color:#FFD166'>💎 0 Rupees</span>
+        </div>
+        <div style='background:#16213E;border:1px solid #2D3E66;border-radius:8px;padding:10px;margin-bottom:8px'>
+          <div style='display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px'>
+            <span style='color:#FF4D6D;font-weight:700'>♥ CORACOES</span>
+            <span id='botw-hearts-txt'>12 / 12</span>
+          </div>
+          <div id='botw-hearts-icons' style='display:flex;flex-wrap:wrap;gap:3px;font-size:14px;color:#FF4D6D;margin-bottom:6px'></div>
+          <div style='height:8px;background:#2A1219;border-radius:4px;overflow:hidden'>
+            <div id='botw-hearts-bar' style='height:100%;width:100%;background:#FF4D6D'></div>
+          </div>
+        </div>
+        <div style='background:#16213E;border:1px solid #2D3E66;border-radius:8px;padding:10px'>
+          <div style='display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px'>
+            <span style='color:#2EE6A6;font-weight:700'>⚡ STAMINA</span>
+            <span id='botw-stam-txt'>100%</span>
+          </div>
+          <div style='height:10px;background:#0F2E22;border-radius:5px;overflow:hidden'>
+            <div id='botw-stam-bar' style='height:100%;width:100%;background:#2EE6A6'></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -433,12 +459,25 @@
   window.addEventListener('resize', fit);
   async function post(p, d) { return (await fetch(p, { method: 'POST', body: new URLSearchParams(d) })).json(); }
 
+  function renderBotwHud(curH = 12, maxH = 12, stam = 100, rupees = 0) {
+    $('botw-rupees').textContent = `💎 ${rupees} Rupees`;
+    $('botw-hearts-txt').textContent = `${curH} / ${maxH}`;
+    $('botw-hearts-bar').style.width = `${maxH > 0 ? Math.min(100, Math.round(curH * 100 / maxH)) : 0}%`;
+    $('botw-hearts-icons').innerHTML = Array.from({ length: Math.min(maxH, 30) }, (_, i) =>
+      `<span style='color:${i < curH ? '#FF4D6D' : '#3A2330'}'>♥</span>`).join('');
+    $('botw-stam-txt').textContent = `${stam}%`;
+    $('botw-stam-bar').style.width = `${Math.min(100, Math.max(0, stam))}%`;
+  }
+
   async function setGame(g, sync) {
-    if (g !== 'pkmn_za' && g !== 'pkmn_fr') return;
-    game = g; const fr = g === 'pkmn_fr';
+    if (g !== 'pkmn_za' && g !== 'pkmn_fr' && g !== 'zelda_botw') return;
+    game = g; const fr = g === 'pkmn_fr'; const botw = g === 'zelda_botw';
     SLOTS = fr ? FR_SLOTS : ZA_SLOTS; CATS = fr ? FR_CATS : ZA_CATS;
     document.body.classList.toggle('fr', fr); $('gamesel').value = g;
-    $('zdash').style.display = fr ? 'none' : 'block'; $('frdash').style.display = fr ? 'block' : 'none';
+    $('zdash').style.display = (!fr && !botw) ? 'block' : 'none';
+    $('frdash').style.display = fr ? 'block' : 'none';
+    $('botwdash').style.display = botw ? 'block' : 'none';
+    if (botw) renderBotwHud();
     $('t-mapa').style.display = fr ? 'none' : 'flex';
     curCat = -1; buildGrid();
     if (sync) try { apply(await (await fetch('/api/profile?game=' + g, { cache: 'no-store' })).json()); } catch (e) {}
