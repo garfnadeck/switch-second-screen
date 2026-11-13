@@ -54,7 +54,7 @@ inline void initAudio() {
     es8311Write(0x13, 0x10); // HP/Speaker output enable
     es8311Write(0x14, 0x1A); // PGA gain
     es8311Write(0x31, 0x00); // Unmute DAC
-    es8311Write(0x32, 0xBF); // Volume (~80%)
+    es8311Write(0x32, 0x96); // Volume moderado
     es8311Write(0x37, 0x08);
 
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
@@ -80,7 +80,8 @@ inline void initAudio() {
         return;
     }
 
-    digitalWrite(ES3C35P_AUDIO_EN, LOW); // ativo em nivel baixo
+    // Mantem amplificador desligado ate tocar (evita chiado/zumbido em repouso)
+    digitalWrite(ES3C35P_AUDIO_EN, HIGH);
     s_audio_ready = true;
 }
 
@@ -92,6 +93,9 @@ inline void audioTask(void * arg) {
     int16_t buf[256]; // 128 frames estereo (8 ms @ 16 kHz)
     size_t written = 0;
 
+    digitalWrite(ES3C35P_AUDIO_EN, LOW); // Liga amplificador apenas durante o som
+    vTaskDelay(pdMS_TO_TICKS(10));
+
     for (uint8_t n = 0; n < notes; n++) {
         uint16_t f = (mode == 1) ? freqs_shiny[n] : 880;
         const int frames = 16000 / 8; // ~125 ms por nota
@@ -101,7 +105,7 @@ inline void audioTask(void * arg) {
         while (sent < frames) {
             int chunk = (frames - sent > 128) ? 128 : (frames - sent);
             for (int i = 0; i < chunk; i++) {
-                int16_t s = (int16_t)(sinf(phase) * 12000.0f);
+                int16_t s = (int16_t)(sinf(phase) * 2800.0f);
                 buf[i * 2]     = s;
                 buf[i * 2 + 1] = s;
                 phase += step;
@@ -111,7 +115,10 @@ inline void audioTask(void * arg) {
         }
     }
     memset(buf, 0, sizeof(buf));
-    i2s_channel_write(s_tx_chan, buf, sizeof(buf), &written, pdMS_TO_TICKS(50));
+    for (int z = 0; z < 12; z++) {
+        i2s_channel_write(s_tx_chan, buf, sizeof(buf), &written, pdMS_TO_TICKS(50));
+    }
+    digitalWrite(ES3C35P_AUDIO_EN, HIGH); // Desliga amplificador ao terminar
     s_playing = false;
     vTaskDelete(nullptr);
 }
