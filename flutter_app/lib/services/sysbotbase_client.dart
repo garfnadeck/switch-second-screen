@@ -87,6 +87,13 @@ class SysBotbaseClient extends ChangeNotifier {
 
   List<FavWarp> favWarps = List.generate(3, (_) => const FavWarp());
 
+  // Zelda BotW progress
+  int botwShrines = 0;
+  int botwKoroks = 0;
+  int botwBeasts = 0; // bitmask 0..3: Ruta, Rudania, Medoh, Naboris
+  bool botwMasterSword = false;
+  bool botwHylianShield = false;
+
   // TCP internals
   Socket? _socket;
   final StringBuffer _rxBuf = StringBuffer();
@@ -108,6 +115,11 @@ class SysBotbaseClient extends ChangeNotifier {
     soundEnabled = prefs.getBool('soundEnabled') ?? true;
     autoStopShiny = prefs.getBool('autoStopShiny') ?? true;
     autoHeal = prefs.getBool('autoHeal') ?? false;
+    botwShrines = prefs.getInt('botwShrines') ?? 0;
+    botwKoroks = prefs.getInt('botwKoroks') ?? 0;
+    botwBeasts = prefs.getInt('botwBeasts') ?? 0;
+    botwMasterSword = prefs.getBool('botwMasterSword') ?? false;
+    botwHylianShield = prefs.getBool('botwHylianShield') ?? false;
     final fwRaw = prefs.getString('favWarps');
     if (fwRaw != null) {
       try {
@@ -132,6 +144,11 @@ class SysBotbaseClient extends ChangeNotifier {
     await prefs.setBool('soundEnabled', soundEnabled);
     await prefs.setBool('autoStopShiny', autoStopShiny);
     await prefs.setBool('autoHeal', autoHeal);
+    await prefs.setInt('botwShrines', botwShrines);
+    await prefs.setInt('botwKoroks', botwKoroks);
+    await prefs.setInt('botwBeasts', botwBeasts);
+    await prefs.setBool('botwMasterSword', botwMasterSword);
+    await prefs.setBool('botwHylianShield', botwHylianShield);
     await prefs.setString(
       'favWarps',
       jsonEncode(favWarps.map((e) => e.toJson()).toList()),
@@ -161,6 +178,36 @@ class SysBotbaseClient extends ChangeNotifier {
 
   void toggleAutoHeal() {
     autoHeal = !autoHeal;
+    _savePrefs();
+    notifyListeners();
+  }
+
+  void setBotwShrines(int delta) {
+    botwShrines = (botwShrines + delta).clamp(0, 120);
+    _savePrefs();
+    notifyListeners();
+  }
+
+  void setBotwKoroks(int delta) {
+    botwKoroks = (botwKoroks + delta).clamp(0, 900);
+    _savePrefs();
+    notifyListeners();
+  }
+
+  void toggleBotwBeast(int bit) {
+    botwBeasts ^= (1 << bit);
+    _savePrefs();
+    notifyListeners();
+  }
+
+  void toggleBotwMasterSword() {
+    botwMasterSword = !botwMasterSword;
+    _savePrefs();
+    notifyListeners();
+  }
+
+  void toggleBotwHylianShield() {
+    botwHylianShield = !botwHylianShield;
     _savePrefs();
     notifyListeners();
   }
@@ -718,6 +765,33 @@ class SysBotbaseClient extends ChangeNotifier {
         lastLog = 'Macro: Soft Reset';
         notifyListeners();
         return;
+      case 40: // BotW: Runa / Amiibo (L)
+        _sendFireAndForget('click L');
+        lastLog = 'BotW: Runa / Amiibo (L)';
+        notifyListeners();
+        return;
+      case 41: // BotW: Inventario (+)
+        _sendFireAndForget('click PLUS');
+        lastLog = 'BotW: Inventario (+)';
+        notifyListeners();
+        return;
+      case 42: // BotW: Mapa Sheikah (-)
+        _sendFireAndForget('click MINUS');
+        lastLog = 'BotW: Mapa (-)';
+        notifyListeners();
+        return;
+      case 43: // BotW: Scope (R3)
+        _sendFireAndForget('click RSTICK');
+        lastLog = 'BotW: Scope (R3)';
+        notifyListeners();
+        return;
+      case 44: // BotW: Quick Save (+ -> R -> A)
+        _sendFireAndForget('click PLUS');
+        Future.delayed(const Duration(milliseconds: 280), () => _sendFireAndForget('click R'));
+        Future.delayed(const Duration(milliseconds: 450), () => _sendFireAndForget('click A'));
+        lastLog = 'BotW: Quick Save';
+        notifyListeners();
+        return;
     }
 
     // Continuous toggle macros
@@ -762,6 +836,23 @@ class SysBotbaseClient extends ChangeNotifier {
         dir = -dir;
         _sendFireAndForget('setStick LEFT ${dir * 32767} 0');
       });
+    } else if (slot == 45) {
+      // BotW: Whistle Sprint (segura DDOWN + spam B + anda pra frente)
+      _sendFireAndForget('press DDOWN');
+      _sendFireAndForget('setStick LEFT 0 32767');
+      _macroTimer = Timer.periodic(const Duration(milliseconds: 110), (_) {
+        _sendFireAndForget('click B');
+      });
+    } else if (slot == 46) {
+      // BotW: Spam A (Loot / Cozinhar)
+      _macroTimer = Timer.periodic(const Duration(milliseconds: 120), (_) {
+        _sendFireAndForget('click A');
+      });
+    } else if (slot == 47) {
+      // BotW: Amiibo Loop (L a cada 1.5s)
+      _macroTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+        _sendFireAndForget('click L');
+      });
     }
   }
 
@@ -789,6 +880,7 @@ class SysBotbaseClient extends ChangeNotifier {
     if (activeMacroSlot >= 0) {
       _sendFireAndForget('setStick LEFT 0 0');
       _sendFireAndForget('release B');
+      _sendFireAndForget('release DDOWN');
     }
     activeMacroSlot = -1;
     notifyListeners();

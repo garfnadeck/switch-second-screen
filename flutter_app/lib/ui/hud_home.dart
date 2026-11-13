@@ -189,6 +189,7 @@ class _HudHomeState extends State<HudHome> {
             style: const TextStyle(color: Colors.white, fontSize: 12),
             items: const [
               DropdownMenuItem(value: GameProfile.pokemonZa, child: Text('Pokemon Legends ZA')),
+              DropdownMenuItem(value: GameProfile.zeldaBotw, child: Text('Zelda: Breath of the Wild')),
               DropdownMenuItem(value: GameProfile.pokemonFr, child: Text('Pokemon FireRed')),
             ],
             onChanged: (v) {
@@ -285,6 +286,9 @@ class _HudHomeState extends State<HudHome> {
   }
 
   Widget _buildStatusTab(SysBotbaseClient c, HudThemeConfig th) {
+    if (c.profile == GameProfile.zeldaBotw) {
+      return _buildBotwStatusTab(c, th);
+    }
     final shinyHit = c.testShinyActive || c.shinyStashFound || c.party.any((p) => p.active && p.isShiny);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -528,7 +532,170 @@ class _HudHomeState extends State<HudHome> {
     );
   }
 
+  Widget _buildBotwStatusTab(SysBotbaseClient c, HudThemeConfig th) {
+    const beasts = ['Vah Ruta', 'Vah Rudania', 'Vah Medoh', 'Vah Naboris'];
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Hyrule HUD (Breath of the Wild)',
+                  style: TextStyle(color: th.titleColor, fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+              ),
+              Text(
+                c.titleId.isNotEmpty ? 'ID: ${c.titleId}' : c.linkStatus,
+                style: const TextStyle(fontSize: 10, color: Color(0xFF8888AA)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: th.cardBg,
+              borderRadius: BorderRadius.circular(th.cardRadius),
+              border: Border.all(color: th.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Progresso em Hyrule',
+                    style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 12)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Text('Shrines: ${c.botwShrines}/120',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          const Spacer(),
+                          _miniBtn('-1', const Color(0xFF23294E), () => c.setBotwShrines(-1)),
+                          const SizedBox(width: 4),
+                          _miniBtn('+1', const Color(0xFF0F3460), () => c.setBotwShrines(1)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Text('Koroks: ${c.botwKoroks}/900',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          const Spacer(),
+                          _miniBtn('-1', const Color(0xFF23294E), () => c.setBotwKoroks(-1)),
+                          const SizedBox(width: 4),
+                          _miniBtn('+1', const Color(0xFF0F3460), () => c.setBotwKoroks(1)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    ...List.generate(4, (i) {
+                      final on = (c.botwBeasts & (1 << i)) != 0;
+                      return FilterChip(
+                        label: Text(beasts[i], style: const TextStyle(fontSize: 11)),
+                        selected: on,
+                        selectedColor: const Color(0xFF1B5E20),
+                        backgroundColor: const Color(0xFF101324),
+                        onSelected: (_) => c.toggleBotwBeast(i),
+                      );
+                    }),
+                    FilterChip(
+                      label: const Text('Master Sword', style: TextStyle(fontSize: 11)),
+                      selected: c.botwMasterSword,
+                      selectedColor: const Color(0xFF0F3460),
+                      backgroundColor: const Color(0xFF101324),
+                      onSelected: (_) => c.toggleBotwMasterSword(),
+                    ),
+                    FilterChip(
+                      label: const Text('Hylian Shield', style: TextStyle(fontSize: 11)),
+                      selected: c.botwHylianShield,
+                      selectedColor: const Color(0xFF0F3460),
+                      backgroundColor: const Color(0xFF101324),
+                      onSelected: (_) => c.toggleBotwHylianShield(),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: th.cardBg,
+              borderRadius: BorderRadius.circular(th.cardRadius),
+              border: Border.all(color: th.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Acoes Rapidas (Wi-Fi sys-botbase)',
+                    style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 12)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: _miniBtn('Runa/Amiibo (L)', const Color(0xFF4527A0), () => c.triggerMacro(40))),
+                    const SizedBox(width: 4),
+                    Expanded(child: _miniBtn('Quick Save', const Color(0xFF1B5E20), () => c.triggerMacro(44))),
+                    const SizedBox(width: 4),
+                    Expanded(child: _miniBtn('Mapa (-)', const Color(0xFF006064), () => c.triggerMacro(42))),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMapTab(SysBotbaseClient c, HudThemeConfig th) {
+    if (c.profile == GameProfile.zeldaBotw) {
+      const regions = [
+        ('Great Plateau', 'Inicio • Shrine of Resurrection / 4 Shrines'),
+        ('Central Hyrule', 'Hyrule Castle • Hylian Shield / Guardians'),
+        ('Kakariko & Hateno', 'Impa, Great Fairy, Casa do Link & Tech Lab'),
+        ('Zora\'s Domain (Leste)', 'Vah Ruta • Mipha\'s Grace'),
+        ('Eldin / Goron City (NE)', 'Vah Rudania • Daruk\'s Protection'),
+        ('Hebra / Rito Village (NO)', 'Vah Medoh • Revali\'s Gale'),
+        ('Gerudo Desert (SO)', 'Vah Naboris • Urbosa\'s Fury'),
+        ('Korok Forest (Norte)', 'Lost Woods • Master Sword (13 Coracoes)'),
+      ];
+      return ListView.separated(
+        itemCount: regions.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 6),
+        itemBuilder: (_, i) {
+          final r = regions[i];
+          return Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: th.cardBg,
+              borderRadius: BorderRadius.circular(th.cardRadius),
+              border: Border.all(color: th.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(r.$1, style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 13)),
+                const SizedBox(height: 2),
+                Text(r.$2, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+              ],
+            ),
+          );
+        },
+      );
+    }
     final distC20 = sqrt(pow(c.posX - (-830.0), 2) + pow(c.posY - (-500.0), 2)).round();
     final layer = _mapLayers[_mapLayerIdx];
     final pn = LumioseMapPainter.worldToNorm(c.posX, c.posY);
@@ -819,6 +986,66 @@ class _HudHomeState extends State<HudHome> {
   }
 
   Widget _buildMacrosTab(SysBotbaseClient c, HudThemeConfig th) {
+    if (c.profile == GameProfile.zeldaBotw) {
+      const botwMacros = [
+        (40, 'Runa / Amiibo (L)', Icons.nfc_rounded),
+        (47, 'Amiibo Loop (1.5s)', Icons.loop),
+        (45, 'Whistle Sprint', Icons.directions_run),
+        (46, 'Spam A (Loot/Cook)', Icons.touch_app),
+        (44, 'Quick Save', Icons.save_rounded),
+        (41, 'Inventario (+)', Icons.backpack_rounded),
+        (42, 'Mapa (-)', Icons.map_rounded),
+        (43, 'Scope (R3)', Icons.center_focus_strong),
+      ];
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('Macros Zelda: Breath of the Wild',
+                    style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 13)),
+              ),
+              _miniBtn('■ PARAR', const Color(0xFF7B112C), c.stopAllMacros),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+                childAspectRatio: 2.3,
+              ),
+              itemCount: botwMacros.length,
+              itemBuilder: (_, i) {
+                final m = botwMacros[i];
+                final on = c.activeMacroSlot == m.$1;
+                return InkWell(
+                  onTap: () => c.triggerMacro(m.$1),
+                  borderRadius: BorderRadius.circular(th.cardRadius),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: on ? const Color(0xFF133E35) : th.cardBg,
+                      borderRadius: BorderRadius.circular(th.cardRadius),
+                      border: Border.all(color: on ? const Color(0xFF00E676) : th.cardBorder, width: 1.5),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(m.$3, color: th.accent, size: 20),
+                        const SizedBox(height: 3),
+                        Text(m.$2, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    }
     if (_macroCat < 0) {
       return GridView.count(
         crossAxisCount: 2,

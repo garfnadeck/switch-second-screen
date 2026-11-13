@@ -49,6 +49,27 @@ class EmuiiboFtpService {
       image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000200-00420902.png',
     ),
     AmiiboCatalogItem(
+      name: 'Guardian (BotW)',
+      gameSeries: 'The Legend of Zelda',
+      head: '01030000',
+      tail: '03500902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01030000-03500902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Link Archer (BotW)',
+      gameSeries: 'The Legend of Zelda',
+      head: '01000000',
+      tail: '034e0902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000000-034e0902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Zelda (BotW)',
+      gameSeries: 'The Legend of Zelda',
+      head: '01010000',
+      tail: '034f0902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01010000-034f0902.png',
+    ),
+    AmiiboCatalogItem(
       name: 'Link (Majora Mask)',
       gameSeries: 'The Legend of Zelda',
       head: '01000000',

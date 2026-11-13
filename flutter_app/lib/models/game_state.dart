@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum GameProfile { pokemonZa, pokemonFr }
+enum GameProfile { pokemonZa, pokemonFr, zeldaBotw }
 
 enum PokeEditAction {
   healHp,
