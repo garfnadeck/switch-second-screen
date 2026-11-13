@@ -61,6 +61,7 @@ private:
     uint8_t  stash_poll_cnt = 0;                         // a cada 12 leituras checa o ShinyStashPointer
     uint32_t sent_ms = 0, last_poll_ms = 0, last_try_ms = 0, last_auto_scan_ms = 0;
     uint8_t  title_poll_cnt = 0;
+    uint8_t  botw_step = 0;
     bool     awaiting_title = false;
     bool     linked = false;
     bool     telemetry_only = false;
@@ -427,10 +428,22 @@ private:
     void requestNext(GameState &state) {
         // Checa o TitleID periodicamente para trocar de jogo automaticamente
         bool za = (state.profile == GameProfile::POKEMON_LEGENDS_ZA);
-        if (!za || (map.party.count == 0 && map.pos.count == 0) || (++title_poll_cnt % 60 == 1)) {
+        bool botw = (state.profile == GameProfile::ZELDA_BOTW);
+        if ((++title_poll_cnt % 60 == 1) || (!za && !botw) || (za && map.party.count == 0 && map.pos.count == 0)) {
             sendRaw("getTitleID\r\n"); awaiting_title = true; awaiting = true; sent_ms = millis(); return;
         }
         awaiting_title = false;
+        if (botw) {
+            botw_step = (botw_step + 1) % 3;
+            if (botw_step == 0) {
+                sendRaw("pointerPeek 8 0x2C9FD70 0x38 0x2AC\r\n");
+            } else if (botw_step == 1) {
+                sendRaw("pointerPeek 4 0x2CA1A78 0x80 0x848\r\n");
+            } else {
+                sendRaw("pointerPeek 4 0x2CC5FE0 0xE40 0x5B08 0x5D90\r\n");
+            }
+            awaiting = true; sent_ms = millis(); return;
+        }
         if ((next_req == 0 || next_req == 1) && map.party.count) {
             sendPartySlotChain(party_idx, next_req == 1);
         } else if (next_req == 3 && map.party.count) {
@@ -456,6 +469,35 @@ private:
             return;
         }
         bool za = (state.profile == GameProfile::POKEMON_LEGENDS_ZA);
+        bool botw = (state.profile == GameProfile::ZELDA_BOTW);
+        if (botw) {
+            static uint8_t bbuf[16];
+            uint16_t bn = hexToBytes(rx, bbuf, sizeof(bbuf));
+            if (botw_step == 0 && bn >= 8) {
+                float curS = 0, maxS = 0;
+                memcpy(&curS, bbuf, 4);
+                memcpy(&maxS, bbuf + 4, 4);
+                if (maxS > 0.0f && curS >= 0.0f && curS <= maxS + 10.0f) {
+                    int pct = (int)((curS / maxS) * 100.0f + 0.5f);
+                    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+                    state.zelda.stamina_pct = (uint8_t)pct;
+                }
+            } else if (botw_step == 1 && bn >= 4) {
+                uint32_t curH = 0;
+                memcpy(&curH, bbuf, 4);
+                if (curH <= 160) {
+                    state.zelda.hearts_current = (uint8_t)curH;
+                    if (state.zelda.hearts_max < state.zelda.hearts_current) state.zelda.hearts_max = state.zelda.hearts_current;
+                }
+            } else if (botw_step == 2 && bn >= 4) {
+                uint32_t rup = 0;
+                memcpy(&rup, bbuf, 4);
+                if (rup <= 999999) state.zelda.rupees = rup;
+            }
+            if (!telemetry_only) state.connected = true;
+            setLink(state, "ok (BotW 1.6.0)");
+            return;
+        }
         if (!za || (map.party.count == 0 && map.pos.count == 0)) {
             if (!telemetry_only) state.connected = true;
             setLink(state, "ok (sem offsets)");

@@ -70,7 +70,7 @@ public:
         stamina_bar = lv_bar_create(container);
         lv_obj_set_size(stamina_bar, 448, 16);
         lv_obj_set_pos(stamina_bar, 6, 94);
-        lv_bar_set_range(stamina_bar, 0, 300);
+        lv_bar_set_range(stamina_bar, 0, 100);
         lv_bar_set_value(stamina_bar, 100, LV_ANIM_OFF);
         lv_obj_set_style_bg_color(stamina_bar, lv_color_hex(0x10241A), LV_PART_MAIN);
         lv_obj_set_style_bg_color(stamina_bar, lv_color_hex(0x00E676), LV_PART_INDICATOR);

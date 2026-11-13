@@ -19,10 +19,16 @@ class WildZoneRef {
 
 class BotwMemoryProfile {
   final String versionLabel;
+  final List<int> heartsChain;
+  final List<int> maxHeartsChain;
+  final List<int> staminaChain;
   final List<int> rupeesChain;
   final List<int> posChain;
   const BotwMemoryProfile({
     required this.versionLabel,
+    this.heartsChain = const [],
+    this.maxHeartsChain = const [],
+    this.staminaChain = const [],
     this.rupeesChain = const [],
     this.posChain = const [],
   });
@@ -31,7 +37,13 @@ class BotwMemoryProfile {
 class SysBotbaseClient extends ChangeNotifier {
   static const Map<String, BotwMemoryProfile> botwVersions = {
     '2094F152836683A3': BotwMemoryProfile(versionLabel: 'BotW 1.0.0'),
-    '8E9978D50BDD20B4': BotwMemoryProfile(versionLabel: 'BotW 1.6.0'),
+    '8E9978D50BDD20B4': BotwMemoryProfile(
+      versionLabel: 'BotW 1.6.0',
+      heartsChain: [0x02CA1A78, 0x80, 0x848],
+      maxHeartsChain: [0x02C9FD70, 0x38, 0x2A8],
+      staminaChain: [0x02C9FD70, 0x38, 0x2AC],
+      rupeesChain: [0x02CC5FE0, 0xE40, 0x5B08, 0x5D90],
+    ),
   };
   static const List<int> _partyBase = [0x610A710, 0x18, 0x1B0, 0xF0, 0x50, 0x30, 0x0];
   static const List<int> _posBase = [0x47D71A0, 0x248, 0x0, 0x138, 0x90];
@@ -433,9 +445,15 @@ class SysBotbaseClient extends ChangeNotifier {
             linkStatus = ver.isNotEmpty ? 'ok ($ver)' : 'ok ($titleId)';
             notifyListeners();
           }
+          if (profile == GameProfile.zeldaBotw) {
+            await _pollBotwStats();
+          }
           return;
         }
       } else if (profile != GameProfile.pokemonZa) {
+        if (profile == GameProfile.zeldaBotw && _titlePollCnt % 2 == 0) {
+          await _pollBotwStats();
+        }
         return;
       }
 
@@ -460,6 +478,69 @@ class SysBotbaseClient extends ChangeNotifier {
 
   String _chainArgs(List<int> chain) =>
       chain.map((e) => '0x${e.toRadixString(16).toUpperCase()}').join(' ');
+
+  Future<void> _pollBotwStats() async {
+    final p = activeBotwProfile;
+    if (p == null) return;
+    bool changed = false;
+
+    if (p.staminaChain.isNotEmpty) {
+      final hex = await _sendAndWait('pointerPeek 8 ${_chainArgs(p.staminaChain)}');
+      final raw = hex != null ? Pa9Crypto.hexToBytes(hex) : null;
+      if (raw != null && raw.length >= 8) {
+        final bd = ByteData.sublistView(raw);
+        final cur = bd.getFloat32(0, Endian.little);
+        final maxS = bd.getFloat32(4, Endian.little);
+        if (maxS > 0 && cur >= 0 && cur <= maxS + 10) {
+          final pct = ((cur / maxS) * 100.0).round().clamp(0, 100);
+          if (pct != botwStaminaPct) {
+            botwStaminaPct = pct;
+            changed = true;
+          }
+        }
+      }
+    }
+
+    if (p.heartsChain.isNotEmpty && _titlePollCnt % 4 == 0) {
+      final hex = await _sendAndWait('pointerPeek 4 ${_chainArgs(p.heartsChain)}');
+      final raw = hex != null ? Pa9Crypto.hexToBytes(hex) : null;
+      if (raw != null && raw.length >= 4) {
+        final curH = ByteData.sublistView(raw).getUint32(0, Endian.little);
+        if (curH <= 160 && curH != botwHeartsCur) {
+          botwHeartsCur = curH;
+          if (botwHeartsMax < curH) botwHeartsMax = curH;
+          changed = true;
+        }
+      }
+    }
+
+    if (p.maxHeartsChain.isNotEmpty && _titlePollCnt % 8 == 0) {
+      final hex = await _sendAndWait('pointerPeek 4 ${_chainArgs(p.maxHeartsChain)}');
+      final raw = hex != null ? Pa9Crypto.hexToBytes(hex) : null;
+      if (raw != null && raw.length >= 4) {
+        final maxHf = ByteData.sublistView(raw).getFloat32(0, Endian.little);
+        final maxH = maxHf.round();
+        if (maxH >= 12 && maxH <= 160 && maxH != botwHeartsMax) {
+          botwHeartsMax = maxH;
+          changed = true;
+        }
+      }
+    }
+
+    if (p.rupeesChain.isNotEmpty && _titlePollCnt % 8 == 4) {
+      final hex = await _sendAndWait('pointerPeek 4 ${_chainArgs(p.rupeesChain)}');
+      final raw = hex != null ? Pa9Crypto.hexToBytes(hex) : null;
+      if (raw != null && raw.length >= 4) {
+        final rup = ByteData.sublistView(raw).getUint32(0, Endian.little);
+        if (rup <= 999999 && rup != botwRupees) {
+          botwRupees = rup;
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) notifyListeners();
+  }
 
   Future<void> _pollPartySlot(int slot) async {
     final c = List<int>.from(_partyBase);
