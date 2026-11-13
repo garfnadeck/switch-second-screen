@@ -174,6 +174,11 @@ struct GameState {
     bool switch_ip_changed = false;        // IP do Switch digitado na tela: o main grava na flash
     bool screen_flip = false;              // true = gira a tela e o toque em 180° (paisagem invertida)
     bool screen_flip_changed = false;      // alterou a rotacao na tela: o main grava no /config.txt
+    uint8_t brightness = 100;              // brilho do backlight (15..100%)
+    bool brightness_changed = false;
+    bool sound_enabled = true;             // alerta sonoro I2S (ES8311)
+    bool auto_stop_shiny = true;           // para macro ativa se detectar Shiny no ShinyStash
+    bool auto_heal = false;                // cura HP/status automaticamente abaixo de 25%
     bool usb_online = false;               // USB HID enumerado (botoes); independe de connected
     int8_t active_macro_slot = -1; // -1 = nenhuma macro em execucao
     char link_status[40] = "desativado";   // estado da leitura de RAM (sys-botbase)

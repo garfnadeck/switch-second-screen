@@ -19,7 +19,17 @@
 #if defined(ARDUINO_ARCH_ESP32)
     #include "../hardware/es3c35p_lvgl.h"
     #include "../hardware/es3c35p_touch.h"
+    #include "../hardware/es3c35p_display.h"
+    #include "../hardware/es3c35p_extra.h"
 #endif
+
+struct WarpPoint {
+    char name[18];
+    float x;
+    float y_alt;
+    float z;
+    bool valid;
+};
 
 class UIManager {
 private:
@@ -92,6 +102,56 @@ private:
     int8_t   diag_conn = -1, diag_active = -2;
     uint32_t diag_exec = 0xFFFFFFFF;
     char     diag_link[40] = {};
+
+    lv_obj_t * warps_panel = nullptr;
+    lv_obj_t * fav_btn_lbls[3] = {nullptr};
+    lv_obj_t * lbl_btn_bright = nullptr;
+    lv_obj_t * lbl_btn_sound = nullptr;
+    lv_obj_t * lbl_btn_autostop = nullptr;
+    lv_obj_t * lbl_btn_autoheal = nullptr;
+    lv_obj_t * btn_sound_obj = nullptr;
+    lv_obj_t * btn_autostop_obj = nullptr;
+    lv_obj_t * btn_autoheal_obj = nullptr;
+    WarpPoint fav_warps[3] = {};
+    bool warps_dirty = false;
+
+    void refreshConfigButtons() {
+        if (lbl_btn_bright) {
+            lv_label_set_text_fmt(lbl_btn_bright, "Brilho: %u%%", (unsigned)state.brightness);
+        }
+        if (lbl_btn_sound) {
+            lv_label_set_text(lbl_btn_sound, state.sound_enabled ? "Som: ON" : "Som: OFF");
+        }
+        if (btn_sound_obj) {
+            lv_obj_set_style_bg_color(btn_sound_obj,
+                lv_color_hex(state.sound_enabled ? 0x1B5E20 : 0x37474F), LV_PART_MAIN);
+        }
+        if (lbl_btn_autostop) {
+            lv_label_set_text(lbl_btn_autostop, state.auto_stop_shiny ? "AutoStop: ON" : "AutoStop: OFF");
+        }
+        if (btn_autostop_obj) {
+            lv_obj_set_style_bg_color(btn_autostop_obj,
+                lv_color_hex(state.auto_stop_shiny ? 0x1B5E20 : 0x37474F), LV_PART_MAIN);
+        }
+        if (lbl_btn_autoheal) {
+            lv_label_set_text(lbl_btn_autoheal, state.auto_heal ? "AutoCura: ON" : "AutoCura: OFF");
+        }
+        if (btn_autoheal_obj) {
+            lv_obj_set_style_bg_color(btn_autoheal_obj,
+                lv_color_hex(state.auto_heal ? 0x00695C : 0x37474F), LV_PART_MAIN);
+        }
+    }
+
+    void refreshWarpFavLabels() {
+        for (int i = 0; i < 3; i++) {
+            if (!fav_btn_lbls[i]) continue;
+            if (fav_warps[i].valid) {
+                lv_label_set_text_fmt(fav_btn_lbls[i], "%s", fav_warps[i].name);
+            } else {
+                lv_label_set_text_fmt(fav_btn_lbls[i], "Fav %d (Vazio)", i + 1);
+            }
+        }
+    }
 
     IGameModule* getActiveModule() {
         uint8_t idx = static_cast<uint8_t>(state.profile);
@@ -465,6 +525,24 @@ public:
                               getActiveModule()->getMacroLabel(slot));
     }
 
+    void setFavWarp(uint8_t idx, const char * name, float x, float y_alt, float z) {
+        if (idx >= 3) return;
+        snprintf(fav_warps[idx].name, sizeof(fav_warps[idx].name), "%s", name);
+        fav_warps[idx].x = x;
+        fav_warps[idx].y_alt = y_alt;
+        fav_warps[idx].z = z;
+        fav_warps[idx].valid = true;
+        refreshWarpFavLabels();
+    }
+    const WarpPoint & getFavWarp(uint8_t idx) const {
+        return fav_warps[idx < 3 ? idx : 0];
+    }
+    bool consumeWarpsDirty() {
+        bool d = warps_dirty;
+        warps_dirty = false;
+        return d;
+    }
+
     void buildUI() {
         router.init(state);   // idempotente: nao reinicializa se o main ja chamou
 
@@ -726,42 +804,43 @@ public:
         lv_label_set_text(lbl_btn_layer, "Mapa: Lumiose");
         lv_obj_center(lbl_btn_layer);
 
-        // Linha 2 de botoes: [Zoom +] [Zoom -] [Limpar]
-        lv_obj_t * btn_zin = lv_btn_create(map_panel);
-        lv_obj_set_size(btn_zin, 58, 42);
-        lv_obj_set_pos(btn_zin, 0, 156);
-        lv_obj_set_style_bg_color(btn_zin, lv_color_hex(0x23294E), LV_PART_MAIN);
-        lv_obj_set_style_radius(btn_zin, 6, LV_PART_MAIN);
-        lv_obj_add_event_cb(btn_zin, [](lv_event_t * e) {
+        // Linha 2 de botoes: [Zoom] [Pontos] [Warp: OFF]
+        lv_obj_t * btn_zoom_cycle = lv_btn_create(map_panel);
+        lv_obj_set_size(btn_zoom_cycle, 62, 42);
+        lv_obj_set_pos(btn_zoom_cycle, 0, 156);
+        lv_obj_set_style_bg_color(btn_zoom_cycle, lv_color_hex(0x23294E), LV_PART_MAIN);
+        lv_obj_set_style_radius(btn_zoom_cycle, 6, LV_PART_MAIN);
+        lv_obj_add_event_cb(btn_zoom_cycle, [](lv_event_t * e) {
             auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
-            if (mgr->map_zoom_level < 2) mgr->map_zoom_level++;
+            mgr->map_zoom_level = (uint8_t)((mgr->map_zoom_level + 1) % 3);
             mgr->refreshMapSource();
             mgr->updateMapRealtime();
         }, LV_EVENT_CLICKED, this);
-        lv_obj_t * lbl_zin = lv_label_create(btn_zin);
-        lv_obj_set_style_text_font(lbl_zin, &lv_font_montserrat_12, LV_PART_MAIN);
-        lv_label_set_text(lbl_zin, "Zoom +");
-        lv_obj_center(lbl_zin);
+        lv_obj_t * lbl_zoom = lv_label_create(btn_zoom_cycle);
+        lv_obj_set_style_text_font(lbl_zoom, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_label_set_text(lbl_zoom, "Zoom");
+        lv_obj_center(lbl_zoom);
 
-        lv_obj_t * btn_zout = lv_btn_create(map_panel);
-        lv_obj_set_size(btn_zout, 58, 42);
-        lv_obj_set_pos(btn_zout, 63, 156);
-        lv_obj_set_style_bg_color(btn_zout, lv_color_hex(0x23294E), LV_PART_MAIN);
-        lv_obj_set_style_radius(btn_zout, 6, LV_PART_MAIN);
-        lv_obj_add_event_cb(btn_zout, [](lv_event_t * e) {
+        lv_obj_t * btn_pontos = lv_btn_create(map_panel);
+        lv_obj_set_size(btn_pontos, 62, 42);
+        lv_obj_set_pos(btn_pontos, 66, 156);
+        lv_obj_set_style_bg_color(btn_pontos, lv_color_hex(0x006064), LV_PART_MAIN);
+        lv_obj_set_style_radius(btn_pontos, 6, LV_PART_MAIN);
+        lv_obj_add_event_cb(btn_pontos, [](lv_event_t * e) {
             auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
-            if (mgr->map_zoom_level > 0) mgr->map_zoom_level--;
-            mgr->refreshMapSource();
-            mgr->updateMapRealtime();
+            if (mgr->warps_panel) {
+                mgr->refreshWarpFavLabels();
+                lv_obj_clear_flag(mgr->warps_panel, LV_OBJ_FLAG_HIDDEN);
+            }
         }, LV_EVENT_CLICKED, this);
-        lv_obj_t * lbl_zout = lv_label_create(btn_zout);
-        lv_obj_set_style_text_font(lbl_zout, &lv_font_montserrat_12, LV_PART_MAIN);
-        lv_label_set_text(lbl_zout, "Zoom -");
-        lv_obj_center(lbl_zout);
+        lv_obj_t * lbl_pontos = lv_label_create(btn_pontos);
+        lv_obj_set_style_text_font(lbl_pontos, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_label_set_text(lbl_pontos, "Pontos");
+        lv_obj_center(lbl_pontos);
 
         btn_warp_toggle = lv_btn_create(map_panel);
-        lv_obj_set_size(btn_warp_toggle, 78, 42);
-        lv_obj_set_pos(btn_warp_toggle, 126, 156);
+        lv_obj_set_size(btn_warp_toggle, 72, 42);
+        lv_obj_set_pos(btn_warp_toggle, 132, 156);
         lv_obj_set_style_bg_color(btn_warp_toggle, lv_color_hex(0x1E3A5F), LV_PART_MAIN);
         lv_obj_set_style_radius(btn_warp_toggle, 6, LV_PART_MAIN);
         lv_obj_add_event_cb(btn_warp_toggle, [](lv_event_t * e) {
@@ -784,6 +863,116 @@ public:
         lv_obj_set_style_text_font(lbl_btn_center, &lv_font_montserrat_12, LV_PART_MAIN);
         lv_label_set_text(lbl_btn_center, "Warp: OFF");
         lv_obj_center(lbl_btn_center);
+
+        // Modal de Pontos Rapidos & Favoritos (400x250)
+        warps_panel = lv_obj_create(lv_layer_top());
+        lv_obj_set_size(warps_panel, 410, 240);
+        lv_obj_center(warps_panel);
+        lv_obj_set_style_bg_color(warps_panel, lv_color_hex(0x14182D), LV_PART_MAIN);
+        lv_obj_set_style_border_color(warps_panel, lv_color_hex(0x00F5D4), LV_PART_MAIN);
+        lv_obj_set_style_border_width(warps_panel, 2, LV_PART_MAIN);
+        lv_obj_set_style_radius(warps_panel, 10, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(warps_panel, 8, LV_PART_MAIN);
+        lv_obj_clear_flag(warps_panel, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(warps_panel, LV_OBJ_FLAG_HIDDEN);
+
+        lv_obj_t * lbl_wp_hdr = lv_label_create(warps_panel);
+        lv_label_set_text(lbl_wp_hdr, "Teleportes Rapidos & Favoritos");
+        lv_obj_set_style_text_color(lbl_wp_hdr, lv_color_hex(0x00F5D4), LV_PART_MAIN);
+        lv_obj_set_style_text_font(lbl_wp_hdr, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_obj_set_pos(lbl_wp_hdr, 2, 4);
+
+        lv_obj_t * btn_wp_close = lv_btn_create(warps_panel);
+        lv_obj_set_size(btn_wp_close, 36, 26);
+        lv_obj_align(btn_wp_close, LV_ALIGN_TOP_RIGHT, 0, 0);
+        lv_obj_set_style_bg_color(btn_wp_close, lv_color_hex(0x880E4F), LV_PART_MAIN);
+        lv_obj_add_event_cb(btn_wp_close, [](lv_event_t * e) {
+            auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+            lv_obj_add_flag(mgr->warps_panel, LV_OBJ_FLAG_HIDDEN);
+        }, LV_EVENT_CLICKED, this);
+        lv_obj_t * lbl_wpc = lv_label_create(btn_wp_close);
+        lv_label_set_text(lbl_wpc, "X");
+        lv_obj_center(lbl_wpc);
+
+        struct PresetDef { const char * label; float x, y, z; };
+        static constexpr PresetDef PRESETS[5] = {
+            {"Torre Prisma", -830.0f, 24.0f, -500.0f},
+            {"Campo 1",      -718.0f, 24.0f, -910.0f},
+            {"Campo 5",      -480.0f, 24.0f, -660.0f},
+            {"Campo 10",    -1140.0f, 24.0f, -340.0f},
+            {"Campo 15",     -620.0f, 24.0f, -180.0f}
+        };
+        for (int i = 0; i < 5; i++) {
+            lv_obj_t * bp = lv_btn_create(warps_panel);
+            lv_obj_set_size(bp, 122, 38);
+            lv_obj_set_pos(bp, (i % 3) * 130, 34 + (i / 3) * 44);
+            lv_obj_set_style_bg_color(bp, lv_color_hex(0x1E2749), LV_PART_MAIN);
+            lv_obj_set_user_data(bp, (void*)(intptr_t)i);
+            lv_obj_add_event_cb(bp, [](lv_event_t * e) {
+                auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+                int idx = (int)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
+                if (idx >= 0 && idx < 5) {
+                    mgr->router.teleportPlayer(mgr->state, PRESETS[idx].x, PRESETS[idx].y, PRESETS[idx].z);
+                    lv_obj_add_flag(mgr->warps_panel, LV_OBJ_FLAG_HIDDEN);
+                    if (mgr->status_footer) {
+                        lv_label_set_text_fmt(mgr->status_footer, "[%s] Warp: %s", mgr->getModeName(), PRESETS[idx].label);
+                    }
+                }
+            }, LV_EVENT_CLICKED, this);
+            lv_obj_t * lp = lv_label_create(bp);
+            lv_obj_set_style_text_font(lp, &lv_font_montserrat_12, LV_PART_MAIN);
+            lv_label_set_text(lp, PRESETS[i].label);
+            lv_obj_center(lp);
+        }
+
+        // Botao [+ Salvar Atual] na mesma grade (posicao 5)
+        lv_obj_t * btn_save_fav = lv_btn_create(warps_panel);
+        lv_obj_set_size(btn_save_fav, 122, 38);
+        lv_obj_set_pos(btn_save_fav, 260, 78);
+        lv_obj_set_style_bg_color(btn_save_fav, lv_color_hex(0x1B5E20), LV_PART_MAIN);
+        lv_obj_add_event_cb(btn_save_fav, [](lv_event_t * e) {
+            auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+            static uint8_t next_slot = 0;
+            uint8_t slot = next_slot;
+            for (uint8_t k = 0; k < 3; k++) {
+                if (!mgr->fav_warps[k].valid) { slot = k; break; }
+            }
+            next_slot = (uint8_t)((slot + 1) % 3);
+            char nm[18];
+            snprintf(nm, sizeof(nm), "Fav %u (%.0f,%.0f)", (unsigned)(slot + 1), mgr->state.map.x, mgr->state.map.y);
+            mgr->setFavWarp(slot, nm, mgr->state.map.x, mgr->state.map.z, mgr->state.map.y);
+            mgr->warps_dirty = true;
+        }, LV_EVENT_CLICKED, this);
+        lv_obj_t * lsf = lv_label_create(btn_save_fav);
+        lv_obj_set_style_text_font(lsf, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_label_set_text(lsf, "+ Salvar Atual");
+        lv_obj_center(lsf);
+
+        // 3 Favoritos salvos pelo usuario
+        for (int i = 0; i < 3; i++) {
+            lv_obj_t * bf = lv_btn_create(warps_panel);
+            lv_obj_set_size(bf, 122, 42);
+            lv_obj_set_pos(bf, i * 130, 134);
+            lv_obj_set_style_bg_color(bf, lv_color_hex(0x0F3460), LV_PART_MAIN);
+            lv_obj_set_user_data(bf, (void*)(intptr_t)i);
+            lv_obj_add_event_cb(bf, [](lv_event_t * e) {
+                auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+                int idx = (int)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
+                if (idx >= 0 && idx < 3 && mgr->fav_warps[idx].valid) {
+                    mgr->router.teleportPlayer(mgr->state,
+                        mgr->fav_warps[idx].x, mgr->fav_warps[idx].y_alt, mgr->fav_warps[idx].z);
+                    lv_obj_add_flag(mgr->warps_panel, LV_OBJ_FLAG_HIDDEN);
+                    if (mgr->status_footer) {
+                        lv_label_set_text_fmt(mgr->status_footer, "[%s] Warp: %s",
+                            mgr->getModeName(), mgr->fav_warps[idx].name);
+                    }
+                }
+            }, LV_EVENT_CLICKED, this);
+            fav_btn_lbls[i] = lv_label_create(bf);
+            lv_obj_set_style_text_font(fav_btn_lbls[i], &lv_font_montserrat_12, LV_PART_MAIN);
+            lv_label_set_text_fmt(fav_btn_lbls[i], "Fav %d (Vazio)", i + 1);
+            lv_obj_center(fav_btn_lbls[i]);
+        }
 
         loadMapTextures();
 
@@ -947,6 +1136,71 @@ public:
         lv_obj_set_style_text_font(lbl_scan, &lv_font_montserrat_12, LV_PART_MAIN);
         lv_obj_align(lbl_scan, LV_ALIGN_TOP_LEFT, 235, 136);
         lv_label_set_text(lbl_scan, "Detectar: procura o Switch | Girar: inverte a tela");
+
+        // Linha inferior de opcoes rapidas (Brilho, Som, AutoStop Shiny, AutoCura)
+        lv_obj_t * btn_bright = lv_btn_create(tab_config);
+        lv_obj_set_size(btn_bright, 108, 32);
+        lv_obj_align(btn_bright, LV_ALIGN_TOP_LEFT, 5, 174);
+        lv_obj_set_style_bg_color(btn_bright, lv_color_hex(0x283593), LV_PART_MAIN);
+        lv_obj_add_event_cb(btn_bright, [](lv_event_t * e) {
+            auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+            uint8_t b = mgr->state.brightness;
+            b = (b <= 25) ? 50 : (b <= 50) ? 75 : (b <= 75) ? 100 : 25;
+            mgr->state.brightness = b;
+            mgr->state.brightness_changed = true;
+#if defined(ARDUINO_ARCH_ESP32)
+            es3c35p_display::setBrightness(b);
+#endif
+            mgr->refreshConfigButtons();
+        }, LV_EVENT_CLICKED, this);
+        lbl_btn_bright = lv_label_create(btn_bright);
+        lv_obj_set_style_text_font(lbl_btn_bright, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_obj_center(lbl_btn_bright);
+
+        btn_sound_obj = lv_btn_create(tab_config);
+        lv_obj_set_size(btn_sound_obj, 108, 32);
+        lv_obj_align(btn_sound_obj, LV_ALIGN_TOP_LEFT, 119, 174);
+        lv_obj_add_event_cb(btn_sound_obj, [](lv_event_t * e) {
+            auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+            mgr->state.sound_enabled = !mgr->state.sound_enabled;
+            mgr->state.brightness_changed = true; // reutiliza flag de gravacao na flash
+#if defined(ARDUINO_ARCH_ESP32)
+            es3c35p_extra::setSoundEnabled(mgr->state.sound_enabled);
+            if (mgr->state.sound_enabled) es3c35p_extra::playBeep(false);
+#endif
+            mgr->refreshConfigButtons();
+        }, LV_EVENT_CLICKED, this);
+        lbl_btn_sound = lv_label_create(btn_sound_obj);
+        lv_obj_set_style_text_font(lbl_btn_sound, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_obj_center(lbl_btn_sound);
+
+        btn_autostop_obj = lv_btn_create(tab_config);
+        lv_obj_set_size(btn_autostop_obj, 112, 32);
+        lv_obj_align(btn_autostop_obj, LV_ALIGN_TOP_LEFT, 233, 174);
+        lv_obj_add_event_cb(btn_autostop_obj, [](lv_event_t * e) {
+            auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+            mgr->state.auto_stop_shiny = !mgr->state.auto_stop_shiny;
+            mgr->state.brightness_changed = true;
+            mgr->refreshConfigButtons();
+        }, LV_EVENT_CLICKED, this);
+        lbl_btn_autostop = lv_label_create(btn_autostop_obj);
+        lv_obj_set_style_text_font(lbl_btn_autostop, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_obj_center(lbl_btn_autostop);
+
+        btn_autoheal_obj = lv_btn_create(tab_config);
+        lv_obj_set_size(btn_autoheal_obj, 114, 32);
+        lv_obj_align(btn_autoheal_obj, LV_ALIGN_TOP_LEFT, 351, 174);
+        lv_obj_add_event_cb(btn_autoheal_obj, [](lv_event_t * e) {
+            auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+            mgr->state.auto_heal = !mgr->state.auto_heal;
+            mgr->state.brightness_changed = true;
+            mgr->refreshConfigButtons();
+        }, LV_EVENT_CLICKED, this);
+        lbl_btn_autoheal = lv_label_create(btn_autoheal_obj);
+        lv_obj_set_style_text_font(lbl_btn_autoheal, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_obj_center(lbl_btn_autoheal);
+
+        refreshConfigButtons();
 
         // Rodapé
         status_footer = lv_label_create(scr);

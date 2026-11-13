@@ -91,9 +91,30 @@
     #net .netlist .sig { color: #8888AA; }
 
     /* Config */
-    #cfg { position: absolute; left: 14px; top: 8px; right: 14px; font-size: 12px; line-height: 1.5; }
-    #cfg button { margin-top: 8px; background: #B71C1C; color: #fff; border: 1px solid #FF6E88; border-radius: 8px;
-      padding: 10px 14px; font: inherit; font-size: 12px; cursor: pointer; }
+    #cfg { position: absolute; left: 14px; top: 8px; right: 14px; font-size: 12px; line-height: 1.4; }
+    #cfg button { margin-top: 6px; background: #006064; color: #fff; border: 1px solid #00F5D4; border-radius: 7px;
+      padding: 6px 10px; font: inherit; font-size: 11px; cursor: pointer; }
+    #cfg button.rd { background: #B71C1C; border-color: #FF6E88; }
+    #cfg .ota-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+    #cfg input[type=file] { font-size: 11px; color: #CCCCDD; max-width: 220px; }
+
+    /* Shiny Banner, Bateria e Modal Mini Menu */
+    #bat-badge { font-size: 11px; color: #00E676; margin-left: auto; margin-right: 8px; }
+    #shiny-banner { display: none; position: absolute; left: 220px; right: 8px; top: 2px; background: #4A3800;
+      border: 1px solid #FFC400; color: #FFE27A; border-radius: 6px; padding: 2px 6px; font-size: 11px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .prow { cursor: pointer; }
+    .prow:hover { background: rgba(0, 245, 212, 0.08); border-radius: 4px; }
+    #pkm-modal { display: none; position: absolute; left: 20px; right: 20px; top: 44px; bottom: 32px;
+      background: #14182D; border: 2px solid #00F5D4; border-radius: 10px; z-index: 25; padding: 8px; font-size: 12px; }
+    #pkm-modal .mhdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; color: #00F5D4; }
+    #pkm-modal .mgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+    #pkm-modal .mgrid button { height: 42px; background: #1E2749; border: 1px solid #2D3E66; color: #fff;
+      border-radius: 7px; font: inherit; font-size: 11px; cursor: pointer; }
+    #pkm-modal .mgrid button.go { border-color: #00E676; color: #00E676; }
+    #warp-btn { margin-top: 6px; width: 100%; height: 28px; background: #1E3A5F; border: 1px solid #2D5A8C;
+      color: #fff; border-radius: 6px; font: inherit; font-size: 11px; cursor: pointer; }
+    #warp-btn.on { background: #1B5E20; border-color: #00E676; }
 
     /* Seletor de jogo + tema FireRed */
     #gamesel { width: 185px; height: 30px; background: #0F3460; color: #fff; border-radius: 6px; border: 1px solid #2D3E66;
@@ -161,6 +182,7 @@
   <div id='stage'>
     <div id='top'>
       <div class='title'>SWITCH HUD</div>
+      <div id='bat-badge'></div>
       <select id='gamesel' onchange='pickGame(this.value)'>
         <option value='pkmn_za'>Pokemon Legends ZA</option>
         <option value='pkmn_fr'>Pokemon FireRed</option>
@@ -177,7 +199,7 @@
     </div>
 
     <div class='page' id='p-status'>
-      <div id='zdash'><div id='zone'>Zona: -</div><div id='party'></div></div>
+      <div id='zdash'><div id='zone'>Zona: -</div><div id='shiny-banner'></div><div id='party'></div></div>
       <div id='frdash'>
         <div class='cap' style='top:2px'>ENCONTROS</div>
         <div id='frcount'>0</div>
@@ -203,6 +225,7 @@
         <div id='mzone'>Zona: -</div>
         <div id='mcoord'>X: - Y: -</div>
         <div id='mpoi'></div>
+        <button id='warp-btn' onclick='toggleWarp()'>Warp ao Clicar: OFF</button>
       </div>
     </div>
     <div class='page' id='p-rede'>
@@ -223,15 +246,31 @@
     <div class='page' id='p-criar'><div id='um'></div></div>
     <div class='page' id='p-config'>
       <div id='cfg'>
-        <div><span class='cy'>Firmware:</span> <span id='cfg-fw'>?</span></div>
-        <div><span class='cy'>Pagina:</span> <span id='cfg-page'></span></div>
-        <div><span class='cy'>Tela fisica:</span> <span id='cfg-disp'>?</span></div>
-        <div style='margin-top:8px'><span class='cy'>USB:</span> <span id='cfg-usb'>?</span></div>
-        <div><span class='cy'>Macro ativa:</span> <span id='cfg-act'>nenhuma</span></div>
-        <div><span class='cy'>Execucoes:</span> <span id='cfg-exe'>0</span></div>
+        <div><span class='cy'>Firmware:</span> <span id='cfg-fw'>?</span> &nbsp;|&nbsp; <span class='cy'>Pagina:</span> <span id='cfg-page'></span></div>
+        <div><span class='cy'>Tela fisica:</span> <span id='cfg-disp'>?</span> &nbsp;|&nbsp; <span class='cy'>USB:</span> <span id='cfg-usb'>?</span></div>
+        <div><span class='cy'>Macro ativa:</span> <span id='cfg-act'>nenhuma</span> (<span id='cfg-exe'>0</span>)</div>
         <div><span class='cy'>Leitura RAM:</span> <span id='cfg-link'>?</span></div>
-        <button onclick='bootsel()'>Entrar em modo BOOTSEL (RPI-RP2)</button>
+        <div style='display:flex;gap:8px;flex-wrap:wrap'>
+          <button onclick='flipDisplay()'>Girar Tela 180°</button>
+          <button class='rd' onclick='bootsel()'>Modo BOOT (USB)</button>
+        </div>
+        <div class='ota-row'>
+          <input type='file' id='ota-file' accept='.bin'>
+          <button onclick='uploadOta()'>Atualizar Wi-Fi (OTA)</button>
+          <span id='ota-msg' class='mu'></span>
+        </div>
       </div>
+    </div>
+
+    <div id='pkm-modal'>
+      <div class='mhdr'>
+        <span id='pkm-ttl'>Pokemon</span>
+        <div>
+          <button class='mini' id='pkm-pg' onclick='pkmTogglePage()'>Pag 1/2</button>
+          <button class='mini rd' onclick='pkmClose()'>✕</button>
+        </div>
+      </div>
+      <div class='mgrid' id='pkm-grid'></div>
     </div>
 
     <div id='ed'>
@@ -438,19 +477,72 @@
   }
 
   // ---- Status: time (barras de vida) ----
-  let partyBuilt = false;
+  let partyBuilt = false, partyData = [], pkmSlot = 0, pkmPage = 0, warpMode = false;
+  const PKM_ACTS = [
+    [
+      { lbl: 'Curar HP', act: 0, go: 1 }, { lbl: 'Curar Status', act: 1, go: 1 },
+      { lbl: 'Nivel +1', act: 2 }, { lbl: 'Nivel 100', act: 3 },
+      { lbl: 'Tornar Shiny', act: 4, go: 1 }, { lbl: 'Tornar Alpha', act: 5 },
+      { lbl: '+10 Rare Candy', act: 6, item: 50 }, { lbl: '+10 Master Ball', act: 7, item: 1 }
+    ],
+    [
+      { lbl: 'Max IVs (31)', act: 8, go: 1 }, { lbl: 'EV Atk/Spe', act: 9 },
+      { lbl: 'EV SpA/Spe', act: 10 }, { lbl: 'EV HP/Def', act: 11 },
+      { lbl: 'Nat: Adamant', act: 12 }, { lbl: 'Nat: Modest', act: 13 },
+      { lbl: 'Nat: Timid', act: 14 }, { lbl: 'Nat: Jolly', act: 15 }
+    ]
+  ];
   function buildParty() {
     const p = $('party'); p.innerHTML = '';
     for (let i = 0; i < 6; i++)
-      p.insertAdjacentHTML('beforeend', `<div class='prow' style='top:${20 + i * 30}px'><div class='n' id='pn${i}'>---</div>` +
+      p.insertAdjacentHTML('beforeend', `<div class='prow' onclick='pkmOpen(${i})' style='top:${20 + i * 30}px'><div class='n' id='pn${i}'>---</div>` +
               `<div class='b'><div class='f' id='pf${i}'></div></div><div class='h' id='ph${i}'>sem dados</div><div class='s' id='ps${i}'></div></div>`);
     partyBuilt = true;
+  }
+  function pkmOpen(i) {
+    const m = partyData[i];
+    if (!m || !m.max) return;
+    pkmSlot = i; pkmPage = 0;
+    $('pkm-ttl').textContent = `${m.n} Lv${m.lv} (Slot ${i + 1})`;
+    pkmRender();
+    $('pkm-modal').style.display = 'block';
+  }
+  function pkmClose() { $('pkm-modal').style.display = 'none'; }
+  function pkmTogglePage() { pkmPage = pkmPage ? 0 : 1; pkmRender(); }
+  function pkmRender() {
+    $('pkm-pg').textContent = `Pag ${pkmPage + 1}/2`;
+    const g = $('pkm-grid'); g.innerHTML = '';
+    PKM_ACTS[pkmPage].forEach(a => {
+      const b = document.createElement('button');
+      if (a.go) b.className = 'go';
+      b.textContent = a.lbl;
+      b.onclick = async () => {
+        try {
+          await post('/api/pokemon/edit', { slot: pkmSlot, action: a.act, item: a.item || 0 });
+          lastMsg = `${a.lbl} (Slot ${pkmSlot + 1})`;
+          pkmClose(); pollParty(); render();
+        } catch (e) { alert('Erro ao enviar comando'); }
+      };
+      g.appendChild(b);
+    });
   }
   async function pollParty() {
     try {
       const d = await (await fetch('/api/party', { cache: 'no-store' })).json();
+      partyData = d.party || [];
       $('cfg-link').textContent = d.link || '-';
       $('zone').textContent = d.zone ? `Zona: ${d.zone}  X:${d.x} Z:${d.y}` : 'Zona: -';
+      if (d.bat_pct !== undefined) {
+        $('bat-badge').textContent = `BAT ${d.bat_pct}%`;
+        $('bat-badge').style.color = d.bat_pct <= 20 ? '#FF1744' : d.bat_pct <= 50 ? '#FFC400' : '#00E676';
+      }
+      const sb = $('shiny-banner');
+      if (d.shiny_stash) {
+        sb.style.display = 'block';
+        sb.textContent = `★ SHINY STASH! ${d.shiny_name || 'Pokemon'}`;
+      } else {
+        sb.style.display = 'none';
+      }
       if (d.x !== undefined && d.y !== undefined && (d.x !== 0 || d.y !== 0)) {
         px = Math.max(4, Math.min(96, 50 + ((d.x - (-830)) / 980) * 100));
         py = Math.max(4, Math.min(96, 50 - ((d.y - (-500)) / 980) * 100));
@@ -717,10 +809,24 @@
   }
 
   async function bootsel() {
-    if (confirm('Colocar o Pico W em modo de gravacao (BOOTSEL)?')) {
+    if (confirm('Colocar a placa em modo BOOT USB?')) {
       try { await fetch('/api/reboot'); } catch (e) {}
-      alert('Placa em BOOTSEL. Copie o .uf2 para a unidade RPI-RP2.');
+      alert('Placa reiniciada em modo BOOT.');
     }
+  }
+  async function flipDisplay() {
+    try { await post('/api/display/flip', {}); lastMsg = 'Tela girada 180°'; render(); } catch (e) {}
+  }
+  async function uploadOta() {
+    const f = $('ota-file').files[0];
+    if (!f) { $('ota-msg').textContent = 'Escolha o firmware.bin'; return; }
+    $('ota-msg').textContent = 'Enviando...';
+    const fd = new FormData(); fd.append('update', f, f.name);
+    try {
+      const r = await fetch('/api/ota', { method: 'POST', body: fd });
+      const d = await r.json();
+      $('ota-msg').textContent = d.ok ? 'OK! Reiniciando...' : ('Erro: ' + (d.err || 'falhou'));
+    } catch (e) { $('ota-msg').textContent = 'Reiniciando placa...'; }
   }
 
   // Ajusta a moldura 480x320 a tela (celular ou desktop), sem mudar o desenho
@@ -878,12 +984,25 @@
     updCoord();
   }
 
-  // Sem leitura de posicao do jogo no MVP: tocar no mapa move o marcador (simulado)
+  function toggleWarp() {
+    warpMode = !warpMode;
+    const b = $('warp-btn');
+    b.classList.toggle('on', warpMode);
+    b.textContent = warpMode ? 'Warp ao Clicar: ON' : 'Warp ao Clicar: OFF';
+  }
   function mapClick(e) {
     const r = $('mapbox').getBoundingClientRect();
     px = Math.max(5, Math.min(95, (e.clientX - r.left) / r.width * 100));
     py = Math.max(5, Math.min(95, (e.clientY - r.top) / r.height * 100));
-    updCoord();
+    if (warpMode) {
+      const wx = (-830 + ((px - 50) / 100) * 980).toFixed(1);
+      const wz = (-500 - ((py - 50) / 100) * 980).toFixed(1);
+      post('/api/teleport', { wx: wx, wy: 24.0, wz: wz }).then(() => {
+        lastMsg = `Warp -> ${wx}, ${wz}`; render();
+      }).catch(() => {});
+    } else {
+      updCoord();
+    }
   }
 
   $('cfg-page').textContent = PAGE_VERSION;

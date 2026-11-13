@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <LittleFS.h>
+#include <ArduinoOTA.h>
+#include <Update.h>
 #if defined(ARDUINO_ARCH_RP2040)
     #include "hardware/watchdog.h"   // reset_usb_boot (BOOTSEL)
 #endif
@@ -101,6 +103,10 @@ static bool saveSettings() {
     f.print("compiled_ip="); f.print(SWITCH_IP); f.print("\n");
     f.print("port=");        f.print((int)cfg.sw_port); f.print("\n");
     f.print("flip=");        f.print(state.screen_flip ? 1 : 0); f.print("\n");
+    f.print("bright=");      f.print((int)state.brightness); f.print("\n");
+    f.print("sound=");       f.print(state.sound_enabled ? 1 : 0); f.print("\n");
+    f.print("autostop=");    f.print(state.auto_stop_shiny ? 1 : 0); f.print("\n");
+    f.print("autoheal=");    f.print(state.auto_heal ? 1 : 0); f.print("\n");
     f.close();
     return true;
 }
@@ -123,6 +129,10 @@ static void loadSettings() {
         else if (k == "compiled_ip")  compiled_sw_ip = v;
         else if (k == "port")         { int p = v.toInt(); if (p > 0 && p < 65536) cfg.sw_port = (uint16_t)p; }
         else if (k == "flip")         { state.screen_flip = (v.toInt() != 0); }
+        else if (k == "bright")       { int b = v.toInt(); if (b >= 15 && b <= 100) state.brightness = (uint8_t)b; }
+        else if (k == "sound")        { state.sound_enabled = (v.toInt() != 0); }
+        else if (k == "autostop")     { state.auto_stop_shiny = (v.toInt() != 0); }
+        else if (k == "autoheal")     { state.auto_heal = (v.toInt() != 0); }
     }
     f.close();
     if (compiled_sw_ip == SWITCH_IP && validIp(file_sw_ip.c_str())) {
@@ -131,6 +141,36 @@ static void loadSettings() {
         saveSettings();   // SWITCH_IP do wifi_config.h mudou nesta compilacao: atualiza /config.txt
     }
 }
+
+#ifdef HAS_DISPLAY
+static void saveWarps() {
+    File f = LittleFS.open("/warps.txt", "w");
+    if (!f) return;
+    for (uint8_t i = 0; i < 3; i++) {
+        const WarpPoint &wp = ui.getFavWarp(i);
+        if (!wp.valid) continue;
+        f.printf("%u|%s|%.2f|%.2f|%.2f\n", (unsigned)i, wp.name, wp.x, wp.y_alt, wp.z);
+    }
+    f.close();
+}
+
+static void loadWarps() {
+    File f = LittleFS.open("/warps.txt", "r");
+    if (!f) return;
+    while (f.available()) {
+        String l = f.readStringUntil('\n'); l.trim();
+        int p1 = l.indexOf('|'), p2 = l.indexOf('|', p1 + 1), p3 = l.indexOf('|', p2 + 1), p4 = l.indexOf('|', p3 + 1);
+        if (p1 < 0 || p2 < 0 || p3 < 0 || p4 < 0) continue;
+        uint8_t idx = (uint8_t)l.substring(0, p1).toInt();
+        String nm = l.substring(p1 + 1, p2);
+        float wx = l.substring(p2 + 1, p3).toFloat();
+        float wy = l.substring(p3 + 1, p4).toFloat();
+        float wz = l.substring(p4 + 1).toFloat();
+        ui.setFavWarp(idx, nm.c_str(), wx, wy, wz);
+    }
+    f.close();
+}
+#endif
 
 // ---------------- Estatisticas do FireRed (LittleFS /fr_stats.txt) ----------------
 // Gravacao espacada (a cada 20 s, ou na hora quando o usuario toca num botao) para poupar a flash.
@@ -278,8 +318,12 @@ void setup() {
     init_hardware_display_touch();
     #if defined(ARDUINO_ARCH_ESP32)
     es3c35p_lvgl_set_flip(state.screen_flip);
+    es3c35p_display::setBrightness(state.brightness);
+    es3c35p_extra::initAudio();
+    es3c35p_extra::setSoundEnabled(state.sound_enabled);
     #endif
     ui.buildUI();
+    loadWarps();
 #endif
 
     // Teste de bancada da tela ST77922 (so com -DES3C35P_TELA_TESTE): mostra "TESTE" e segue o firmware
@@ -605,10 +649,38 @@ void setup() {
     server.serveStatic("/m", LittleFS, "/m", "max-age=86400");
     server.serveStatic("/assets", LittleFS, "/assets", "max-age=86400");
 
+    // Atualizacao de firmware sem fio (HTTP POST /api/ota + ArduinoOTA)
+    static bool otaOk = false;
+    server.on("/api/ota", HTTP_POST, []() {
+        server.sendHeader("Connection", "close");
+        server.send(otaOk ? 200 : 500, "application/json", otaOk ? "{\"ok\":true}" : "{\"ok\":false,\"err\":\"Update falhou\"}");
+        if (otaOk) {
+            delay(300);
+            ESP.restart();
+        }
+    }, []() {
+        HTTPUpload &up = server.upload();
+        if (up.status == UPLOAD_FILE_START) {
+            otaOk = Update.begin(UPDATE_SIZE_UNKNOWN);
+        } else if (up.status == UPLOAD_FILE_WRITE) {
+            if (otaOk && Update.write(up.buf, up.currentSize) != up.currentSize) {
+                otaOk = false;
+            }
+        } else if (up.status == UPLOAD_FILE_END) {
+            if (otaOk && !Update.end(true)) {
+                otaOk = false;
+            }
+        }
+    });
+
+    ArduinoOTA.setHostname("switch-hud");
+    ArduinoOTA.begin();
+
     server.begin();
 }
 
 void loop() {
+    ArduinoOTA.handle();
     {
         static uint32_t ultimoIp = 0;
         if (millis() - ultimoIp >= 2000) {
@@ -619,15 +691,68 @@ void loop() {
             // IP digitado no teclado da tela, ou achado pela busca disparada na tela: grava na flash
             bool digitado = state.switch_ip_changed;
             bool girou = state.screen_flip_changed;
+            bool cfg_mudou = state.brightness_changed;
             state.switch_ip_changed = false;
             state.screen_flip_changed = false;
+            state.brightness_changed = false;
             if ((digitado || router.scanState() == 2) && strcmp(cfg.sw_ip, state.switch_ip) != 0) {
                 snprintf(cfg.sw_ip, sizeof(cfg.sw_ip), "%s", state.switch_ip);
                 saveSettings();
-            } else if (girou) {
+            } else if (girou || cfg_mudou) {
                 saveSettings();
             }
+#ifdef HAS_DISPLAY
+            if (ui.consumeWarpsDirty()) saveWarps();
+#endif
         }
+    }
+
+    // Automacao Shiny Stash + Audio + Auto-Heal + LED RGB + Auto-Dim
+    {
+        static bool prevShiny = false;
+        if (state.shiny_stash_found && !prevShiny) {
+            es3c35p_extra::playBeep(true);
+            if (state.auto_stop_shiny && state.active_macro_slot >= 0) {
+                router.stopAll(state);
+            }
+        }
+        prevShiny = state.shiny_stash_found;
+
+        static uint32_t lastAutoHeal = 0;
+        if (state.auto_heal && state.connected && millis() - lastAutoHeal >= 5000) {
+            lastAutoHeal = millis();
+            for (uint8_t i = 0; i < 6; i++) {
+                const PokemonSlot &p = state.party[i];
+                if (p.max_hp > 0 && p.current_hp > 0 && ((uint32_t)p.current_hp * 100 < (uint32_t)p.max_hp * 25)) {
+                    router.editPokemon(state, i, PokeEditAction::HEAL_HP, 0);
+                }
+            }
+        }
+
+        if (state.shiny_stash_found) {
+            bool on = ((millis() / 400) % 2) == 0;
+            es3c35p_extra::setRgb(on ? 255 : 40, on ? 180 : 20, 0);
+        } else if (state.active_macro_slot >= 0) {
+            es3c35p_extra::setRgb(60, 0, 120);
+        } else if (state.connected) {
+            es3c35p_extra::setRgb(0, 40, 10);
+        } else {
+            es3c35p_extra::setRgb(0, 10, 40);
+        }
+
+#ifdef HAS_DISPLAY
+        static bool dimmed = false;
+        static uint8_t last_bright = 100;
+        bool should_dim = (lv_disp_get_inactive_time(NULL) > 120000UL);
+        if (should_dim && !dimmed) {
+            dimmed = true;
+            es3c35p_display::setBrightness(15);
+        } else if (!should_dim && (dimmed || last_bright != state.brightness)) {
+            dimmed = false;
+            last_bright = state.brightness;
+            es3c35p_display::setBrightness(state.brightness);
+        }
+#endif
     }
 #ifdef USB_HID_ESP32_TESTE
     {

@@ -11,6 +11,9 @@ namespace es3c35p_display {
 // Liga o backlight, sobe o barramento QSPI e inicializa o painel. false se falhar.
 bool init();
 
+// Ajusta o brilho do backlight via PWM (0..100%).
+void setBrightness(uint8_t pct);
+
 // Desenha um texto centralizado (fonte 5x7 ampliada: T, E, S), preto sobre branco.
 // Serve so para teste de bancada; a HUD vira o LVGL na fase F3.
 bool drawTestText(const char * texto);

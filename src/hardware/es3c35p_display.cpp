@@ -6,6 +6,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
+#include "driver/ledc.h"
 #include "driver/spi_master.h"
 #include "esp_cache.h"
 #include "esp_heap_caps.h"
@@ -91,10 +92,22 @@ bool init()
 {
     if (s_panel) return true;
 
-    gpio_config_t bl = { .pin_bit_mask = 1ULL << ES3C35P_LCD_BL, .mode = GPIO_MODE_OUTPUT };
-    gpio_config(&bl);
-    gpio_set_level((gpio_num_t)ES3C35P_LCD_BL, 1);
-    ESP_LOGI(TAG, "Backlight ligado (IO%d)", ES3C35P_LCD_BL);
+    ledc_timer_config_t bl_timer = {};
+    bl_timer.speed_mode = LEDC_LOW_SPEED_MODE;
+    bl_timer.duty_resolution = LEDC_TIMER_8_BIT;
+    bl_timer.timer_num = LEDC_TIMER_0;
+    bl_timer.freq_hz = 5000;
+    bl_timer.clk_cfg = LEDC_AUTO_CLK;
+    ledc_timer_config(&bl_timer);
+
+    ledc_channel_config_t bl_ch = {};
+    bl_ch.gpio_num = ES3C35P_LCD_BL;
+    bl_ch.speed_mode = LEDC_LOW_SPEED_MODE;
+    bl_ch.channel = LEDC_CHANNEL_0;
+    bl_ch.timer_sel = LEDC_TIMER_0;
+    bl_ch.duty = 255;
+    ledc_channel_config(&bl_ch);
+    ESP_LOGI(TAG, "Backlight PWM ligado (IO%d)", ES3C35P_LCD_BL);
 
     spi_bus_config_t bus = {};
     bus.sclk_io_num = ES3C35P_LCD_CLK;
@@ -203,12 +216,21 @@ bool drawTestText(const char * texto)
     return true;
 }
 
+void setBrightness(uint8_t pct)
+{
+    if (pct > 100) pct = 100;
+    uint32_t duty = ((uint32_t)pct * 255u) / 100u;
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+}
+
 }  // namespace es3c35p_display
 
 #else  // fora do ESP32: sem tela
 
 namespace es3c35p_display {
 bool init() { return false; }
+void setBrightness(uint8_t) {}
 bool drawTestText(const char *) { return false; }
 bool drawRect(int, int, int, int, const void *, DrawDoneFn, void *) { return false; }
 }  // namespace es3c35p_display
