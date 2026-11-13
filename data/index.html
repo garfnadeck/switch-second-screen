@@ -248,7 +248,7 @@
             <div id='botw-hearts-bar' style='height:100%;width:100%;background:#FF4D6D'></div>
           </div>
         </div>
-        <div style='background:#16213E;border:1px solid #2D3E66;border-radius:8px;padding:10px'>
+        <div style='background:#16213E;border:1px solid #2D3E66;border-radius:8px;padding:10px;margin-bottom:8px'>
           <div style='display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px'>
             <span style='color:#2EE6A6;font-weight:700'>⚡ STAMINA</span>
             <span id='botw-stam-txt'>100%</span>
@@ -256,6 +256,10 @@
           <div style='height:10px;background:#0F2E22;border-radius:5px;overflow:hidden'>
             <div id='botw-stam-bar' style='height:100%;width:100%;background:#2EE6A6'></div>
           </div>
+        </div>
+        <div style='background:#16213E;border:1px solid #2D3E66;border-radius:8px;padding:8px'>
+          <div style='font-size:11px;font-weight:700;color:#FFD166;margin-bottom:4px'>AMIIBOS BOTW (24)</div>
+          <div id='botw-amiibos' style='max-height:74px;overflow-y:auto;font-size:10px;color:#C8D4EA;line-height:1.4'></div>
         </div>
       </div>
     </div>
@@ -459,6 +463,16 @@
   window.addEventListener('resize', fit);
   async function post(p, d) { return (await fetch(p, { method: 'POST', body: new URLSearchParams(d) })).json(); }
 
+  const BOTW_AMIIBOS = [
+    ['Midna & Wolf Link', 'Wolf Link aliado'], ['Link Archer', 'Bow + Flechas'], ['Link Rider', 'Bridle/Saddle'],
+    ['Zelda (BotW)', 'Radiant Shield'], ['Guardian', 'Pecas Ancestrais'], ['Bokoblin', 'Armas Boko'],
+    ['Mipha', 'Vah Ruta Helm'], ['Daruk', 'Vah Rudania Helm'], ['Revali', 'Vah Medoh Helm'],
+    ['Urbosa', 'Vah Naboris Helm'], ['Link OoT', 'Set of Time'], ['Link Majora', 'Fierce Deity Set'],
+    ['Link Twilight', 'Epona + Twilight Set'], ['Link Skyward', 'Sky Set'], ['8-Bit Link', 'Hero Set'],
+    ['Toon Link WW', 'Wind Set'], ['Toon Zelda WW', 'Hero Shield'], ['Link (Smash)', 'Epona + Twilight Set'],
+    ['Zelda (Smash)', 'Twilight Bow'], ['Sheik (Smash)', 'Sheik Mask'], ['Ganondorf (Smash)', 'Six Sages Sword'],
+    ['Toon Link (Smash)', 'Wind Set'], ['Young Link (Smash)', 'Peixes/Armas'], ['Link Awakening', 'Armas/Frutas']
+  ];
   function renderBotwHud(curH = 12, maxH = 12, stam = 100, rupees = 0) {
     const curHearts = Math.floor(curH / 4);
     const maxHearts = Math.max(1, Math.floor(maxH / 4));
@@ -469,6 +483,11 @@
       `<span style='color:${i < curHearts ? '#FF4D6D' : '#3A2330'}'>♥</span>`).join('');
     $('botw-stam-txt').textContent = `${stam}%`;
     $('botw-stam-bar').style.width = `${Math.min(100, Math.max(0, stam))}%`;
+    const al = $('botw-amiibos');
+    if (al && !al.dataset.ok) {
+      al.dataset.ok = '1';
+      al.innerHTML = BOTW_AMIIBOS.map(([n, d]) => `<div>• <b>${n}</b> — ${d}</div>`).join('');
+    }
   }
 
   async function setGame(g, sync) {

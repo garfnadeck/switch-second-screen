@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../models/game_state.dart';
 
 class AmiiboCatalogItem {
   final String name;
@@ -19,6 +20,182 @@ class AmiiboCatalogItem {
 }
 
 class EmuiiboFtpService {
+  static const List<AmiiboCatalogItem> botwCatalog = [
+    AmiiboCatalogItem(
+      name: 'Midna & Wolf Link',
+      gameSeries: 'BotW: Invoca Wolf Link (aliado)',
+      head: '01030000',
+      tail: '024f0902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01030000-024f0902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Link - Archer',
+      gameSeries: 'BotW: Traveler Bow + Flechas',
+      head: '01000000',
+      tail: '03530902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000000-03530902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Link - Rider',
+      gameSeries: 'BotW: Traveler Bridle/Saddle + Espada',
+      head: '01000000',
+      tail: '03540902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000000-03540902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Zelda (BotW)',
+      gameSeries: 'BotW: Radiant Shield + Gemas/Ervas',
+      head: '01010000',
+      tail: '03560902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01010000-03560902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Guardian',
+      gameSeries: 'BotW: Pecas Ancestrais + Armas Guardian',
+      head: '01400000',
+      tail: '03550902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01400000-03550902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Bokoblin',
+      gameSeries: 'BotW: Armas Boko + Carnes',
+      head: '01410000',
+      tail: '035c0902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01410000-035c0902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Mipha',
+      gameSeries: 'BotW: Vah Ruta Divine Helm + Zora Spear',
+      head: '01070000',
+      tail: '035a0902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01070000-035a0902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Daruk',
+      gameSeries: 'BotW: Vah Rudania Divine Helm + Cobble Crusher',
+      head: '01050000',
+      tail: '03580902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01050000-03580902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Revali',
+      gameSeries: 'BotW: Vah Medoh Divine Helm + Falcon Bow',
+      head: '01080000',
+      tail: '035b0902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01080000-035b0902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Urbosa',
+      gameSeries: 'BotW: Vah Naboris Divine Helm + Scimitar',
+      head: '01060000',
+      tail: '03590902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01060000-03590902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Link - Ocarina of Time',
+      gameSeries: 'BotW: Set of Time + Biggoron Sword',
+      head: '01000000',
+      tail: '034b0902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000000-034b0902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Link - Majoras Mask',
+      gameSeries: 'BotW: Fierce Deity Set + Sword',
+      head: '01000000',
+      tail: '034c0902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000000-034c0902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Link - Twilight Princess',
+      gameSeries: 'BotW: Epona + Set of Twilight',
+      head: '01000000',
+      tail: '034d0902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000000-034d0902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Link - Skyward Sword',
+      gameSeries: 'BotW: Set of the Sky + Goddess Sword',
+      head: '01000000',
+      tail: '034e0902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000000-034e0902.png',
+    ),
+    AmiiboCatalogItem(
+      name: '8-Bit Link',
+      gameSeries: 'BotW: Set of the Hero + Sword',
+      head: '01000000',
+      tail: '034f0902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000000-034f0902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Toon Link - Wind Waker',
+      gameSeries: 'BotW: Set of the Wind + Sea-Breeze Boomerang',
+      head: '01000100',
+      tail: '03500902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000100-03500902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Toon Zelda - Wind Waker',
+      gameSeries: 'BotW: Hero Shield + Gemas',
+      head: '01010000',
+      tail: '03520902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01010000-03520902.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Link (Smash Bros)',
+      gameSeries: 'BotW: Epona + Set of Twilight',
+      head: '01000000',
+      tail: '00040002',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000000-00040002.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Zelda (Smash Bros)',
+      gameSeries: 'BotW: Twilight Bow + Gemas',
+      head: '01010000',
+      tail: '000e0002',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01010000-000e0002.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Sheik (Smash Bros)',
+      gameSeries: 'BotW: Sheik Mask + Armas Sheikah',
+      head: '01010100',
+      tail: '00170002',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01010100-00170002.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Ganondorf (Smash Bros)',
+      gameSeries: 'BotW: Sword of the Six Sages',
+      head: '01020100',
+      tail: '001b0002',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01020100-001b0002.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Toon Link (Smash Bros)',
+      gameSeries: 'BotW: Set of the Wind + Boomerang',
+      head: '01000100',
+      tail: '00160002',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000100-00160002.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Young Link (Smash Bros)',
+      gameSeries: 'BotW: Armas + Peixes/Ervas',
+      head: '01000000',
+      tail: '037c0002',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000000-037c0002.png',
+    ),
+    AmiiboCatalogItem(
+      name: 'Link - Links Awakening',
+      gameSeries: 'BotW: Armas + Frutas/Baú',
+      head: '01000000',
+      tail: '03990902',
+      image: 'https://raw.githubusercontent.com/N3evin/AmiiboAPI/master/images/icon_01000000-03990902.png',
+    ),
+  ];
+
+  static List<AmiiboCatalogItem> catalogForGame(GameProfile profile) {
+    if (profile == GameProfile.zeldaBotw) return botwCatalog;
+    return quickCatalog;
+  }
+
   static const List<AmiiboCatalogItem> quickCatalog = [
     AmiiboCatalogItem(
       name: 'Link (Tears of the Kingdom)',

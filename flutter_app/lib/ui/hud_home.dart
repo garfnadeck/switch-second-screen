@@ -1381,13 +1381,45 @@ class _HudHomeState extends State<HudHome> {
                         _amiiboBusy = true;
                         _amiiboMsg = 'Buscando na AmiiboAPI...';
                       });
-                      final res = await EmuiiboFtpService.searchApi(_amiiboSearchCtrl.text);
+                      final q = _amiiboSearchCtrl.text.trim();
+                      final res = q.isEmpty
+                          ? EmuiiboFtpService.catalogForGame(c.profile)
+                          : await EmuiiboFtpService.searchApi(q);
                       setState(() {
                         _amiiboCatalog = res;
                         _amiiboBusy = false;
                         _amiiboMsg = '${res.length} encontrado(s)';
                       });
                     }),
+                    if (c.profile == GameProfile.zeldaBotw) ...[
+                      const SizedBox(width: 6),
+                      _miniBtn('Enviar 24', const Color(0xFF1B5E20), () async {
+                        if (_amiiboBusy) return;
+                        setState(() {
+                          _amiiboBusy = true;
+                          _amiiboMsg = 'Enviando 24 Amiibos BOTW...';
+                        });
+                        int ok = 0;
+                        try {
+                          for (final item in EmuiiboFtpService.botwCatalog) {
+                            await EmuiiboFtpService.uploadVirtualAmiibo(c.switchIp, item, port: ftpPort);
+                            ok++;
+                            if (mounted) setState(() => _amiiboMsg = 'Enviados $ok/24...');
+                          }
+                          final list = await EmuiiboFtpService.listAmiibos(c.switchIp, port: ftpPort);
+                          setState(() {
+                            _sdAmiibos = list;
+                            _amiiboBusy = false;
+                            _amiiboMsg = '$ok Amiibos BOTW enviados para /emuiibo/amiibo!';
+                          });
+                        } catch (e) {
+                          setState(() {
+                            _amiiboBusy = false;
+                            _amiiboMsg = 'Erro FTP ($ok/24): $e';
+                          });
+                        }
+                      }),
+                    ],
                   ],
                 ),
                 if (_amiiboMsg.isNotEmpty) ...[
@@ -1395,7 +1427,11 @@ class _HudHomeState extends State<HudHome> {
                   Text(_amiiboMsg, style: TextStyle(color: th.accent, fontSize: 11)),
                 ],
                 const SizedBox(height: 6),
-                ..._amiiboCatalog.take(10).map((item) => Container(
+                ...(_amiiboSearchCtrl.text.trim().isEmpty
+                        ? EmuiiboFtpService.catalogForGame(c.profile)
+                        : _amiiboCatalog)
+                    .take(24)
+                    .map((item) => Container(
                       margin: const EdgeInsets.only(bottom: 4),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                       decoration: BoxDecoration(
