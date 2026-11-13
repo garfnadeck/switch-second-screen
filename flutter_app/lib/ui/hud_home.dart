@@ -39,6 +39,7 @@ class _HudHomeState extends State<HudHome> {
   bool _amiiboBusy = false;
   String _botwShrineFilter = 'all'; // 'all', 'done', 'missing', 'off'
   bool _botwShowKoroks = false;
+  ({String name, double x, double z})? _botwNavTarget;
 
   static const _tabs = [
     (icon: Icons.favorite_rounded, label: 'Status'),
@@ -1709,11 +1710,25 @@ class _HudHomeState extends State<HudHome> {
           children: [
             Expanded(
               child: Text(
-                '${c.zoneName.isNotEmpty ? c.zoneName : "Hyrule"} | X:${c.posX.toStringAsFixed(0)} Y:${c.posAlt.toStringAsFixed(0)} Z:${c.posY.toStringAsFixed(0)}',
-                style: TextStyle(fontSize: 11, color: th.accent, fontWeight: FontWeight.w700),
+                _botwNavTarget != null
+                    ? _botwNavSummary(c.posX, c.posY, _botwNavTarget!)
+                    : '${c.zoneName.isNotEmpty ? c.zoneName : "Hyrule"} | X:${c.posX.toStringAsFixed(0)} Y:${c.posAlt.toStringAsFixed(0)} Z:${c.posY.toStringAsFixed(0)}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: _botwNavTarget != null ? const Color(0xFFFFD166) : th.accent,
+                  fontWeight: FontWeight.w700,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (_botwNavTarget != null) ...[
+              const SizedBox(width: 4),
+              _miniBtn(
+                'Limpar GPS',
+                const Color(0xFF37474F),
+                () => setState(() => _botwNavTarget = null),
+              ),
+            ],
             const SizedBox(width: 6),
             _miniBtn(
               '+ Pin Aqui',
@@ -1808,6 +1823,7 @@ class _HudHomeState extends State<HudHome> {
                                 showKoroks: _botwShowKoroks,
                                 shrineDoneCount: c.botwShrines,
                                 pins: c.botwPins,
+                                navTarget: _botwNavTarget,
                               ),
                             ),
                           ],
@@ -1856,6 +1872,16 @@ class _HudHomeState extends State<HudHome> {
     );
   }
 
+  String _botwNavSummary(double lx, double lz, ({String name, double x, double z}) t) {
+    final dx = t.x - lx;
+    final dz = t.z - lz;
+    final dist = sqrt(dx * dx + dz * dz).round();
+    final deg = (atan2(dx, -dz) * 180 / pi + 360) % 360;
+    const dirs = ['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO'];
+    final dir = dirs[((deg + 22.5) / 45).floor() % 8];
+    return '🧭 ${t.name}: ${dist}m ($dir)';
+  }
+
   Future<void> _showBotwTeleportDialog(
     SysBotbaseClient c,
     double x,
@@ -1870,7 +1896,7 @@ class _HudHomeState extends State<HudHome> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF13172B),
         title: Text(
-          pinIndex != null ? 'Pin: ${c.botwPins[pinIndex].name}' : 'Confirmar Teleporte / Pin',
+          pinIndex != null ? 'Pin: ${c.botwPins[pinIndex].name}' : 'Navegação / Teleporte',
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
         ),
         content: Column(
@@ -1903,7 +1929,7 @@ class _HudHomeState extends State<HudHome> {
                 c.removeBotwPin(pinIndex);
                 Navigator.of(ctx).pop();
               },
-              child: const Text('Remover Pin', style: TextStyle(color: Colors.redAccent)),
+              child: const Text('Remover', style: TextStyle(color: Colors.redAccent)),
             )
           else
             TextButton(
@@ -1915,8 +1941,14 @@ class _HudHomeState extends State<HudHome> {
               child: const Text('Salvar Pin', style: TextStyle(color: Color(0xFFFFD166))),
             ),
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancelar'),
+            onPressed: () {
+              final label = pinIndex != null
+                  ? c.botwPins[pinIndex].name
+                  : (nameCtrl.text.trim().isEmpty ? 'Destino' : nameCtrl.text.trim());
+              setState(() => _botwNavTarget = (name: label, x: x, z: z));
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Destino (GPS)', style: TextStyle(color: Color(0xFF00E5FF))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00838F)),
@@ -1924,7 +1956,7 @@ class _HudHomeState extends State<HudHome> {
               Navigator.of(ctx).pop();
               c.pokeBotwPosition(x, y, z);
             },
-            child: const Text('Teleportar'),
+            child: const Text('Teleporte (Exp.)'),
           ),
         ],
       ),
@@ -1996,6 +2028,7 @@ class _BotwMapPainter extends CustomPainter {
   final bool showKoroks;
   final int shrineDoneCount;
   final List<BotwPin> pins;
+  final ({String name, double x, double z})? navTarget;
 
   const _BotwMapPainter({
     required this.linkNormX,
@@ -2008,6 +2041,7 @@ class _BotwMapPainter extends CustomPainter {
     required this.showKoroks,
     required this.shrineDoneCount,
     required this.pins,
+    this.navTarget,
   });
 
   @override
@@ -2111,6 +2145,28 @@ class _BotwMapPainter extends CustomPainter {
 
     final lx = linkNormX * size.width;
     final lz = linkNormZ * size.height;
+
+    if (navTarget != null) {
+      final tx = ((navTarget!.x + 6000.0) / 12000.0).clamp(0.0, 1.0) * size.width;
+      final tz = ((navTarget!.z + 5000.0) / 10000.0).clamp(0.0, 1.0) * size.height;
+      canvas.drawLine(
+        Offset(lx, lz),
+        Offset(tx, tz),
+        Paint()
+          ..color = const Color(0xFFFFD166).withValues(alpha: 0.85)
+          ..strokeWidth = 2.0,
+      );
+      canvas.drawCircle(
+        Offset(tx, tz),
+        7,
+        Paint()
+          ..color = const Color(0xFFFF5252)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.0,
+      );
+      canvas.drawCircle(Offset(tx, tz), 3, Paint()..color = const Color(0xFFFFD166));
+    }
+
     canvas.drawCircle(
       Offset(lx, lz),
       9,
@@ -2141,5 +2197,6 @@ class _BotwMapPainter extends CustomPainter {
       old.shrineDoneCount != shrineDoneCount ||
       old.shrines.length != shrines.length ||
       old.koroks.length != koroks.length ||
-      old.pins.length != pins.length;
+      old.pins.length != pins.length ||
+      old.navTarget != navTarget;
 }
