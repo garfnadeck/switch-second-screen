@@ -547,11 +547,20 @@ class _HudHomeState extends State<HudHome> {
                 ),
               ),
               Text(
-                c.titleId.isNotEmpty ? 'ID: ${c.titleId}' : c.linkStatus,
+                c.buildId.isNotEmpty
+                    ? 'Build: ${c.buildId.length > 16 ? c.buildId.substring(0, 16) : c.buildId}'
+                    : (c.titleId.isNotEmpty ? 'ID: ${c.titleId}' : c.linkStatus),
                 style: const TextStyle(fontSize: 10, color: Color(0xFF8888AA)),
               ),
             ],
           ),
+          if (c.titleId.isNotEmpty || c.buildId.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Title: ${c.titleId} | Build: ${c.buildId} | Perfil: ${c.activeBotwProfile?.versionLabel ?? "sem offsets mapeados para esta build"}',
+              style: const TextStyle(fontSize: 10, color: Color(0xFF00F5D4)),
+            ),
+          ],
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(10),

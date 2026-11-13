@@ -17,7 +17,21 @@ class WildZoneRef {
   const WildZoneRef(this.id, this.nx, this.ny, this.r, this.label);
 }
 
+class BotwMemoryProfile {
+  final String versionLabel;
+  final List<int> rupeesChain;
+  final List<int> posChain;
+  const BotwMemoryProfile({
+    required this.versionLabel,
+    this.rupeesChain = const [],
+    this.posChain = const [],
+  });
+}
+
 class SysBotbaseClient extends ChangeNotifier {
+  static const Map<String, BotwMemoryProfile> botwVersions = {
+    '1.6.0': BotwMemoryProfile(versionLabel: 'BotW 1.6.0'),
+  };
   static const List<int> _partyBase = [0x610A710, 0x18, 0x1B0, 0xF0, 0x50, 0x30, 0x0];
   static const List<int> _posBase = [0x47D71A0, 0x248, 0x0, 0x138, 0x90];
   static const List<int> _stashBase = [0x610A710, 0x120, 0x168, 0x0];
@@ -57,6 +71,15 @@ class SysBotbaseClient extends ChangeNotifier {
   bool connected = false;
   String linkStatus = 'desconectado';
   String titleId = '';
+  String buildId = '';
+
+  BotwMemoryProfile? get activeBotwProfile {
+    final bid = buildId.toUpperCase();
+    for (final entry in botwVersions.entries) {
+      if (bid.startsWith(entry.key.toUpperCase())) return entry.value;
+    }
+    return null;
+  }
 
   final List<PokemonSlot> party = List.generate(6, (_) => PokemonSlot());
   final List<Uint8List?> _slotClaro = List.filled(6, null);
@@ -327,9 +350,11 @@ class SysBotbaseClient extends ChangeNotifier {
       if (!connected || _busy) return;
       if (profile != GameProfile.pokemonZa) {
         final tid = await _sendAndWait('getTitleID');
-        if (tid != null) {
-          titleId = tid;
-          linkStatus = 'ok (Title: $tid)';
+        final bid = await _sendAndWait('getBuildID');
+        if (tid != null) titleId = tid;
+        if (bid != null) buildId = bid;
+        if (tid != null || bid != null) {
+          linkStatus = 'ok ($titleId | $buildId)';
           notifyListeners();
         }
         return;
