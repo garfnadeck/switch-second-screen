@@ -683,7 +683,7 @@
             <div class="badges">
                 <span class="badge">RP2040 / Pico W</span>
                 <span class="badge">ESP32-S3 N16R8</span>
-                <span class="badge">4 registros</span>
+                <span class="badge">6 registros</span>
             </div>
             <button class="tool-btn" onclick="expandAll(true)">Expandir</button>
             <button class="tool-btn" onclick="expandAll(false)">Recolher</button>
@@ -738,26 +738,81 @@
 
     <main class="content-area">
         <select id="mobile-date" class="sidebar-mobile" aria-label="Data" onchange="selectDate(this.value)" style="margin-bottom:14px;">
-            <option value="2026-11-09">09/11/2026 · Atual</option>
+            <option value="2026-11-12">12/11/2026 · Atual</option>
+            <option value="2026-11-09">09/11/2026 · Anterior</option>
             <option value="2026-10-23">23/10/2026 · Anterior</option>
             <option value="2026-10-22">22/10/2026 · Anterior</option>
             <option value="2026-04-15">15/04/2026 · Atualizado</option>
             <option value="2026-04-14">14/04/2026 · Base</option>
         </select>
 
-        <!-- CONTEÚDO: 09/11/2026 -->
+        <!-- CONTEÚDO: 12/11/2026 -->
         <div id="content-2026-11-12" class="date-content-view">
             <div class="hero">
-                <div class="eyebrow">REGISTRO DE 12/11/2026 // BUILD 2.0.2 (b1f12fd919eae86a)</div>
-                <h2>Ponteiros do Time (6 slots + decifragem PA9) e da Posição validados na build 2.0.2 do Legends Z-A</h2>
-                <p>Com o jogo atualizado para a versão 2.0.2, cruzamos a base publicada pelo SysBot.NET (<code>0x610A710</code>) com o mapeamento dos registros de Pokémon e validamos ao vivo no Switch (<code>192.168.15.5</code>) tanto os 6 Pokémon do time quanto a posição do jogador.</p>
+                <div class="eyebrow">REGISTRO DE 12/11/2026 // BUILD 2.0.2 (b1f12fd919eae86a) // COMMIT 987f19c</div>
+                <h2>Legends Z-A 2.0.2 completo: Telemetria 20 Hz, MicroSD + Mapa Calibrado, Mini Menu 2.0, Radar Shiny, Teleporte e Rotação 180°</h2>
+                <p>Com os ponteiros da versão 2.0.2 validados ao vivo no Switch (<code>192.168.15.5:6000</code>), a HUD da ESP32-S3 recebeu suporte ao MicroSD 16 GB com cache em PSRAM, mapa de Lumiose calibrado (1x/2x/3x), leitura RAM de baixo lag (20 Hz), rotação 180°, Mini Menu interativo em 2 páginas (cura, itens, Level, EVs, Nature e Alpha XXL), radar automático de Shiny Stash, teleporte por toque no mapa e leitura de bateria no GPIO 8.</p>
             </div>
 
-            <h2>✅ Resultado na 2.0.2 (Validado ao vivo no Switch)</h2>
-            <div class="grid-2">
-                <div class="card"><h2>🟢 Time completo (6 slots + PA9)</h2><p>Em <code>[0x610A710, 0x18, 0x1B0]</code>, os 6 slots do time ficam em <code>+0xF0 + i*8</code> (<code>0xF0..0x118</code>). Em cada slot (<code>+0x50</code>), o bloco PA9 cifrado (<code>0x148</code> bytes) está em <code>+0x30</code> e a extensão de time (<code>0x10</code> bytes: nível e HP máximo) está em <code>+0x50</code>. Integrado ao <code>sysbotbase_provider.h</code> com decifragem PA9 em C++.</p></div>
-                <div class="card"><h2>🟢 Posição do jogador na 2.0.2</h2><p>Deslocamento <code>+0x5000</code> em relação à 2.0.0: <code>pointerPeek 12 0x47D71A0 0x248 0x0 0x138 0x90</code> devolve <code>(x, y, z)</code> em float32 ao vivo em Lumiose.</p></div>
+            <div class="kpis">
+                <div class="kpi"><b>20 Hz</b><span>polling RAM (TCP_NODELAY)</span></div>
+                <div class="kpi"><b>3 níveis</b><span>zoom do mapa (1x / 2x / 3x)</span></div>
+                <div class="kpi"><b>2 págs</b><span>Mini Menu Pokémon (16 ações)</span></div>
+                <div class="kpi"><b>180°</b><span>rotação tela + touch salva</span></div>
+                <div class="kpi"><b>16 GB</b><span>MicroSD SDIO 4-bit + PSRAM</span></div>
             </div>
+
+            <h2>✅ Evolução do dia 12/11/2026 (Commits 41fe488 → 987f19c)</h2>
+            <div class="grid-2">
+                <div class="card">
+                    <h2>🟢 Time completo (6 slots + PA9) &amp; Polling 20 Hz</h2>
+                    <p>Em <code>[0x610A710, 0x18, 0x1B0]</code>, os 6 slots do time ficam em <code>+0xF0 + i*8</code> (<code>0xF0..0x118</code>). Em cada slot (<code>+0x50</code>), o bloco PA9 cifrado (<code>0x148</code> bytes) está em <code>+0x30</code> e a extensão de time (<code>0x10</code> bytes: nível e HP máx) em <code>+0x50</code>. Integrado ao <code>sysbotbase_provider.h</code> com decifragem/recifragem PA9, <code>TCP_NODELAY</code>, intervalo de 20 ms e cache de extensão.</p>
+                </div>
+                <div class="card">
+                    <h2>🟢 Posição, Calibração e Teleporte por Toque</h2>
+                    <p>Posição em <code>[0x47D71A0, 0x248, 0x0, 0x138, 0x90]</code> (12 bytes: <code>x, y_alt, z_map</code>). Calibração real de Lumiose: centro no Campo 20 <code>(-830, -500)</code> e raio <code>490 m</code>. Na aba <strong>Mapa</strong>, o botão <code>[Warp: OFF/ON]</code> permite tocar em qualquer ponto ou Zona Selvagem (1..20) para teleportar via <code>pointerPoke</code>.</p>
+                </div>
+                <div class="card">
+                    <h2>✨ Radar de Shiny Stash &amp; Bateria (GPIO 8)</h2>
+                    <p>Leitura periódica do <code>ShinyStashPointer</code> (<code>[0x610A710, 0x120, 0x168, 0x0]</code>). Ao detectar um Shiny salvo no mapa, exibe alerta dourado <code>*SHINY: Nome!</code> nas abas Status e Mapa e deixa o anel do jogador dourado. O módulo <code>es3c35p_extra.h</code> lê o divisor de tensão da bateria no <code>GPIO 8</code> e exibe a % no topo.</p>
+                </div>
+                <div class="card">
+                    <h2>🔄 MicroSD + PSRAM + Rotação 180°</h2>
+                    <p>Sprites (40×40) e mapas (208×208, 480×480 e 768×768) carregados do MicroSD (SDIO 4-bit) direto para a PSRAM via <code>AssetManager</code>. Na aba <strong>Config</strong>, o botão <code>[Girar 180]</code> inverte tela e toque (<code>es3c35p_lvgl_set_flip</code>) e persiste em <code>/config.txt</code>. Removido o rótulo amarelo <code>s_dbg</code> para eliminar redesenhos extras.</p>
+                </div>
+            </div>
+
+            <h2>🎛️ Mini Menu Interativo do Pokémon (2 Páginas na RAM)</h2>
+            <div class="grid-2">
+                <div class="card">
+                    <h2>Página 1 — Cura, Shiny, IVs &amp; Itens</h2>
+                    <ul style="padding-left:18px;">
+                        <li><strong>Cura rápida:</strong> <code>+ Curar HP</code>, <code>Curar Status</code>, <code>Restaurar PP</code>, <code>Full Restore</code> e <code>+ Curar Time Todo</code>.</li>
+                        <li><strong>Genética:</strong> <code>* Shiny ON/OFF</code> (ajusta PID/XOR) e <code>Max 6 IVs (31)</code> (<code>0x3FFFFFFF</code>).</li>
+                        <li><strong>Itens rápidos:</strong> <code>Leftovers</code> (234), <code>Sitrus B.</code> (158), <code>Lucky Egg</code> (231), <code>Life Orb</code> (270) e <code>Sem Item</code> (0).</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h2>Página 2 — Level, EVs, Nature &amp; Alpha XXL</h2>
+                    <ul style="padding-left:18px;">
+                        <li><strong>Level &amp; Tamanho:</strong> <code>+1 Level</code>, <code>+10 Levels</code>, <code>Level 100</code> e <code>Alpha XXL</code> (flag Alpha + altura/peso 255).</li>
+                        <li><strong>Treino de EVs:</strong> <code>EV Atk+Spe</code> (252/252/6), <code>EV SpA+Spe</code> (252/252/6), <code>EV HP+Def</code> (Tank) e <code>Zerar EVs</code>.</li>
+                        <li><strong>Natures:</strong> <code>Adamant</code>, <code>Jolly</code>, <code>Modest</code>, <code>Timid</code> e <code>Careful</code>.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2>🔌 Novos Endpoints HTTP (main.cpp)</h2>
+            <div class="tbl-wrap"><table>
+                <thead><tr><th>Rota</th><th>Método</th><th>Função</th></tr></thead>
+                <tbody>
+                    <tr><td><code>/api/pokemon/edit</code></td><td>POST</td><td>Aplica ações do Mini Menu (<code>slot</code> 0..5, <code>action</code> 0..16, <code>item</code>) direto na RAM do Switch</td></tr>
+                    <tr><td><code>/api/teleport</code></td><td>POST</td><td>Teleporta o jogador para <code>wx</code>, <code>wz</code> (e opcional <code>wy</code>) via <code>pointerPoke</code></td></tr>
+                    <tr><td><code>/api/display/flip</code></td><td>POST</td><td>Alterna/define rotação 180° da tela e toque e grava em <code>/config.txt</code></td></tr>
+                    <tr><td><code>/api/sd/status</code> / <code>upload</code> / <code>reload</code></td><td>GET / POST</td><td>Consulta espaço do MicroSD 16 GB, envia assets via Wi-Fi e recarrega texturas na PSRAM</td></tr>
+                    <tr><td><code>/api/party</code></td><td>GET</td><td>Agora inclui <code>shiny_stash</code>, <code>shiny_name</code>, <code>bat_pct</code>, <code>bat_mv</code>, <code>alpha</code> e <code>ev</code> por slot</td></tr>
+                </tbody>
+            </table></div>
 
             <h2>🎯 Build e identificadores</h2>
             <div class="tbl-wrap"><table>
@@ -772,10 +827,12 @@
             <h2>🔬 Testes de memória (2.0.2)</h2>
             <div class="callout"><strong>Ordem dos argumentos corrigida:</strong> o <code>peekMain</code> e o <code>peekAbsolute</code> recebem <strong>endereço primeiro e tamanho depois</strong> (confirmado no <code>commands.md</code> do olliz0r/sys-botbase). Os registros anteriores estavam invertidos e causaram os travamentos do jogo. O <code>pointerPeek</code> recebe tamanho primeiro, e a cadeia vem depois.</div>
             <div class="tbl-wrap"><table>
-                <tr><th>Leitura</th><th>Resultado</th><th>Situação</th></tr>
+                <tr><th>Leitura / Escrita</th><th>Resultado</th><th>Situação</th></tr>
                 <tr><td><code>pointerPeek 328 0x610A710 0x18 0x1B0 0xF0+i*8 0x50 0x30 0x0</code></td><td>Bloco PA9 (<code>0x148</code> bytes) dos slots 1..6 (Chikorita, Fletchling, Bunnelby, Scatterbug...)</td><td>validado ao vivo</td></tr>
-                <tr><td><code>pointerPeek 16 0x610A710 0x18 0x1B0 0xF0+i*8 0x50 0x50 0x0</code></td><td>Extensão de time (<code>0x10</code> bytes, cifrada com a mesma semente <code>chave</code>): nível em <code>+0x00</code> e HP máx em <code>+0x02</code></td><td>validado ao vivo</td></tr>
+                <tr><td><code>pointerPeek 16 0x610A710 0x18 0x1B0 0xF0+i*8 0x50 0x50 0x0</code></td><td>Extensão de time (<code>0x10</code> bytes, cifrada com a mesma semente <code>EC</code>): nível em <code>+0x00</code> e HP máx em <code>+0x02</code></td><td>validado ao vivo</td></tr>
                 <tr><td><code>pointerPeek 12 0x47D71A0 0x248 0x0 0x138 0x90</code></td><td>Coordenadas <code>(x, y, z)</code> float32 do personagem (<code>-746.64, 0.01, -862.58</code>)</td><td>validado ao vivo</td></tr>
+                <tr><td><code>pointerPeek 328 0x610A710 0x120 0x168 0x0</code></td><td><code>ShinyStashPointer</code> (detecção de Shiny Spawn em Lumiose)</td><td>integrado (987f19c)</td></tr>
+                <tr><td><code>pointerPoke 0x47D71A0 0x248 0x0 0x138 0x90 &lt;12B&gt;</code></td><td>Teleporte direto por toque no mapa (Warp ON)</td><td>integrado (987f19c)</td></tr>
                 <tr><td><code>peekMain 0x41EC340 8</code> (endereço antigo da 1.0.1)</td><td><code>C852CA5448000000</code> → quebra no 2º salto na 2.0.2</td><td>descartado (era da 1.0.1)</td></tr>
             </table></div>
             <div class="callout"><strong>Descartado:</strong> o valor <code>7C40160300000000</code> que apareceu antes não era de <code>0x41EC340</code>. Veio de <code>main+0x8</code> por causa da inversão de argumentos. Não usar esse resultado.</div>
@@ -785,12 +842,14 @@
             <div class="card"><h2>pokeldn (página de trocas)</h2><p>Os offsets de Pokémon (espécie <code>0x08</code>, item <code>0x0A</code>, XP <code>0x10</code>, habilidade <code>0x14</code>, PID <code>0x1C</code>, natureza <code>0x20</code>, OT <code>0xF8</code>, nível <code>0x148</code>) batem com o PKHeX. Porém são do <strong>payload de troca</strong> (344 bytes, descriptografados), e não da memória do jogo. Não validam a posição nem a caixa.</p></div>
             <div class="card"><h2>ZAShinyWarper (berichan)</h2><p>Repositório com ponteiros usados para shiny. Na 2.0.2 a posição seguiu o mesmo deslocamento <code>+0x5000</code> da base do save em relação à 2.0.0 (<code>0x47D21A0 → 0x47D71A0</code>).</p></div>
 
-            <h2>⚠️ Pendências</h2>
+            <h2>⚠️ Pendências &amp; Status</h2>
             <div class="tbl-wrap"><table>
                 <tr><th>Item</th><th>Situação</th></tr>
                 <tr><td>Posição do jogador na 2.0.2</td><td>✅ resolvido (<code>0x47D71A0, 0x248, 0x0, 0x138, 0x90</code>)</td></tr>
                 <tr><td>Time na 2.0.2 (6 Pokémon com HP, nível, nome e status)</td><td>✅ resolvido (<code>0x610A710, 0x18, 0x1B0, 0xF0+i*8, 0x50, 0x30/0x50, 0x0</code> + decifragem PA9)</td></tr>
-                <tr><td>Calibração do mapa (<code>world_min</code>/<code>world_max</code>)</td><td>pendente</td></tr>
+                <tr><td>Calibração do mapa de Lumiose (Campos 1..20)</td><td>✅ resolvido (centro <code>-830, -500</code>, raio <code>490 m</code>, zoom 1x/2x/3x em <code>dca64d5</code>)</td></tr>
+                <tr><td>Edição em tempo real (Mini Menu Pág 1 &amp; Pág 2)</td><td>✅ implementado e gravado na placa (<code>71663f6</code> e <code>987f19c</code>)</td></tr>
+                <tr><td>Radar Shiny Stash, Teleporte por toque e Bateria GPIO 8</td><td>✅ implementado e gravado na placa (<code>987f19c</code> — testar ao vivo no Switch)</td></tr>
                 <tr><td>Caixa <code>0x198</code> (pokeldn) x <code>0x148</code>/<code>0x158</code> (PKHeX)</td><td>✅ resolvido: bloco <code>0x148</code> em <code>+0x30</code> e extensão <code>0x10</code> separada em <code>+0x50</code></td></tr>
                 <tr><td>Script <code>tools/za_scan_objeto.py</code></td><td>✅ versionado na PR #18</td></tr>
             </table></div>
