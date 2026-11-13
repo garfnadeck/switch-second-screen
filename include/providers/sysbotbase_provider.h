@@ -434,13 +434,15 @@ private:
         }
         awaiting_title = false;
         if (botw) {
-            botw_step = (botw_step + 1) % 3;
+            botw_step = (botw_step + 1) % 4;
             if (botw_step == 0) {
                 sendRaw("pointerPeek 8 0x2C9FD70 0x38 0x2AC\r\n");
             } else if (botw_step == 1) {
                 sendRaw("pointerPeek 4 0x2CA1A78 0x80 0x848\r\n");
-            } else {
+            } else if (botw_step == 2) {
                 sendRaw("pointerPeek 4 0x2CC5FE0 0xE40 0x5B08 0x5D90\r\n");
+            } else {
+                sendRaw("pointerPeek 12 0x2CC5DE8 0x30 0x10 0x8 0x10 0x190\r\n");
             }
             awaiting = true; sent_ms = millis(); return;
         }
@@ -493,6 +495,17 @@ private:
                 uint32_t rup = 0;
                 memcpy(&rup, bbuf, 4);
                 if (rup <= 999999) state.zelda.rupees = rup;
+            } else if (botw_step == 3 && bn >= 12) {
+                float px = 0, py = 0, pz = 0;
+                memcpy(&px, bbuf + 0, 4);
+                memcpy(&py, bbuf + 4, 4);
+                memcpy(&pz, bbuf + 8, 4);
+                if (px > -6000.0f && px < 6000.0f && pz > -5000.0f && pz < 5000.0f) {
+                    state.map.x = px;
+                    state.map.y = py;
+                    state.map.z = pz;
+                    snprintf(state.map.zone_name, sizeof(state.map.zone_name), "Hyrule (%.0f, %.0f)", px, pz);
+                }
             }
             if (!telemetry_only) state.connected = true;
             setLink(state, "ok (BotW 1.6.0)");

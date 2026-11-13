@@ -43,6 +43,7 @@ class SysBotbaseClient extends ChangeNotifier {
       maxHeartsChain: [0x02C9FD70, 0x38, 0x2A8],
       staminaChain: [0x02C9FD70, 0x38, 0x2AC],
       rupeesChain: [0x02CC5FE0, 0xE40, 0x5B08, 0x5D90],
+      posChain: [0x02CC5DE8, 0x30, 0x10, 0x8, 0x10, 0x190],
     ),
   };
   static const List<int> _partyBase = [0x610A710, 0x18, 0x1B0, 0xF0, 0x50, 0x30, 0x0];
@@ -539,7 +540,60 @@ class SysBotbaseClient extends ChangeNotifier {
       }
     }
 
+    if (p.posChain.isNotEmpty) {
+      final hex = await _sendAndWait('pointerPeek 12 ${_chainArgs(p.posChain)}');
+      final raw = hex != null ? Pa9Crypto.hexToBytes(hex) : null;
+      if (raw != null && raw.length >= 12) {
+        final bd = ByteData.sublistView(raw);
+        final x = bd.getFloat32(0, Endian.little);
+        final y = bd.getFloat32(4, Endian.little);
+        final z = bd.getFloat32(8, Endian.little);
+        if (x.isFinite && y.isFinite && z.isFinite && x.abs() < 6000 && z.abs() < 5000) {
+          if ((x - posX).abs() > 0.2 || (y - posAlt).abs() > 0.2 || (z - posY).abs() > 0.2) {
+            posX = x;
+            posAlt = y;
+            posY = z;
+            zoneName = _botwRegionName(x, z);
+            changed = true;
+          }
+        }
+      }
+    }
+
     if (changed) notifyListeners();
+  }
+
+  String _botwRegionName(double x, double z) {
+    if (x > -1500 && x < -200 && z > 1300 && z < 2600) return 'Great Plateau';
+    if (x > -700 && x < 400 && z > -1400 && z < -400) return 'Hyrule Castle';
+    if (x > 2500 && z < -100 && z > -1800) return "Zora's Domain";
+    if (x > 800 && x < 2600 && z < -1600) return 'Eldin / Goron City';
+    if (x < -2500 && z < -800) return 'Hebra / Rito Village';
+    if (x < -2200 && z > 1500) return 'Gerudo Desert';
+    if (x > 1300 && x < 2500 && z > 400 && z < 1600) return 'Kakariko / Necluda';
+    if (x > 2500 && z > 1500) return 'Hateno / East Necluda';
+    if (x > 2600 && z < -1800) return 'Akkala';
+    if (z > 2500 && x > -500) return 'Faron / Lurelin';
+    return 'Hyrule Field';
+  }
+
+  Future<void> pokeBotwPosition(double x, double y, double z) async {
+    final p = activeBotwProfile;
+    if (p == null || !connected || p.posChain.isEmpty) return;
+    final b = ByteData(12)
+      ..setFloat32(0, x, Endian.little)
+      ..setFloat32(4, y, Endian.little)
+      ..setFloat32(8, z, Endian.little);
+    final hex = _toLittleEndianHex(b.buffer.asUint8List());
+    _sendFireAndForget('pointerPoke 0x$hex ${_chainArgs(p.posChain)}');
+    final bodyChain = List<int>.from(p.posChain)..last = 0x1B8;
+    _sendFireAndForget('pointerPoke 0x$hex ${_chainArgs(bodyChain)}');
+    posX = x;
+    posAlt = y;
+    posY = z;
+    zoneName = _botwRegionName(x, z);
+    lastLog = 'Teleporte BOTW -> (${x.toStringAsFixed(0)}, ${y.toStringAsFixed(0)}, ${z.toStringAsFixed(0)})';
+    notifyListeners();
   }
 
   String _toLittleEndianHex(Uint8List bytes) =>

@@ -788,39 +788,7 @@ class _HudHomeState extends State<HudHome> {
 
   Widget _buildMapTab(SysBotbaseClient c, HudThemeConfig th) {
     if (c.profile == GameProfile.zeldaBotw) {
-      const regions = [
-        ('Great Plateau', 'Inicio • Shrine of Resurrection / 4 Shrines'),
-        ('Central Hyrule', 'Hyrule Castle • Hylian Shield / Guardians'),
-        ('Kakariko & Hateno', 'Impa, Great Fairy, Casa do Link & Tech Lab'),
-        ('Zora\'s Domain (Leste)', 'Vah Ruta • Mipha\'s Grace'),
-        ('Eldin / Goron City (NE)', 'Vah Rudania • Daruk\'s Protection'),
-        ('Hebra / Rito Village (NO)', 'Vah Medoh • Revali\'s Gale'),
-        ('Gerudo Desert (SO)', 'Vah Naboris • Urbosa\'s Fury'),
-        ('Korok Forest (Norte)', 'Lost Woods • Master Sword (13 Coracoes)'),
-      ];
-      return ListView.separated(
-        itemCount: regions.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 6),
-        itemBuilder: (_, i) {
-          final r = regions[i];
-          return Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: th.cardBg,
-              borderRadius: BorderRadius.circular(th.cardRadius),
-              border: Border.all(color: th.cardBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(r.$1, style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 13)),
-                const SizedBox(height: 2),
-                Text(r.$2, style: const TextStyle(color: Colors.white70, fontSize: 11)),
-              ],
-            ),
-          );
-        },
-      );
+      return _buildBotwMapTab(c, th);
     }
     final distC20 = sqrt(pow(c.posX - (-830.0), 2) + pow(c.posY - (-500.0), 2)).round();
     final layer = _mapLayers[_mapLayerIdx];
@@ -1719,6 +1687,94 @@ class _HudHomeState extends State<HudHome> {
     );
   }
 
+  Widget _buildBotwMapTab(SysBotbaseClient c, HudThemeConfig th) {
+    const spots = [
+      ('Great Plateau', -796.0, 196.0, 1845.0),
+      ('Temple of Time', -814.0, 240.0, 1957.0),
+      ('Hyrule Castle', -254.0, 290.0, -1060.0),
+      ('Kakariko', 1827.0, 235.0, 995.0),
+      ('Hateno', 3395.0, 240.0, 2125.0),
+      ('Zora Domain', 3310.0, 265.0, -520.0),
+      ('Goron City', 1665.0, 505.0, -2445.0),
+      ('Rito Village', -3620.0, 285.0, -1815.0),
+      ('Gerudo Town', -3860.0, 160.0, 2890.0),
+      ('Korok Forest', 420.0, 255.0, -2140.0),
+    ];
+
+    final nx = ((c.posX + 5000.0) / 10000.0).clamp(0.0, 1.0);
+    final nz = ((c.posY + 4000.0) / 8000.0).clamp(0.0, 1.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${c.zoneName.isNotEmpty ? c.zoneName : "Hyrule"} | X:${c.posX.toStringAsFixed(0)} Y:${c.posAlt.toStringAsFixed(0)} Z:${c.posY.toStringAsFixed(0)}',
+                style: TextStyle(fontSize: 11, color: th.accent, fontWeight: FontWeight.w700),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 6),
+            _miniBtn(
+              _warpMode ? 'Warp: ON' : 'Warp: OFF',
+              _warpMode ? const Color(0xFFB71C1C) : const Color(0xFF23294E),
+              () => setState(() => _warpMode = !_warpMode),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (_, box) => GestureDetector(
+              onTapDown: (d) {
+                if (!_warpMode) return;
+                final tx = (d.localPosition.dx / box.maxWidth) * 10000.0 - 5000.0;
+                final tz = (d.localPosition.dy / box.maxHeight) * 8000.0 - 4000.0;
+                final ty = max(c.posAlt, 260.0);
+                c.pokeBotwPosition(tx, ty, tz);
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A141E),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _warpMode ? Colors.redAccent : th.cardBorder),
+                ),
+                child: CustomPaint(
+                  size: Size(box.maxWidth, box.maxHeight),
+                  painter: _BotwMapPainter(
+                    linkNormX: nx,
+                    linkNormZ: nz,
+                    spots: spots,
+                    accent: th.accent,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 32,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: spots.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 6),
+            itemBuilder: (_, i) {
+              final s = spots[i];
+              return _miniBtn(
+                s.$1,
+                const Color(0xFF0F3460),
+                () => c.pokeBotwPosition(s.$2, s.$3, s.$4),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildFooter(SysBotbaseClient c, HudThemeConfig th) {
     return Container(
       height: 24,
@@ -1741,4 +1797,71 @@ class _HudHomeState extends State<HudHome> {
       ),
     );
   }
+}
+
+class _BotwMapPainter extends CustomPainter {
+  final double linkNormX;
+  final double linkNormZ;
+  final List<(String, double, double, double)> spots;
+  final Color accent;
+
+  const _BotwMapPainter({
+    required this.linkNormX,
+    required this.linkNormZ,
+    required this.spots,
+    required this.accent,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = const Color(0xFF1A2D40)
+      ..strokeWidth = 1;
+    for (int i = 1; i < 5; i++) {
+      final dx = size.width * (i / 5);
+      final dy = size.height * (i / 5);
+      canvas.drawLine(Offset(dx, 0), Offset(dx, size.height), gridPaint);
+      canvas.drawLine(Offset(0, dy), Offset(size.width, dy), gridPaint);
+    }
+
+    final spotPaint = Paint()..color = const Color(0xFF4ECDC4);
+    for (final s in spots) {
+      final sx = ((s.$2 + 5000.0) / 10000.0).clamp(0.0, 1.0) * size.width;
+      final sz = ((s.$4 + 4000.0) / 8000.0).clamp(0.0, 1.0) * size.height;
+      canvas.drawCircle(Offset(sx, sz), 3.5, spotPaint);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: s.$1,
+          style: const TextStyle(color: Color(0xFFB0C8DC), fontSize: 9),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset((sx + 5).clamp(0, size.width - tp.width), (sz - 5).clamp(0, size.height - tp.height)));
+    }
+
+    final lx = linkNormX * size.width;
+    final lz = linkNormZ * size.height;
+    canvas.drawCircle(
+      Offset(lx, lz),
+      9,
+      Paint()..color = accent.withValues(alpha: 0.25),
+    );
+    canvas.drawCircle(
+      Offset(lx, lz),
+      5,
+      Paint()..color = const Color(0xFFFFD166),
+    );
+    canvas.drawCircle(
+      Offset(lx, lz),
+      5,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BotwMapPainter old) =>
+      old.linkNormX != linkNormX || old.linkNormZ != linkNormZ || old.accent != accent;
 }
