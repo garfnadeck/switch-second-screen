@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/game_state.dart';
+import '../services/emuiibo_ftp_service.dart';
 import '../services/sysbotbase_client.dart';
 import '../widgets/lumiose_map_painter.dart';
 
@@ -29,11 +30,19 @@ class _HudHomeState extends State<HudHome> {
 
   late final TextEditingController _ipCtrl;
   late final TextEditingController _portCtrl;
+  late final TextEditingController _amiiboSearchCtrl;
+  late final TextEditingController _ftpPortCtrl;
+
+  List<AmiiboCatalogItem> _amiiboCatalog = EmuiiboFtpService.quickCatalog;
+  List<String> _sdAmiibos = [];
+  String _amiiboMsg = '';
+  bool _amiiboBusy = false;
 
   static const _tabs = [
     (icon: Icons.favorite_rounded, label: 'Status'),
     (icon: Icons.map_rounded, label: 'Mapa'),
     (icon: Icons.gamepad_rounded, label: 'Macros'),
+    (icon: Icons.nfc_rounded, label: 'Amiibo'),
     (icon: Icons.wifi_rounded, label: 'Rede'),
     (icon: Icons.tune_rounded, label: 'Config'),
   ];
@@ -70,6 +79,8 @@ class _HudHomeState extends State<HudHome> {
     super.initState();
     _ipCtrl = TextEditingController(text: widget.client.switchIp);
     _portCtrl = TextEditingController(text: '${widget.client.switchPort}');
+    _amiiboSearchCtrl = TextEditingController();
+    _ftpPortCtrl = TextEditingController(text: '5000');
     widget.client.addListener(_onClientUpdate);
   }
 
@@ -86,6 +97,8 @@ class _HudHomeState extends State<HudHome> {
     widget.client.removeListener(_onClientUpdate);
     _ipCtrl.dispose();
     _portCtrl.dispose();
+    _amiiboSearchCtrl.dispose();
+    _ftpPortCtrl.dispose();
     super.dispose();
   }
 
@@ -114,6 +127,7 @@ class _HudHomeState extends State<HudHome> {
                           _buildStatusTab(c, th),
                           _buildMapTab(c, th),
                           _buildMacrosTab(c, th),
+                          _buildAmiiboTab(c, th),
                           _buildNetTab(c, th),
                           _buildConfigTab(c, th),
                         ],
@@ -908,6 +922,214 @@ class _HudHomeState extends State<HudHome> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAmiiboTab(SysBotbaseClient c, HudThemeConfig th) {
+    final ftpPort = int.tryParse(_ftpPortCtrl.text.trim()) ?? 5000;
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: th.cardBg,
+              borderRadius: BorderRadius.circular(th.cardRadius),
+              border: Border.all(color: th.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Controle emuiibo (Tesla via sys-botbase)',
+                    style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 12)),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: _miniBtn('Tesla (L+▼+R3)', const Color(0xFF4527A0), c.openTeslaOverlay),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(child: _miniBtn('▲', const Color(0xFF1E2749), () => c.sendButtonClick('DUP'))),
+                    const SizedBox(width: 4),
+                    Expanded(child: _miniBtn('▼', const Color(0xFF1E2749), () => c.sendButtonClick('DDOWN'))),
+                    const SizedBox(width: 4),
+                    Expanded(child: _miniBtn('A', const Color(0xFF1B5E20), () => c.sendButtonClick('A'))),
+                    const SizedBox(width: 4),
+                    Expanded(child: _miniBtn('B', const Color(0xFF7B112C), () => c.sendButtonClick('B'))),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: th.cardBg,
+              borderRadius: BorderRadius.circular(th.cardRadius),
+              border: Border.all(color: th.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Enviar Amiibo p/ SD (sys-ftpd)',
+                          style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 12)),
+                    ),
+                    SizedBox(
+                      width: 68,
+                      height: 28,
+                      child: TextField(
+                        controller: _ftpPortCtrl,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.white, fontSize: 11),
+                        decoration: const InputDecoration(
+                          contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          labelText: 'FTP',
+                          labelStyle: TextStyle(fontSize: 10, color: Color(0xFF99A2C8)),
+                          filled: true,
+                          fillColor: Color(0xFF101324),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    _miniBtn('Listar SD', const Color(0xFF006064), _amiiboBusy ? () {} : () async {
+                      setState(() {
+                        _amiiboBusy = true;
+                        _amiiboMsg = 'Lendo /emuiibo/amiibo...';
+                      });
+                      try {
+                        final list = await EmuiiboFtpService.listAmiibos(c.switchIp, port: ftpPort);
+                        setState(() {
+                          _sdAmiibos = list;
+                          _amiiboMsg = '${list.length} amiibo(s) no SD';
+                        });
+                      } catch (e) {
+                        setState(() => _amiiboMsg = 'Erro FTP (${c.switchIp}:$ftpPort): $e');
+                      } finally {
+                        setState(() => _amiiboBusy = false);
+                      }
+                    }),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _amiiboSearchCtrl,
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          hintText: 'Buscar Amiibo (ex: Link, Zelda, Mario...)',
+                          hintStyle: TextStyle(color: Color(0xFF667094), fontSize: 11),
+                          filled: true,
+                          fillColor: Color(0xFF101324),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    _miniBtn('Buscar', const Color(0xFF0F3460), () async {
+                      setState(() {
+                        _amiiboBusy = true;
+                        _amiiboMsg = 'Buscando na AmiiboAPI...';
+                      });
+                      final res = await EmuiiboFtpService.searchApi(_amiiboSearchCtrl.text);
+                      setState(() {
+                        _amiiboCatalog = res;
+                        _amiiboBusy = false;
+                        _amiiboMsg = '${res.length} encontrado(s)';
+                      });
+                    }),
+                  ],
+                ),
+                if (_amiiboMsg.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(_amiiboMsg, style: TextStyle(color: th.accent, fontSize: 11)),
+                ],
+                const SizedBox(height: 6),
+                ..._amiiboCatalog.take(10).map((item) => Container(
+                      margin: const EdgeInsets.only(bottom: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF101324),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: th.cardBorder.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        children: [
+                          if (item.image.isNotEmpty)
+                            Image.network(item.image, width: 28, height: 28, errorBuilder: (_, _, _) => const Icon(Icons.nfc, size: 22))
+                          else
+                            const Icon(Icons.nfc, size: 22),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(item.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                Text(item.gameSeries, style: const TextStyle(fontSize: 10, color: Color(0xFF8888AA))),
+                              ],
+                            ),
+                          ),
+                          _miniBtn('Enviar', const Color(0xFF1B5E20), () async {
+                            setState(() {
+                              _amiiboBusy = true;
+                              _amiiboMsg = 'Enviando ${item.name}...';
+                            });
+                            try {
+                              await EmuiiboFtpService.uploadVirtualAmiibo(c.switchIp, item, port: ftpPort);
+                              final list = await EmuiiboFtpService.listAmiibos(c.switchIp, port: ftpPort);
+                              setState(() {
+                                _sdAmiibos = list;
+                                _amiiboMsg = '${item.name} enviado p/ /emuiibo/amiibo!';
+                              });
+                            } catch (e) {
+                              setState(() => _amiiboMsg = 'Erro FTP: $e');
+                            } finally {
+                              setState(() => _amiiboBusy = false);
+                            }
+                          }),
+                        ],
+                      ),
+                    )),
+                if (_sdAmiibos.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text('No SD (/emuiibo/amiibo/):', style: TextStyle(color: th.accent, fontSize: 11, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: _sdAmiibos.map((folder) => Chip(
+                          backgroundColor: const Color(0xFF18223D),
+                          label: Text(folder, style: const TextStyle(fontSize: 11, color: Colors.white)),
+                          deleteIcon: const Icon(Icons.delete_outline, size: 16, color: Color(0xFFFF6E88)),
+                          onDeleted: () async {
+                            try {
+                              await EmuiiboFtpService.deleteAmiibo(c.switchIp, folder, port: ftpPort);
+                              final list = await EmuiiboFtpService.listAmiibos(c.switchIp, port: ftpPort);
+                              setState(() {
+                                _sdAmiibos = list;
+                                _amiiboMsg = '$folder removido do SD';
+                              });
+                            } catch (e) {
+                              setState(() => _amiiboMsg = 'Erro ao remover: $e');
+                            }
+                          },
+                        )).toList(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

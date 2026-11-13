@@ -765,6 +765,24 @@ class SysBotbaseClient extends ChangeNotifier {
     }
   }
 
+  void sendButtonClick(String btn) {
+    _sendFireAndForget('click $btn');
+    lastLog = 'Botao: $btn';
+    notifyListeners();
+  }
+
+  Future<void> openTeslaOverlay() async {
+    _sendFireAndForget('press L');
+    _sendFireAndForget('press DDOWN');
+    _sendFireAndForget('press RSTICK');
+    await Future.delayed(const Duration(milliseconds: 180));
+    _sendFireAndForget('release L');
+    _sendFireAndForget('release DDOWN');
+    _sendFireAndForget('release RSTICK');
+    lastLog = 'Tesla Overlay (L+▼+R3)';
+    notifyListeners();
+  }
+
   void stopAllMacros() {
     _macroTimer?.cancel();
     _macroTimer = null;
