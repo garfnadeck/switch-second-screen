@@ -58,7 +58,12 @@ static String statusJson(bool withOk) {
     json += ",\"usb\":" + String(state.connected ? "true" : "false");
     json += ",\"um_idx\":" + String(router.usb().userIdx()) + ",\"um_pos\":" + String(router.usb().userPos()) +
             ",\"um_cyc\":" + String((unsigned int)router.usb().userCycles()) + ",\"um_wait\":" + String(router.usb().userWaiting() ? "true" : "false");
-    json += ",\"game\":\"" + String(state.profile == GameProfile::POKEMON_FIRERED ? "pkmn_fr" : state.profile == GameProfile::POKEMON_LEGENDS_ZA ? "pkmn_za" : "other") + "\"";
+    const char * gname = "other";
+    if (state.profile == GameProfile::POKEMON_FIRERED) gname = "pkmn_fr";
+    else if (state.profile == GameProfile::POKEMON_LEGENDS_ZA) gname = "pkmn_za";
+    else if (state.profile == GameProfile::ZELDA_BOTW) gname = "zelda_botw";
+    else if (state.profile == GameProfile::ZELDA_TOTK) gname = "zelda_totk";
+    json += ",\"game\":\"" + String(gname) + "\"";
     json += "}";
     return json;
 }

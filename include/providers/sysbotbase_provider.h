@@ -59,7 +59,9 @@ private:
     uint8_t  slot_ext_age[6] = {};                       // contadores para pular releitura redundante da extensao +0x50
     bool     slot_valid[6] = {};
     uint8_t  stash_poll_cnt = 0;                         // a cada 12 leituras checa o ShinyStashPointer
-    uint32_t sent_ms = 0, last_poll_ms = 0, last_try_ms = 0;
+    uint32_t sent_ms = 0, last_poll_ms = 0, last_try_ms = 0, last_auto_scan_ms = 0;
+    uint8_t  title_poll_cnt = 0;
+    bool     awaiting_title = false;
     bool     linked = false;
     bool     telemetry_only = false;
     ZaMemoryMap map = ZA_MAP;
@@ -408,12 +410,27 @@ private:
         sendRaw(cmd);
     }
 
-    void requestNext(GameState &state) {
-        // Sem enderecos configurados (ou jogo diferente do Z-A): so confirma o link com getTitleID
-        bool za = (state.profile == GameProfile::POKEMON_LEGENDS_ZA);
-        if (!za || (map.party.count == 0 && map.pos.count == 0)) {
-            sendRaw("getTitleID\r\n"); next_req = 0; awaiting = true; sent_ms = millis(); return;
+    void applyAutoTitle(GameState &state, const char * tid) {
+        if (!tid || strlen(tid) < 16) return;
+        if (strncasecmp(tid, "01007EF00011E000", 16) == 0) {
+            state.profile = GameProfile::ZELDA_BOTW;
+        } else if (strncasecmp(tid, "0100F43008C44000", 16) == 0) {
+            state.profile = GameProfile::POKEMON_LEGENDS_ZA;
+        } else if (strncasecmp(tid, "0100554023408000", 16) == 0 ||
+                   strncasecmp(tid, "010034D02340E000", 16) == 0) {
+            state.profile = GameProfile::POKEMON_FIRERED;
+        } else if (strncasecmp(tid, "0100F2C0115B6000", 16) == 0) {
+            state.profile = GameProfile::ZELDA_TOTK;
         }
+    }
+
+    void requestNext(GameState &state) {
+        // Checa o TitleID periodicamente para trocar de jogo automaticamente
+        bool za = (state.profile == GameProfile::POKEMON_LEGENDS_ZA);
+        if (!za || (map.party.count == 0 && map.pos.count == 0) || (++title_poll_cnt % 60 == 1)) {
+            sendRaw("getTitleID\r\n"); awaiting_title = true; awaiting = true; sent_ms = millis(); return;
+        }
+        awaiting_title = false;
         if ((next_req == 0 || next_req == 1) && map.party.count) {
             sendPartySlotChain(party_idx, next_req == 1);
         } else if (next_req == 3 && map.party.count) {
@@ -431,6 +448,13 @@ private:
     }
 
     void handleReply(GameState &state) {
+        if (awaiting_title) {
+            awaiting_title = false;
+            applyAutoTitle(state, rx);
+            if (!telemetry_only) state.connected = true;
+            if (state.profile != GameProfile::POKEMON_LEGENDS_ZA) setLink(state, "ok (auto)");
+            return;
+        }
         bool za = (state.profile == GameProfile::POKEMON_LEGENDS_ZA);
         if (!za || (map.party.count == 0 && map.pos.count == 0)) {
             if (!telemetry_only) state.connected = true;
@@ -593,6 +617,16 @@ private:
                     setLink(state, txt);
                 }
                 if (!linked && !telemetry_only) state.connected = false;
+#ifdef ARDUINO
+                if (!linked && WiFi.status() == WL_CONNECTED &&
+                    (last_auto_scan_ms == 0 || now - last_auto_scan_ms >= 30000)) {
+                    last_auto_scan_ms = now;
+                    IPAddress lip = WiFi.localIP();
+                    char prefix[20];
+                    snprintf(prefix, sizeof(prefix), "%d.%d.%d.", lip[0], lip[1], lip[2]);
+                    startScan(state, prefix, 1, 254);
+                }
+#endif
             }
             return;
         }

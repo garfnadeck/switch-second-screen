@@ -1555,6 +1555,26 @@ class _HudHomeState extends State<HudHome> {
             ],
             const SizedBox(height: 8),
             Text('Status: ${c.linkStatus}', style: const TextStyle(color: Color(0xFF99A2C8), fontSize: 12)),
+            if (c.titleId.isNotEmpty)
+              Text('Title: ${c.titleId} | Build: ${c.buildId.isNotEmpty ? c.buildId : "-"}',
+                  style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            const SizedBox(height: 6),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text('Auto-detectar Switch na rede', style: TextStyle(fontSize: 12, color: Colors.white)),
+              value: c.autoDetectSwitch,
+              activeThumbColor: th.accent,
+              onChanged: (_) => c.toggleAutoDetectSwitch(),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text('Trocar jogo/versao automaticamente', style: TextStyle(fontSize: 12, color: Colors.white)),
+              value: c.autoDetectGame,
+              activeThumbColor: th.accent,
+              onChanged: (_) => c.toggleAutoDetectGame(),
+            ),
           ],
         ),
       ),
@@ -1659,9 +1679,14 @@ class _HudHomeState extends State<HudHome> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            c.lastLog.isNotEmpty ? c.lastLog : '[sys-botbase] ${c.switchIp}:${c.switchPort}',
-            style: const TextStyle(fontSize: 10, color: Color(0xFF8888AA)),
+          Expanded(
+            child: Text(
+              c.scanning
+                  ? c.scanResult
+                  : (c.lastLog.isNotEmpty ? c.lastLog : '[sys-botbase] ${c.switchIp}:${c.switchPort}'),
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 10, color: Color(0xFF8888AA)),
+            ),
           ),
           Text('Tema: ${th.name}', style: const TextStyle(fontSize: 10, color: Color(0xFF8888AA))),
         ],

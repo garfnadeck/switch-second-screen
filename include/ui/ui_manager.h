@@ -119,6 +119,7 @@ private:
     lv_obj_t * top_bar_obj = nullptr;
     lv_obj_t * title_obj = nullptr;
     lv_obj_t * dd_profile_obj = nullptr;
+    GameProfile last_profile_shown = GameProfile::COUNT;
     lv_obj_t * tabview_obj = nullptr;
     lv_obj_t * tab_btns_obj = nullptr;
     lv_obj_t * sidebar_obj = nullptr;
@@ -457,6 +458,13 @@ public:
 
     void tickUpdate() {
         router.update(state);
+        if (state.profile != last_profile_shown) {
+            last_profile_shown = state.profile;
+            refreshActiveProfile();
+            if (dd_profile_obj && static_cast<uint8_t>(state.profile) < NUM_MODULES) {
+                lv_dropdown_set_selected(dd_profile_obj, static_cast<uint16_t>(state.profile));
+            }
+        }
         IGameModule * mod = getActiveModule();
         mod->updateStatusTab(state);
         updateMapRealtime();

@@ -110,6 +110,10 @@ class SysBotbaseClient extends ChangeNotifier {
   bool scanning = false;
   int scanProgress = 0;
   String scanResult = '';
+  bool autoDetectSwitch = true;
+  bool autoDetectGame = true;
+  DateTime _lastAutoScan = DateTime.fromMillisecondsSinceEpoch(0);
+  int _titlePollCnt = 0;
 
   List<FavWarp> favWarps = List.generate(3, (_) => const FavWarp());
 
@@ -146,6 +150,8 @@ class SysBotbaseClient extends ChangeNotifier {
     soundEnabled = prefs.getBool('soundEnabled') ?? true;
     autoStopShiny = prefs.getBool('autoStopShiny') ?? true;
     autoHeal = prefs.getBool('autoHeal') ?? false;
+    autoDetectSwitch = prefs.getBool('autoDetectSwitch') ?? true;
+    autoDetectGame = prefs.getBool('autoDetectGame') ?? true;
     botwShrines = prefs.getInt('botwShrines') ?? 0;
     botwKoroks = prefs.getInt('botwKoroks') ?? 0;
     botwBeasts = prefs.getInt('botwBeasts') ?? 0;
@@ -176,6 +182,8 @@ class SysBotbaseClient extends ChangeNotifier {
     await prefs.setBool('soundEnabled', soundEnabled);
     await prefs.setBool('autoStopShiny', autoStopShiny);
     await prefs.setBool('autoHeal', autoHeal);
+    await prefs.setBool('autoDetectSwitch', autoDetectSwitch);
+    await prefs.setBool('autoDetectGame', autoDetectGame);
     await prefs.setInt('botwShrines', botwShrines);
     await prefs.setInt('botwKoroks', botwKoroks);
     await prefs.setInt('botwBeasts', botwBeasts);
@@ -211,6 +219,18 @@ class SysBotbaseClient extends ChangeNotifier {
 
   void toggleAutoHeal() {
     autoHeal = !autoHeal;
+    _savePrefs();
+    notifyListeners();
+  }
+
+  void toggleAutoDetectSwitch() {
+    autoDetectSwitch = !autoDetectSwitch;
+    _savePrefs();
+    notifyListeners();
+  }
+
+  void toggleAutoDetectGame() {
+    autoDetectGame = !autoDetectGame;
     _savePrefs();
     notifyListeners();
   }
@@ -305,16 +325,25 @@ class SysBotbaseClient extends ChangeNotifier {
         },
       );
 
+      _titlePollCnt = 0;
       _startPolling();
       notifyListeners();
     } catch (e) {
       connected = false;
       linkStatus = 'sem conexao';
       notifyListeners();
-      // Auto-retry in 5s
-      Future.delayed(const Duration(seconds: 5), () {
-        if (!connected && !scanning) connect();
-      });
+      final now = DateTime.now();
+      if (autoDetectSwitch &&
+          !scanning &&
+          now.difference(_lastAutoScan).inSeconds >= 20) {
+        _lastAutoScan = now;
+        Future.microtask(scanNetwork);
+      } else {
+        // Auto-retry in 5s
+        Future.delayed(const Duration(seconds: 5), () {
+          if (!connected && !scanning) connect();
+        });
+      }
     }
   }
 
@@ -360,19 +389,53 @@ class SysBotbaseClient extends ChangeNotifier {
     } catch (_) {}
   }
 
+  void _applyDetectedTitle(String? tid, String? bid) {
+    if (tid != null && tid.isNotEmpty) titleId = tid.trim().toUpperCase();
+    if (bid != null && bid.isNotEmpty) buildId = bid.trim().toUpperCase();
+    if (!autoDetectGame || titleId.isEmpty) return;
+
+    GameProfile? detected;
+    if (titleId == '01007EF00011E000') {
+      detected = GameProfile.zeldaBotw;
+    } else if (titleId == '0100F43008C44000') {
+      detected = GameProfile.pokemonZa;
+    } else if (titleId == '0100554023408000' || titleId == '010034D02340E000') {
+      detected = GameProfile.pokemonFr;
+    }
+
+    if (detected != null && detected != profile) {
+      profile = detected;
+      final label = detected == GameProfile.zeldaBotw
+          ? 'Zelda BOTW'
+          : detected == GameProfile.pokemonFr
+              ? 'Pokemon FireRed'
+              : 'Pokemon Legends Z-A';
+      lastLog = 'Auto-detectado: $label';
+    }
+  }
+
   void _startPolling() {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(milliseconds: 55), (_) async {
       if (!connected || _busy) return;
-      if (profile != GameProfile.pokemonZa) {
+      final checkTitle = _titlePollCnt == 0 ||
+          (profile != GameProfile.pokemonZa && _titlePollCnt % 10 == 0) ||
+          (_titlePollCnt % 40 == 0);
+      _titlePollCnt++;
+
+      if (checkTitle) {
         final tid = await _sendAndWait('getTitleID');
         final bid = await _sendAndWait('getBuildID');
-        if (tid != null) titleId = tid;
-        if (bid != null) buildId = bid;
-        if (tid != null || bid != null) {
-          linkStatus = 'ok ($titleId | $buildId)';
-          notifyListeners();
+        _applyDetectedTitle(tid, bid);
+        if (profile != GameProfile.pokemonZa) {
+          if (tid != null || bid != null) {
+            final ver = activeBotwProfile?.versionLabel ?? '';
+            linkStatus = ver.isNotEmpty ? 'ok ($ver)' : 'ok ($titleId)';
+            notifyListeners();
+          }
+          return;
         }
+      } else if (profile != GameProfile.pokemonZa) {
         return;
       }
 
@@ -1017,6 +1080,9 @@ class SysBotbaseClient extends ChangeNotifier {
       await updateTarget(foundIp, switchPort);
     } else {
       scanResult = 'Switch nao encontrado em $prefix*:$switchPort';
+      Future.delayed(const Duration(seconds: 5), () {
+        if (!connected && !scanning) connect();
+      });
     }
     notifyListeners();
   }
