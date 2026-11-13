@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Switch HUD</string>
+	<string>NS Companion</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Conectar ao Nintendo Switch (sys-botbase) na rede Wi-Fi local.</string>
 	<key>CFBundleExecutable</key>

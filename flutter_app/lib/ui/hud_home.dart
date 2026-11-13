@@ -37,6 +37,8 @@ class _HudHomeState extends State<HudHome> {
   List<String> _sdAmiibos = [];
   String _amiiboMsg = '';
   bool _amiiboBusy = false;
+  String _botwShrineFilter = 'all'; // 'all', 'done', 'missing', 'off'
+  bool _botwShowKoroks = false;
 
   static const _tabs = [
     (icon: Icons.favorite_rounded, label: 'Status'),
@@ -689,34 +691,48 @@ class _HudHomeState extends State<HudHome> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Progresso em Hyrule',
-                    style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 12)),
+                Row(
+                  children: [
+                    Text('Progresso em Hyrule (Auto)',
+                        style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 12)),
+                    const Spacer(),
+                    _miniBtn(
+                      c.botwProgressSyncing ? 'Lendo...' : 'Sincronizar',
+                      const Color(0xFF0F3460),
+                      c.botwProgressSyncing ? () {} : () => c.syncBotwProgress(),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
-                      child: Row(
-                        children: [
-                          Text('Shrines: ${c.botwShrines}/120',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          const Spacer(),
-                          _miniBtn('-1', const Color(0xFF23294E), () => c.setBotwShrines(-1)),
-                          const SizedBox(width: 4),
-                          _miniBtn('+1', const Color(0xFF0F3460), () => c.setBotwShrines(1)),
-                        ],
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF101324),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: th.cardBorder),
+                        ),
+                        child: Text(
+                          'Shrines: ${c.botwShrines}/${c.botwShrineList.isNotEmpty ? c.botwShrineList.length : 120}',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF00E5FF)),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
-                      child: Row(
-                        children: [
-                          Text('Koroks: ${c.botwKoroks}/900',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          const Spacer(),
-                          _miniBtn('-1', const Color(0xFF23294E), () => c.setBotwKoroks(-1)),
-                          const SizedBox(width: 4),
-                          _miniBtn('+1', const Color(0xFF0F3460), () => c.setBotwKoroks(1)),
-                        ],
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF101324),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: th.cardBorder),
+                        ),
+                        child: Text(
+                          'Koroks no mapa: ${c.botwKorokList.length}',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFFFD166)),
+                        ),
                       ),
                     ),
                   ],
@@ -728,28 +744,10 @@ class _HudHomeState extends State<HudHome> {
                   children: [
                     ...List.generate(4, (i) {
                       final on = (c.botwBeasts & (1 << i)) != 0;
-                      return FilterChip(
-                        label: Text(beasts[i], style: const TextStyle(fontSize: 11)),
-                        selected: on,
-                        selectedColor: const Color(0xFF1B5E20),
-                        backgroundColor: const Color(0xFF101324),
-                        onSelected: (_) => c.toggleBotwBeast(i),
-                      );
+                      return _statusBadge(beasts[i], on, const Color(0xFF1B5E20));
                     }),
-                    FilterChip(
-                      label: const Text('Master Sword', style: TextStyle(fontSize: 11)),
-                      selected: c.botwMasterSword,
-                      selectedColor: const Color(0xFF0F3460),
-                      backgroundColor: const Color(0xFF101324),
-                      onSelected: (_) => c.toggleBotwMasterSword(),
-                    ),
-                    FilterChip(
-                      label: const Text('Hylian Shield', style: TextStyle(fontSize: 11)),
-                      selected: c.botwHylianShield,
-                      selectedColor: const Color(0xFF0F3460),
-                      backgroundColor: const Color(0xFF101324),
-                      onSelected: (_) => c.toggleBotwHylianShield(),
-                    ),
+                    _statusBadge('Master Sword', c.botwMasterSword, const Color(0xFF0F3460)),
+                    _statusBadge('Hylian Shield', c.botwHylianShield, const Color(0xFF0F3460)),
                   ],
                 ),
               ],
@@ -1724,42 +1722,90 @@ class _HudHomeState extends State<HudHome> {
             ),
           ],
         ),
+        const SizedBox(height: 5),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _miniBtn(
+                'Shrines: Todos',
+                _botwShrineFilter == 'all' ? const Color(0xFF00838F) : const Color(0xFF1A2038),
+                () => setState(() => _botwShrineFilter = 'all'),
+              ),
+              const SizedBox(width: 4),
+              _miniBtn(
+                'Feitos (${c.botwShrines})',
+                _botwShrineFilter == 'done' ? const Color(0xFF00838F) : const Color(0xFF1A2038),
+                () => setState(() => _botwShrineFilter = 'done'),
+              ),
+              const SizedBox(width: 4),
+              _miniBtn(
+                'Faltantes',
+                _botwShrineFilter == 'missing' ? const Color(0xFFE65100) : const Color(0xFF1A2038),
+                () => setState(() => _botwShrineFilter = 'missing'),
+              ),
+              const SizedBox(width: 4),
+              _miniBtn(
+                'Off',
+                _botwShrineFilter == 'off' ? const Color(0xFF37474F) : const Color(0xFF1A2038),
+                () => setState(() => _botwShrineFilter = 'off'),
+              ),
+              const SizedBox(width: 8),
+              _miniBtn(
+                _botwShowKoroks ? 'Koroks: ON' : 'Koroks: OFF',
+                _botwShowKoroks ? const Color(0xFF2E7D32) : const Color(0xFF1A2038),
+                () => setState(() => _botwShowKoroks = !_botwShowKoroks),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 6),
         Expanded(
           child: Center(
             child: AspectRatio(
               aspectRatio: 1.2,
-              child: LayoutBuilder(
-                builder: (_, box) => GestureDetector(
-                  onTapDown: (d) {
-                    if (!_warpMode) return;
-                    final tx = (d.localPosition.dx / box.maxWidth) * 12000.0 - 6000.0;
-                    final tz = (d.localPosition.dy / box.maxHeight) * 10000.0 - 5000.0;
-                    final ty = max(c.posAlt, 260.0);
-                    c.pokeBotwPosition(tx, ty, tz);
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0A141E),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _warpMode ? Colors.redAccent : th.cardBorder),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(9),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.asset('assets/m/zelda_botw/hyrule.png', fit: BoxFit.fill),
-                          CustomPaint(
-                            size: Size(box.maxWidth, box.maxHeight),
-                            painter: _BotwMapPainter(
-                              linkNormX: nx,
-                              linkNormZ: nz,
-                              spots: spots,
-                              accent: th.accent,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0A141E),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _warpMode ? Colors.redAccent : th.cardBorder),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(9),
+                  child: InteractiveViewer(
+                    minScale: 1.0,
+                    maxScale: 10.0,
+                    panEnabled: true,
+                    scaleEnabled: true,
+                    child: LayoutBuilder(
+                      builder: (_, box) => GestureDetector(
+                        onTapDown: (d) {
+                          if (!_warpMode) return;
+                          final tx = (d.localPosition.dx / box.maxWidth) * 12000.0 - 6000.0;
+                          final tz = (d.localPosition.dy / box.maxHeight) * 10000.0 - 5000.0;
+                          final ty = max(c.posAlt, 260.0);
+                          c.pokeBotwPosition(tx, ty, tz);
+                        },
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.asset('assets/m/zelda_botw/hyrule.png', fit: BoxFit.fill),
+                            CustomPaint(
+                              size: Size(box.maxWidth, box.maxHeight),
+                              painter: _BotwMapPainter(
+                                linkNormX: nx,
+                                linkNormZ: nz,
+                                spots: spots,
+                                accent: th.accent,
+                                shrines: c.botwShrineList,
+                                shrineFilter: _botwShrineFilter,
+                                koroks: c.botwKorokList,
+                                showKoroks: _botwShowKoroks,
+                                shrineDoneCount: c.botwShrines,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1811,6 +1857,36 @@ class _HudHomeState extends State<HudHome> {
       ),
     );
   }
+
+  Widget _statusBadge(String label, bool active, Color activeBg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: active ? activeBg : const Color(0xFF101324),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: active ? Colors.white38 : const Color(0xFF282E4A)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            active ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+            size: 13,
+            color: active ? Colors.white : const Color(0xFF6B7294),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+              color: active ? Colors.white : const Color(0xFF8E95B8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _BotwMapPainter extends CustomPainter {
@@ -1818,12 +1894,22 @@ class _BotwMapPainter extends CustomPainter {
   final double linkNormZ;
   final List<(String, double, double, double)> spots;
   final Color accent;
+  final List<BotwMarker> shrines;
+  final String shrineFilter;
+  final List<BotwMarker> koroks;
+  final bool showKoroks;
+  final int shrineDoneCount;
 
   const _BotwMapPainter({
     required this.linkNormX,
     required this.linkNormZ,
     required this.spots,
     required this.accent,
+    required this.shrines,
+    required this.shrineFilter,
+    required this.koroks,
+    required this.showKoroks,
+    required this.shrineDoneCount,
   });
 
   @override
@@ -1836,6 +1922,43 @@ class _BotwMapPainter extends CustomPainter {
       final dy = size.height * (i / 5);
       canvas.drawLine(Offset(dx, 0), Offset(dx, size.height), gridPaint);
       canvas.drawLine(Offset(0, dy), Offset(size.width, dy), gridPaint);
+    }
+
+    if (showKoroks) {
+      final korokFill = Paint()..color = const Color(0xFF9BE564);
+      final korokBorder = Paint()
+        ..color = Colors.black.withValues(alpha: 0.65)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.7;
+      for (final k in koroks) {
+        final kx = ((k.x + 6000.0) / 12000.0).clamp(0.0, 1.0) * size.width;
+        final kz = ((k.z + 5000.0) / 10000.0).clamp(0.0, 1.0) * size.height;
+        canvas.drawCircle(Offset(kx, kz), 1.6, korokFill);
+        canvas.drawCircle(Offset(kx, kz), 1.6, korokBorder);
+      }
+    }
+
+    if (shrineFilter != 'off') {
+      final donePaint = Paint()..color = const Color(0xFF00E5FF);
+      final missPaint = Paint()..color = const Color(0xFFFF9F1C);
+      final shrineBorder = Paint()
+        ..color = Colors.black.withValues(alpha: 0.8)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.9;
+      for (final s in shrines) {
+        if (shrineFilter == 'done' && !s.done) continue;
+        if (shrineFilter == 'missing' && s.done) continue;
+        final sx = ((s.x + 6000.0) / 12000.0).clamp(0.0, 1.0) * size.width;
+        final sz = ((s.z + 5000.0) / 10000.0).clamp(0.0, 1.0) * size.height;
+        final path = Path()
+          ..moveTo(sx, sz - 2.8)
+          ..lineTo(sx + 2.8, sz)
+          ..lineTo(sx, sz + 2.8)
+          ..lineTo(sx - 2.8, sz)
+          ..close();
+        canvas.drawPath(path, s.done ? donePaint : missPaint);
+        canvas.drawPath(path, shrineBorder);
+      }
     }
 
     final spotPaint = Paint()..color = const Color(0xFF4ECDC4);
@@ -1887,5 +2010,12 @@ class _BotwMapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BotwMapPainter old) =>
-      old.linkNormX != linkNormX || old.linkNormZ != linkNormZ || old.accent != accent;
+      old.linkNormX != linkNormX ||
+      old.linkNormZ != linkNormZ ||
+      old.accent != accent ||
+      old.shrineFilter != shrineFilter ||
+      old.showKoroks != showKoroks ||
+      old.shrineDoneCount != shrineDoneCount ||
+      old.shrines.length != shrines.length ||
+      old.koroks.length != koroks.length;
 }

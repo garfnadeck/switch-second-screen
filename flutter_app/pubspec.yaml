@@ -63,6 +63,7 @@ flutter:
     - assets/m/pkmn_za/sewers_bleu/
     - assets/m/pkmn_za/sewers_saison/
     - assets/m/zelda_botw/
+    - assets/data/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

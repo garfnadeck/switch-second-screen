@@ -17,6 +17,23 @@ class WildZoneRef {
   const WildZoneRef(this.id, this.nx, this.ny, this.r, this.label);
 }
 
+class BotwMarker {
+  final String id;
+  final double x;
+  final double y;
+  final double z;
+  final int idx;
+  bool done;
+  BotwMarker({
+    required this.id,
+    required this.x,
+    required this.y,
+    required this.z,
+    this.idx = -1,
+    this.done = false,
+  });
+}
+
 class BotwMemoryProfile {
   final String versionLabel;
   final List<int> heartsChain;
@@ -141,6 +158,11 @@ class SysBotbaseClient extends ChangeNotifier {
   bool botwMasterSword = false;
   bool botwHylianShield = false;
   String botwSelectedVersion = 'auto'; // 'auto', '1.0.0', '1.6.0'
+  List<BotwMarker> botwShrineList = [];
+  List<BotwMarker> botwKorokList = [];
+  Map<String, int> _botwExtraFlagIdx = {};
+  bool botwProgressSyncing = false;
+  bool _botwSyncedOnce = false;
 
   // TCP internals
   Socket? _socket;
@@ -183,8 +205,37 @@ class SysBotbaseClient extends ChangeNotifier {
         );
       } catch (_) {}
     }
+    await _loadBotwMapData();
     notifyListeners();
     connect();
+  }
+
+  Future<void> _loadBotwMapData() async {
+    try {
+      final raw = await rootBundle.loadString('assets/data/botw_map_data.json');
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final sh = (decoded['shrines'] as List?) ?? const [];
+      botwShrineList = sh
+          .map((e) => BotwMarker(
+                id: '${e['id']}',
+                x: (e['x'] as num).toDouble(),
+                y: (e['y'] as num).toDouble(),
+                z: (e['z'] as num).toDouble(),
+                idx: (e['idx'] as num?)?.toInt() ?? -1,
+              ))
+          .toList();
+      final kr = (decoded['koroks'] as List?) ?? const [];
+      botwKorokList = kr
+          .map((e) => BotwMarker(
+                id: '${e['id']}',
+                x: (e['x'] as num).toDouble(),
+                y: (e['y'] as num).toDouble(),
+                z: (e['z'] as num).toDouble(),
+              ))
+          .toList();
+      final fl = (decoded['flags'] as Map<String, dynamic>?) ?? const {};
+      _botwExtraFlagIdx = fl.map((k, v) => MapEntry(k, (v as num).toInt()));
+    } catch (_) {}
   }
 
   Future<void> _savePrefs() async {
@@ -540,7 +591,24 @@ class SysBotbaseClient extends ChangeNotifier {
       }
     }
 
-    if (p.posChain.isNotEmpty) {
+    // Read live Link matrix [0x02CA1140, 0x60, 0x398] (48B sead::Matrix34f -> f[3]=X, f[7]=Y, f[11]=Z)
+    final matHex = await _sendAndWait('pointerPeek 48 0x02CA1140 0x60 0x398');
+    final matRaw = matHex != null ? Pa9Crypto.hexToBytes(matHex) : null;
+    if (matRaw != null && matRaw.length >= 48) {
+      final bd = ByteData.sublistView(matRaw);
+      final x = bd.getFloat32(12, Endian.little);
+      final y = bd.getFloat32(28, Endian.little);
+      final z = bd.getFloat32(44, Endian.little);
+      if (x.isFinite && y.isFinite && z.isFinite && x.abs() < 6000 && z.abs() < 5000) {
+        if ((x - posX).abs() > 0.2 || (y - posAlt).abs() > 0.2 || (z - posY).abs() > 0.2) {
+          posX = x;
+          posAlt = y;
+          posY = z;
+          zoneName = _botwRegionName(x, z);
+          changed = true;
+        }
+      }
+    } else if (p.posChain.isNotEmpty) {
       final hex = await _sendAndWait('pointerPeek 12 ${_chainArgs(p.posChain)}');
       final raw = hex != null ? Pa9Crypto.hexToBytes(hex) : null;
       if (raw != null && raw.length >= 12) {
@@ -561,6 +629,10 @@ class SysBotbaseClient extends ChangeNotifier {
     }
 
     if (changed) notifyListeners();
+    if (!_botwSyncedOnce && !botwProgressSyncing && botwShrineList.isNotEmpty) {
+      _botwSyncedOnce = true;
+      unawaited(syncBotwProgress());
+    }
   }
 
   String _botwRegionName(double x, double z) {
@@ -579,15 +651,27 @@ class SysBotbaseClient extends ChangeNotifier {
 
   Future<void> pokeBotwPosition(double x, double y, double z) async {
     final p = activeBotwProfile;
-    if (p == null || !connected || p.posChain.isEmpty) return;
+    if (p == null || !connected) return;
     final b = ByteData(12)
       ..setFloat32(0, x, Endian.little)
       ..setFloat32(4, y, Endian.little)
       ..setFloat32(8, z, Endian.little);
     final hex = _toLittleEndianHex(b.buffer.asUint8List());
-    _sendFireAndForget('pointerPoke 0x$hex ${_chainArgs(p.posChain)}');
-    final bodyChain = List<int>.from(p.posChain)..last = 0x1B8;
-    _sendFireAndForget('pointerPoke 0x$hex ${_chainArgs(bodyChain)}');
+    // 1) Havok RigidBody translation (botw-save-state 1.6.0)
+    _sendFireAndForget('pointerPoke 0x$hex 0x02D3E8E8 0x370 0xC0 0x5E0');
+    // 2) Live Player sead::Matrix34f translation [0x02CA1140, 0x60, 0x3A4/0x3B4/0x3C4]
+    final hx = _toLittleEndianHex((ByteData(4)..setFloat32(0, x, Endian.little)).buffer.asUint8List());
+    final hy = _toLittleEndianHex((ByteData(4)..setFloat32(0, y, Endian.little)).buffer.asUint8List());
+    final hz = _toLittleEndianHex((ByteData(4)..setFloat32(0, z, Endian.little)).buffer.asUint8List());
+    _sendFireAndForget('pointerPoke 0x$hx 0x02CA1140 0x60 0x3A4');
+    _sendFireAndForget('pointerPoke 0x$hy 0x02CA1140 0x60 0x3B4');
+    _sendFireAndForget('pointerPoke 0x$hz 0x02CA1140 0x60 0x3C4');
+    // 3) Cached actor pos + body
+    if (p.posChain.isNotEmpty) {
+      _sendFireAndForget('pointerPoke 0x$hex ${_chainArgs(p.posChain)}');
+      final bodyChain = List<int>.from(p.posChain)..last = 0x1B8;
+      _sendFireAndForget('pointerPoke 0x$hex ${_chainArgs(bodyChain)}');
+    }
     posX = x;
     posAlt = y;
     posY = z;
@@ -639,6 +723,58 @@ class SysBotbaseClient extends ChangeNotifier {
     botwRupees = v;
     lastLog = 'BotW: Rupees -> $v';
     notifyListeners();
+  }
+
+  Future<bool?> _readBotwBoolFlag(int idx) async {
+    if (idx < 0 || !connected) return null;
+    final off = 0x220 + idx * 8;
+    final hex = await _sendAndWait('pointerPeek 12 0x02CC5FE0 0xE40 0x${off.toRadixString(16)} 0x0');
+    final raw = hex != null ? Pa9Crypto.hexToBytes(hex) : null;
+    if (raw == null || raw.length < 12) return null;
+    final flg = ByteData.sublistView(raw).getUint32(8, Endian.little);
+    return (flg & 0x01000000) != 0;
+  }
+
+  Future<void> syncBotwProgress() async {
+    if (!connected || botwProgressSyncing) return;
+    if (botwShrineList.isEmpty) await _loadBotwMapData();
+    botwProgressSyncing = true;
+    notifyListeners();
+    try {
+      // 1) Divine Beasts + Master Sword + Hylian Shield
+      const beastKeys = [
+        'Clear_RemainsWater',
+        'Clear_RemainsFire',
+        'Clear_RemainsWind',
+        'Clear_RemainsElectric',
+      ];
+      int beasts = 0;
+      for (int i = 0; i < 4; i++) {
+        final idx = _botwExtraFlagIdx[beastKeys[i]] ?? -1;
+        if (await _readBotwBoolFlag(idx) == true) {
+          beasts |= (1 << i);
+        }
+      }
+      botwBeasts = beasts;
+      final ms = await _readBotwBoolFlag(_botwExtraFlagIdx['IsGet_Weapon_Sword_070'] ?? -1);
+      if (ms != null) botwMasterSword = ms;
+      final hs = await _readBotwBoolFlag(_botwExtraFlagIdx['IsGet_Weapon_Shield_030'] ?? -1);
+      if (hs != null) botwHylianShield = hs;
+
+      // 2) Shrines (134/136 flags)
+      int cleared = 0;
+      for (final s in botwShrineList) {
+        if (s.idx < 0) continue;
+        final val = await _readBotwBoolFlag(s.idx);
+        if (val != null) s.done = val;
+        if (s.done) cleared++;
+      }
+      botwShrines = cleared;
+      lastLog = 'BotW: Progresso sincronizado ($cleared shrines)';
+    } finally {
+      botwProgressSyncing = false;
+      notifyListeners();
+    }
   }
 
   Future<void> _pollPartySlot(int slot) async {
