@@ -109,6 +109,7 @@ static bool saveSettings() {
     f.print("sound=");       f.print(state.sound_enabled ? 1 : 0); f.print("\n");
     f.print("autostop=");    f.print(state.auto_stop_shiny ? 1 : 0); f.print("\n");
     f.print("autoheal=");    f.print(state.auto_heal ? 1 : 0); f.print("\n");
+    f.print("theme=");       f.print((int)state.ui_theme); f.print("\n");
     f.close();
     return true;
 }
@@ -135,6 +136,7 @@ static void loadSettings() {
         else if (k == "sound")        { state.sound_enabled = (v.toInt() != 0); }
         else if (k == "autostop")     { state.auto_stop_shiny = (v.toInt() != 0); }
         else if (k == "autoheal")     { state.auto_heal = (v.toInt() != 0); }
+        else if (k == "theme")        { state.ui_theme = (uint8_t)(v.toInt() % 4); }
     }
     f.close();
     if (compiled_sw_ip == SWITCH_IP && validIp(file_sw_ip.c_str())) {
@@ -723,6 +725,7 @@ void setup() {
                    ",\"autostop\":" + (state.auto_stop_shiny ? "true" : "false") +
                    ",\"autoheal\":" + (state.auto_heal ? "true" : "false") +
                    ",\"flip\":" + (state.screen_flip ? "true" : "false") +
+                   ",\"theme\":" + String((int)state.ui_theme) +
                    ",\"sd\":" + (AssetManager::isSDReady() ? "true" : "false") + "}";
         server.send(200, "application/json", j);
     });
@@ -747,6 +750,12 @@ void setup() {
         }
         if (server.hasArg("autoheal")) {
             state.auto_heal = (server.arg("autoheal").toInt() != 0 || server.arg("autoheal") == "true");
+        }
+        if (server.hasArg("theme")) {
+            state.ui_theme = (uint8_t)(server.arg("theme").toInt() % 4);
+#ifdef HAS_DISPLAY
+            ui.applyTheme(state.ui_theme);
+#endif
         }
         saveSettings();
 #ifdef HAS_DISPLAY

@@ -296,6 +296,28 @@ public:
         edit_ctx = ctx;
     }
 
+    void setThemeStyle(bool compact_sidebar, uint32_t card_bg, uint32_t card_border, uint8_t radius, uint32_t zone_col) {
+        if (lbl_zone && !last_shiny_stash) {
+            lv_obj_set_style_text_color(lbl_zone, lv_color_hex(zone_col), LV_PART_MAIN);
+        }
+        lv_coord_t cw = compact_sidebar ? 202 : 231;
+        lv_coord_t ch = compact_sidebar ? 70  : 60;
+        lv_coord_t dx = compact_sidebar ? 208 : 236;
+        lv_coord_t dy = compact_sidebar ? 74  : 64;
+        lv_coord_t y0 = compact_sidebar ? 18  : 16;
+        for (uint8_t i = 0; i < PARTY; i++) {
+            if (!card[i]) continue;
+            lv_obj_set_size(card[i], cw, ch);
+            lv_obj_set_pos(card[i], (i % 2) * dx, y0 + (i / 2) * dy);
+            lv_obj_set_style_bg_color(card[i], lv_color_hex(card_bg), LV_PART_MAIN);
+            lv_obj_set_style_radius(card[i], radius, LV_PART_MAIN);
+            if (!last_party[i].is_shiny) {
+                lv_obj_set_style_border_color(card[i], lv_color_hex(card_border), LV_PART_MAIN);
+            }
+            if (accent[i]) lv_obj_set_size(accent[i], 4, ch - 14);
+        }
+    }
+
     // Forca recarregamento dos sprites do MicroSD para a PSRAM (ex.: apos upload Wi-Fi)
     void reloadAssets() {
         for (uint8_t i = 0; i < PARTY; i++) {

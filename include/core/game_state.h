@@ -179,6 +179,7 @@ struct GameState {
     bool sound_enabled = true;             // alerta sonoro I2S (ES8311)
     bool auto_stop_shiny = true;           // para macro ativa se detectar Shiny no ShinyStash
     bool auto_heal = false;                // cura HP/status automaticamente abaixo de 25%
+    uint8_t ui_theme = 1;                  // 0=Tatico(Sidebar), 1=Lumiose Prism, 2=Rotom Neon, 3=OLED Minimal
     bool usb_online = false;               // USB HID enumerado (botoes); independe de connected
     int8_t active_macro_slot = -1; // -1 = nenhuma macro em execucao
     char link_status[40] = "desativado";   // estado da leitura de RAM (sys-botbase)

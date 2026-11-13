@@ -116,8 +116,8 @@
     #cfg select, #cfg input[type=text] { width: 100%; height: 26px; background: #1E1E36; color: #fff; border: 1px solid #2D3E66; border-radius: 5px; padding: 0 6px; font: inherit; font-size: 11px; }
     .cbtn { height: 26px; border-radius: 5px; border: 0; background: #2A2A44; color: #fff; font: inherit; font-size: 11px; cursor: pointer; padding: 0 8px; }
     .cbtn.cy { background: #006064; } .cbtn.rd { background: #880E4F; } .cbtn.gr { background: #1B5E20; } .cbtn.bl { background: #283593; }
-    .crow-bot { position: absolute; left: 6px; right: 6px; bottom: 4px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-    .crow-bot button { height: 30px; border-radius: 6px; border: 0; background: #37474F; color: #fff; font: inherit; font-size: 11px; cursor: pointer; }
+    .crow-bot { position: absolute; left: 6px; right: 6px; bottom: 4px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+    .crow-bot button { height: 30px; border-radius: 6px; border: 0; background: #37474F; color: #fff; font: inherit; font-size: 10px; cursor: pointer; padding: 0 2px; }
     .crow-bot button.on { background: #1B5E20; }
 
     /* Rede & Criar */
@@ -146,6 +146,51 @@
 
     /* Rodape (480x26) */
     #foot { position: absolute; left: 0; bottom: 0; width: 480px; height: 26px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; font-size: 10px; color: #8888AA; }
+
+    /* Temas / Layouts */
+    /* th0: Tatico Sidebar */
+    body.th0 #stage { background: #111626; }
+    body.th0 #top { height: 28px; background: #0B0F1A; border-bottom: 1px solid #1E2842; }
+    body.th0 #gamesel { height: 22px; font-size: 11px; }
+    body.th0 #tabs { left: 0; top: 28px; width: 52px; height: 292px; flex-direction: column; background: #0B0F1A; border-right: 1px solid #1E2842; }
+    body.th0 .tab { font-size: 9px; text-align: center; padding: 2px; }
+    body.th0 .tab.active { color: #00F5D4; background: #16223D; box-shadow: inset 3px 0 0 #00F5D4; }
+    body.th0 .page { left: 52px; top: 28px; width: 428px; height: 292px; padding: 6px; }
+    body.th0 #foot { display: none; }
+    body.th0 .pcard { height: 70px; background: #171E34; border-color: #2A385C; }
+    body.th0 #mapwrap { height: 248px; }
+    body.th0 #mapbox { width: 204px; height: 248px; }
+    body.th0 #mside { width: 206px; height: 248px; }
+
+    /* th1: Lumiose Prism */
+    body.th1 #stage { background: #0F1117; }
+    body.th1 #top { background: #0B0D14; }
+    body.th1 #top .title { color: #FFD54F; }
+    body.th1 #tabs { background: #131722; }
+    body.th1 .tab.active { color: #00E676; background: #1A2233; box-shadow: inset 0 -3px 0 #00E676; }
+    body.th1 .pcard { background: #161A26; border-color: #FFD54F; border-radius: 9px; }
+    body.th1 #zone, body.th1 #mzone { color: #FFD54F; }
+    body.th1 #mside, body.th1 .slot { background: #161A26; border-color: #2A3248; }
+
+    /* th2: Rotom Neon */
+    body.th2 #stage { background: #070D1A; }
+    body.th2 #top { background: #1A0B16; }
+    body.th2 #top .title { color: #FF3B5C; }
+    body.th2 #tabs { background: #120E20; }
+    body.th2 .tab.active { color: #00E5FF; background: #132238; box-shadow: inset 0 -3px 0 #00E5FF; }
+    body.th2 .pcard { background: #0E172B; border-color: #00E5FF; border-radius: 6px; }
+    body.th2 #zone, body.th2 #mzone { color: #00E5FF; }
+    body.th2 #mside, body.th2 .slot { background: #0E172B; border-color: #00E5FF; }
+
+    /* th3: OLED Minimal */
+    body.th3 #stage { background: #08090D; }
+    body.th3 #top { background: #08090D; }
+    body.th3 #top .title { color: #FFFFFF; }
+    body.th3 #tabs { background: #0E1017; }
+    body.th3 .tab.active { color: #FFFFFF; background: #171A26; box-shadow: inset 0 -3px 0 #FFFFFF; }
+    body.th3 .pcard { background: #131620; border-color: #222738; border-radius: 8px; }
+    body.th3 #zone, body.th3 #mzone { color: #E2E8F0; }
+    body.th3 #mside, body.th3 .slot { background: #131620; border-color: #222738; }
   </style>
 </head>
 <body>
@@ -257,6 +302,7 @@
         </div>
       </div>
       <div class='crow-bot'>
+        <button style='background:#4527A0' id='btn-theme' onclick='cycleTheme()'>Tema: Lumiose</button>
         <button class='bl' style='background:#283593' id='btn-bright' onclick='cycleBright()'>Brilho: 100%</button>
         <button id='btn-sound' onclick='toggleSetting("sound")'>Som: ON</button>
         <button id='btn-autostop' onclick='toggleSetting("autostop")'>AutoStop: ON</button>
@@ -623,7 +669,15 @@
       paintSettings();
     } catch (e) {}
   }
+  const THEME_NAMES = ['Tatico', 'Lumiose', 'Rotom', 'OLED'];
+  function applyWebTheme(t) {
+    const idx = ((+t || 0) % 4 + 4) % 4;
+    document.body.classList.remove('th0', 'th1', 'th2', 'th3');
+    document.body.classList.add('th' + idx);
+    if ($('btn-theme')) $('btn-theme').textContent = 'Tema: ' + THEME_NAMES[idx];
+  }
   function paintSettings() {
+    applyWebTheme(cfgState.theme ?? 1);
     $('btn-bright').textContent = `Brilho: ${cfgState.bright}%`;
     $('btn-sound').textContent = cfgState.sound ? 'Som: ON' : 'Som: OFF';
     $('btn-sound').classList.toggle('on', !!cfgState.sound);
@@ -631,6 +685,10 @@
     $('btn-autostop').classList.toggle('on', !!cfgState.autostop);
     $('btn-autoheal').textContent = cfgState.autoheal ? 'AutoCura: ON' : 'AutoCura: OFF';
     $('btn-autoheal').classList.toggle('on', !!cfgState.autoheal);
+  }
+  async function cycleTheme() {
+    const next = (((+cfgState.theme || 0) + 1) % 4);
+    cfgState.theme = next; paintSettings(); await post('/api/settings', { theme: next });
   }
   async function cycleBright() {
     const b = cfgState.bright <= 25 ? 50 : cfgState.bright <= 50 ? 75 : cfgState.bright <= 75 ? 100 : 25;

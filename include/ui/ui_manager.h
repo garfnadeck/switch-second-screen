@@ -112,10 +112,32 @@ private:
     lv_obj_t * btn_sound_obj = nullptr;
     lv_obj_t * btn_autostop_obj = nullptr;
     lv_obj_t * btn_autoheal_obj = nullptr;
+    lv_obj_t * btn_bright_obj = nullptr;
+    lv_obj_t * btn_theme_obj = nullptr;
+    lv_obj_t * lbl_btn_theme = nullptr;
+    lv_obj_t * scr_obj = nullptr;
+    lv_obj_t * top_bar_obj = nullptr;
+    lv_obj_t * title_obj = nullptr;
+    lv_obj_t * dd_profile_obj = nullptr;
+    lv_obj_t * tabview_obj = nullptr;
+    lv_obj_t * tab_btns_obj = nullptr;
+    lv_obj_t * sidebar_obj = nullptr;
+    lv_obj_t * sidebar_btns[5] = {nullptr};
+    lv_obj_t * map_panel_obj = nullptr;
+    lv_obj_t * dd_mode_obj = nullptr;
+    lv_obj_t * lbl_ip_obj = nullptr;
+    lv_obj_t * btn_detectar_obj = nullptr;
+    lv_obj_t * btn_girar_obj = nullptr;
     WarpPoint fav_warps[3] = {};
     bool warps_dirty = false;
 
     void refreshConfigButtons() {
+        static const char * const THEME_NAMES[4] = {
+            "Tema: Tatico", "Tema: Prism", "Tema: Rotom", "Tema: OLED"
+        };
+        if (lbl_btn_theme) {
+            lv_label_set_text(lbl_btn_theme, THEME_NAMES[state.ui_theme % 4]);
+        }
         if (lbl_btn_bright) {
             lv_label_set_text_fmt(lbl_btn_bright, "Brilho: %u%%", (unsigned)state.brightness);
         }
@@ -489,6 +511,7 @@ public:
     void onProfileSelected(uint16_t sel) {
         router.setProfile(state, static_cast<GameProfile>(sel));
         refreshActiveProfile();
+        applyTheme(state.ui_theme);
         lv_label_set_text_fmt(status_footer, "[%s] Jogo: %s",
                               getModeName(), getActiveModule()->getGameName());
     }
@@ -544,14 +567,104 @@ public:
     }
     void refreshConfigButtonsPublic() { refreshConfigButtons(); }
 
+    void applyTheme(uint8_t theme) {
+        theme %= 4;
+        state.ui_theme = theme;
+        struct ThemeDef {
+            uint32_t bg_scr, bg_top, bg_tab, bg_card, border_card, accent, title;
+            uint8_t radius;
+            bool sidebar;
+        };
+        static const ThemeDef THEMES[4] = {
+            { 0x0E111B, 0x14182B, 0x14182B, 0x181C32, 0x2A3558, 0x00F5D4, 0x00F5D4, 10, true  }, // 0: Tatico (Sidebar)
+            { 0x0F1117, 0x161922, 0x141720, 0x181B24, 0xFFD54F, 0x00E676, 0xFFD54F,  6, false }, // 1: Lumiose Prism
+            { 0x070D1A, 0x1A0B16, 0x0C152B, 0x101B33, 0x00E5FF, 0x00E5FF, 0xFF3B5C, 10, false }, // 2: Rotom Neon
+            { 0x08090D, 0x0C0E14, 0x08090D, 0x131620, 0x222738, 0x00F5D4, 0xFFFFFF,  6, false }, // 3: OLED Minimal
+        };
+        const ThemeDef &t = THEMES[theme];
+
+        if (scr_obj) lv_obj_set_style_bg_color(scr_obj, lv_color_hex(t.bg_scr), LV_PART_MAIN);
+        if (top_bar_obj) {
+            lv_obj_set_style_bg_color(top_bar_obj, lv_color_hex(t.bg_top), LV_PART_MAIN);
+            lv_obj_set_size(top_bar_obj, 480, t.sidebar ? 28 : 38);
+        }
+        if (title_obj) lv_obj_set_style_text_color(title_obj, lv_color_hex(t.title), LV_PART_MAIN);
+        if (dd_profile_obj) lv_obj_set_size(dd_profile_obj, 185, t.sidebar ? 22 : 30);
+
+        if (tabview_obj) {
+            lv_obj_set_style_bg_color(tabview_obj, lv_color_hex(t.bg_scr), LV_PART_MAIN);
+            if (t.sidebar) {
+                lv_obj_set_size(tabview_obj, 428, 292);
+                lv_obj_set_pos(tabview_obj, 52, 28);
+            } else {
+                lv_obj_set_size(tabview_obj, 480, 256);
+                lv_obj_set_pos(tabview_obj, 0, 38);
+            }
+        }
+        if (tab_btns_obj) {
+            lv_obj_set_style_bg_color(tab_btns_obj, lv_color_hex(t.bg_tab), LV_PART_MAIN);
+            lv_obj_set_style_border_color(tab_btns_obj, lv_color_hex(t.accent), LV_PART_ITEMS | LV_STATE_CHECKED);
+            lv_obj_set_style_text_color(tab_btns_obj, lv_color_hex(t.accent), LV_PART_ITEMS | LV_STATE_CHECKED);
+            if (t.sidebar) lv_obj_add_flag(tab_btns_obj, LV_OBJ_FLAG_HIDDEN);
+            else           lv_obj_clear_flag(tab_btns_obj, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (sidebar_obj) {
+            lv_obj_set_style_bg_color(sidebar_obj, lv_color_hex(t.bg_tab), LV_PART_MAIN);
+            if (t.sidebar) lv_obj_clear_flag(sidebar_obj, LV_OBJ_FLAG_HIDDEN);
+            else           lv_obj_add_flag(sidebar_obj, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (status_footer) {
+            if (t.sidebar) lv_obj_add_flag(status_footer, LV_OBJ_FLAG_HIDDEN);
+            else           lv_obj_clear_flag(status_footer, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        // Atualiza modulo Z-A + Mapa + Config para caber com ou sem barra lateral
+        pokemon_za_mod.setThemeStyle(t.sidebar, t.bg_card, t.border_card, t.radius, t.accent);
+        if (map_viewport && map_panel_obj) {
+            lv_coord_t vp_w = t.sidebar ? 204 : MAP_VP_W;
+            lv_coord_t vp_h = t.sidebar ? 248 : MAP_VP_H;
+            lv_obj_set_size(map_viewport, vp_w, vp_h);
+            lv_obj_set_style_border_color(map_viewport, lv_color_hex(t.border_card), LV_PART_MAIN);
+            lv_obj_set_size(map_panel_obj, t.sidebar ? 208 : 218, vp_h);
+            lv_obj_set_pos(map_panel_obj, t.sidebar ? 208 : 254, 0);
+            lv_obj_set_style_bg_color(map_panel_obj, lv_color_hex(t.bg_card), LV_PART_MAIN);
+            lv_obj_set_style_border_color(map_panel_obj, lv_color_hex(t.border_card), LV_PART_MAIN);
+        }
+        if (dd_mode_obj && ip_textarea && lbl_ip_obj && lbl_board_ip && btn_detectar_obj && btn_girar_obj && lbl_scan && btn_theme_obj) {
+            lv_coord_t rx = t.sidebar ? 212 : 235;
+            lv_coord_t rw = t.sidebar ? 198 : 230;
+            lv_obj_set_width(dd_mode_obj, t.sidebar ? 196 : 210);
+            lv_obj_set_width(btn_theme_obj, t.sidebar ? 196 : 210);
+            lv_obj_set_pos(lbl_ip_obj, rx, 5);
+            lv_obj_set_pos(ip_textarea, rx, 24);
+            lv_obj_set_width(ip_textarea, rw);
+            lv_obj_set_pos(lbl_board_ip, rx, 62);
+            lv_obj_set_pos(btn_detectar_obj, rx, 100);
+            lv_obj_set_width(btn_detectar_obj, t.sidebar ? 95 : 110);
+            lv_obj_set_pos(btn_girar_obj, rx + (t.sidebar ? 101 : 116), 100);
+            lv_obj_set_width(btn_girar_obj, t.sidebar ? 97 : 114);
+            lv_obj_set_pos(lbl_scan, rx, 136);
+            lv_obj_set_width(lbl_scan, rw);
+            lv_coord_t bw = t.sidebar ? 96 : 108;
+            lv_coord_t bx = 5;
+            if (btn_bright_obj)   { lv_obj_set_pos(btn_bright_obj, bx, 174); lv_obj_set_width(btn_bright_obj, bw); bx += bw + 5; }
+            if (btn_sound_obj)    { lv_obj_set_pos(btn_sound_obj, bx, 174); lv_obj_set_width(btn_sound_obj, bw); bx += bw + 5; }
+            if (btn_autostop_obj) { lv_obj_set_pos(btn_autostop_obj, bx, 174); lv_obj_set_width(btn_autostop_obj, bw); bx += bw + 5; }
+            if (btn_autoheal_obj) { lv_obj_set_pos(btn_autoheal_obj, bx, 174); lv_obj_set_width(btn_autoheal_obj, bw); }
+        }
+        refreshConfigButtons();
+    }
+
     void buildUI() {
         router.init(state);   // idempotente: nao reinicializa se o main ja chamou
 
         lv_obj_t * scr = lv_scr_act();
+        scr_obj = scr;
         lv_obj_set_style_bg_color(scr, lv_color_hex(0x12121F), LV_PART_MAIN);
 
         // Barra Superior (480x38)
         lv_obj_t * top_bar = lv_obj_create(scr);
+        top_bar_obj = top_bar;
         lv_obj_set_size(top_bar, 480, 38);
         lv_obj_align(top_bar, LV_ALIGN_TOP_MID, 0, 0);
         lv_obj_set_style_bg_color(top_bar, lv_color_hex(0x1F1F38), LV_PART_MAIN);
@@ -561,11 +674,13 @@ public:
         lv_obj_clear_flag(top_bar, LV_OBJ_FLAG_SCROLLABLE);
 
         lv_obj_t * title = lv_label_create(top_bar);
+        title_obj = title;
         lv_label_set_text(title, "SWITCH HUD");
         lv_obj_set_style_text_color(title, lv_color_hex(0x00F5D4), LV_PART_MAIN);
         lv_obj_align(title, LV_ALIGN_LEFT_MID, 8, 0);
 
         lv_obj_t * dd = lv_dropdown_create(top_bar);
+        dd_profile_obj = dd;
         lv_dropdown_set_options(dd,
             "Pokemon SV\n"
             "Pokemon Legends ZA\n"
@@ -593,11 +708,43 @@ public:
 
         // Tabview Principal (480x256)
         lv_obj_t * tabview = lv_tabview_create(scr, LV_DIR_TOP, 32);
+        tabview_obj = tabview;
         lv_obj_set_size(tabview, 480, 256);
         lv_obj_align(tabview, LV_ALIGN_TOP_MID, 0, 38);
         lv_obj_set_style_bg_color(tabview, lv_color_hex(0x12121F), LV_PART_MAIN);
 
         lv_obj_t * tab_btns = lv_tabview_get_tab_btns(tabview);
+        tab_btns_obj = tab_btns;
+
+        // Barra lateral tatica (52x292) para o Tema 0
+        sidebar_obj = lv_obj_create(scr);
+        lv_obj_set_size(sidebar_obj, 52, 292);
+        lv_obj_set_pos(sidebar_obj, 0, 28);
+        lv_obj_set_style_bg_color(sidebar_obj, lv_color_hex(0x14182B), LV_PART_MAIN);
+        lv_obj_set_style_border_width(sidebar_obj, 0, LV_PART_MAIN);
+        lv_obj_set_style_radius(sidebar_obj, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(sidebar_obj, 4, LV_PART_MAIN);
+        lv_obj_clear_flag(sidebar_obj, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(sidebar_obj, LV_OBJ_FLAG_HIDDEN);
+        static const char * const SB_ICONS[5] = {
+            LV_SYMBOL_HOME, LV_SYMBOL_GPS, LV_SYMBOL_PLAY, LV_SYMBOL_SETTINGS, LV_SYMBOL_KEYBOARD
+        };
+        for (int i = 0; i < 5; i++) {
+            sidebar_btns[i] = lv_btn_create(sidebar_obj);
+            lv_obj_set_size(sidebar_btns[i], 44, 50);
+            lv_obj_set_pos(sidebar_btns[i], 0, i * 56);
+            lv_obj_set_style_bg_color(sidebar_btns[i], lv_color_hex(0x1E2749), LV_PART_MAIN);
+            lv_obj_set_style_radius(sidebar_btns[i], 8, LV_PART_MAIN);
+            lv_obj_set_user_data(sidebar_btns[i], (void*)(intptr_t)i);
+            lv_obj_add_event_cb(sidebar_btns[i], [](lv_event_t * e) {
+                auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+                int idx = (int)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
+                if (mgr->tabview_obj) lv_tabview_set_act(mgr->tabview_obj, (uint32_t)idx, LV_ANIM_OFF);
+            }, LV_EVENT_CLICKED, this);
+            lv_obj_t * li = lv_label_create(sidebar_btns[i]);
+            lv_label_set_text(li, SB_ICONS[i]);
+            lv_obj_center(li);
+        }
         lv_obj_set_style_bg_color(tab_btns, lv_color_hex(0x18182C), LV_PART_MAIN);
         lv_obj_set_style_text_color(tab_btns, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
         lv_obj_set_style_text_font(tab_btns, &lv_font_montserrat_12, LV_PART_MAIN);
@@ -728,6 +875,7 @@ public:
 
         // Painel lateral direito da aba Mapa (218x212)
         lv_obj_t * map_panel = lv_obj_create(tab_map);
+        map_panel_obj = map_panel;
         lv_obj_set_size(map_panel, 218, MAP_VP_H);
         lv_obj_set_pos(map_panel, 254, 0);
         lv_obj_set_style_bg_color(map_panel, lv_color_hex(0x181C32), LV_PART_MAIN);
@@ -1026,6 +1174,7 @@ public:
         lv_obj_align(lbl_mode, LV_ALIGN_TOP_LEFT, 5, 5);
 
         lv_obj_t * dd_mode = lv_dropdown_create(tab_config);
+        dd_mode_obj = dd_mode;
         lv_dropdown_set_options(dd_mode, "Simulador (Mock)\nUSB HID\nSys-Botbase");
         lv_dropdown_set_selected(dd_mode, static_cast<uint16_t>(state.mode));
         lv_obj_set_size(dd_mode, 210, 32);
@@ -1038,6 +1187,7 @@ public:
         }, LV_EVENT_VALUE_CHANGED, this);
 
         lv_obj_t * lbl_ip = lv_label_create(tab_config);
+        lbl_ip_obj = lbl_ip;
         lv_label_set_text(lbl_ip, "Switch IP:");
         lv_obj_set_style_text_color(lbl_ip, lv_color_hex(0x00F5D4), LV_PART_MAIN);
         lv_obj_align(lbl_ip, LV_ALIGN_TOP_LEFT, 235, 5);
@@ -1092,6 +1242,7 @@ public:
         lv_label_set_text(lbl_board_ip, "IP da placa: -");
 
         lv_obj_t * btn_detectar = lv_btn_create(tab_config);
+        btn_detectar_obj = btn_detectar;
         lv_obj_set_size(btn_detectar, 110, 30);
         lv_obj_align(btn_detectar, LV_ALIGN_TOP_LEFT, 235, 100);
         lv_obj_set_style_bg_color(btn_detectar, lv_color_hex(0x2A2A44), LV_PART_MAIN);
@@ -1113,6 +1264,7 @@ public:
         lv_obj_center(lbl_btn);
 
         lv_obj_t * btn_girar = lv_btn_create(tab_config);
+        btn_girar_obj = btn_girar;
         lv_obj_set_size(btn_girar, 114, 30);
         lv_obj_align(btn_girar, LV_ALIGN_TOP_LEFT, 351, 100);
         lv_obj_set_style_bg_color(btn_girar, lv_color_hex(0x006064), LV_PART_MAIN);
@@ -1138,8 +1290,24 @@ public:
         lv_obj_align(lbl_scan, LV_ALIGN_TOP_LEFT, 235, 136);
         lv_label_set_text(lbl_scan, "Detectar: procura o Switch | Girar: inverte a tela");
 
+        // Botao de Tema/Layout (4 opcoes) na aba Config
+        btn_theme_obj = lv_btn_create(tab_config);
+        lv_obj_set_size(btn_theme_obj, 210, 30);
+        lv_obj_align(btn_theme_obj, LV_ALIGN_TOP_LEFT, 5, 136);
+        lv_obj_set_style_bg_color(btn_theme_obj, lv_color_hex(0x4A148C), LV_PART_MAIN);
+        lv_obj_add_event_cb(btn_theme_obj, [](lv_event_t * e) {
+            auto * mgr = static_cast<UIManager*>(lv_event_get_user_data(e));
+            uint8_t next = (uint8_t)((mgr->state.ui_theme + 1) % 4);
+            mgr->state.brightness_changed = true; // grava no /config.txt
+            mgr->applyTheme(next);
+        }, LV_EVENT_CLICKED, this);
+        lbl_btn_theme = lv_label_create(btn_theme_obj);
+        lv_obj_set_style_text_font(lbl_btn_theme, &lv_font_montserrat_12, LV_PART_MAIN);
+        lv_obj_center(lbl_btn_theme);
+
         // Linha inferior de opcoes rapidas (Brilho, Som, AutoStop Shiny, AutoCura)
         lv_obj_t * btn_bright = lv_btn_create(tab_config);
+        btn_bright_obj = btn_bright;
         lv_obj_set_size(btn_bright, 108, 32);
         lv_obj_align(btn_bright, LV_ALIGN_TOP_LEFT, 5, 174);
         lv_obj_set_style_bg_color(btn_bright, lv_color_hex(0x283593), LV_PART_MAIN);
@@ -1211,6 +1379,7 @@ public:
         lv_obj_align(status_footer, LV_ALIGN_BOTTOM_LEFT, 8, -4);
 
         refreshActiveProfile();
+        applyTheme(state.ui_theme);
 
         lv_timer_create([](lv_timer_t * t) {
             auto * mgr = static_cast<UIManager*>(t->user_data);
