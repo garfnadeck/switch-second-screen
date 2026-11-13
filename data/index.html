@@ -400,13 +400,41 @@
   function pickGame(g) { setGame(g, true); }
 
   /* ---- Status 2x3 LVGL ---- */
+  const spriteCache = {};
+  async function drawBinSprite(i, sp) {
+    const cv = $('pi' + i), fb = $('pf' + i);
+    const key = sp > 0 ? sp : 0;
+    if (!spriteCache[key]) {
+      try {
+        let r = await fetch(`/sd/sprites/${key}.bin`);
+        if (!r.ok && key !== 0) r = await fetch('/sd/sprites/0.bin');
+        if (!r.ok) throw new Error('404');
+        const buf = new Uint8Array(await r.arrayBuffer());
+        if (buf.length < 4800) throw new Error('size');
+        const img = new ImageData(40, 40);
+        for (let p = 0; p < 1600; p++) {
+          const b = p * 3, c = buf[b] | (buf[b + 1] << 8), o = p * 4;
+          img.data[o]     = ((c >> 11) & 31) * 255 / 31;
+          img.data[o + 1] = ((c >> 5) & 63) * 255 / 63;
+          img.data[o + 2] = (c & 31) * 255 / 31;
+          img.data[o + 3] = buf[b + 2];
+        }
+        spriteCache[key] = img;
+      } catch (e) {
+        cv.style.display = 'none'; fb.style.display = 'block'; fb.textContent = sp > 0 ? ('#' + sp) : '-';
+        return;
+      }
+    }
+    cv.getContext('2d').putImageData(spriteCache[key], 0, 0);
+    cv.style.display = 'block'; fb.style.display = 'none';
+  }
   function buildParty() {
     const p = $('party'); p.innerHTML = '';
     for (let i = 0; i < 6; i++) {
       p.insertAdjacentHTML('beforeend',
         `<div class='pcard' id='pc${i}' onclick='pkmOpen(${i})'>` +
         `<div class='acc' id='pa${i}'></div>` +
-        `<div class='ico'><img id='pi${i}' style='display:none' onerror='this.style.display="none";$("pf${i}").style.display="block"'><span class='fb' id='pf${i}'>-</span></div>` +
+        `<div class='ico'><canvas id='pi${i}' width='40' height='40' style='display:none'></canvas><span class='fb' id='pf${i}'>-</span></div>` +
         `<div class='info'><div class='r1'><span class='nm' id='pn${i}'>---</span><span class='lv' id='pl${i}'></span></div>` +
         `<div class='bar'><div id='pb${i}'></div></div>` +
         `<div class='r3'><span id='ph${i}'>--</span><span id='ps${i}'></span></div></div></div>`);
@@ -490,9 +518,7 @@
         $('pb' + i).style.background = col;
         if (has && m.sp > 0 && lastSp[i] !== m.sp) {
           lastSp[i] = m.sp;
-          $('pi' + i).src = `/sd/sprites/${m.sp}.png`;
-          $('pi' + i).style.display = 'block';
-          $('pf' + i).style.display = 'none';
+          drawBinSprite(i, m.sp);
         } else if (!has) {
           lastSp[i] = 0; $('pi' + i).style.display = 'none'; $('pf' + i).style.display = 'block'; $('pf' + i).textContent = '-';
         }

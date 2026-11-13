@@ -4,12 +4,12 @@
 #include <math.h>
 #ifdef ARDUINO
     #include <Arduino.h>
-    #include <Wire.h>
 #endif
 #if defined(ARDUINO_ARCH_ESP32)
     #include "driver/i2s_std.h"
 #endif
 #include "hardware/es3c35p_pins.h"
+#include "hardware/es3c35p_touch.h"
 
 namespace es3c35p_extra {
 
@@ -22,28 +22,24 @@ static i2s_chan_handle_t s_tx_chan = nullptr;
 static volatile bool s_playing = false;
 
 inline bool es8311Write(uint8_t reg, uint8_t val) {
-    Wire.beginTransmission(0x18);
-    Wire.write(reg);
-    Wire.write(val);
-    return Wire.endTransmission() == 0;
+    return es3c35p_touch::i2cWriteReg(0x18, reg, val);
 }
 
 inline void initAudio() {
     pinMode(ES3C35P_AUDIO_EN, OUTPUT);
     digitalWrite(ES3C35P_AUDIO_EN, HIGH); // amplificador desligado ate confirmar codec
 
-    Wire.beginTransmission(0x18);
-    if (Wire.endTransmission() != 0) {
+    if (!es3c35p_touch::i2cProbe(0x18)) {
         s_audio_ready = false;
         return;
     }
 
     // Configura ES8311 para 16 kHz / 16-bit I2S Slave (MCLK fornecido pelo ESP32)
-    es8311Write(0x00, 0x80); // Reset
-    delay(5);
-    es8311Write(0x00, 0x00);
+    es8311Write(0x00, 0x1F); // Reset suave
+    delay(10);
+    es8311Write(0x00, 0x80); // CSM_ON = 1 (liga a maquina de estados do chip!)
     es8311Write(0x01, 0x3F); // Clocks ativos
-    es8311Write(0x02, 0x00); // MCLK div
+    es8311Write(0x02, 0x00); // MCLK div = 1
     es8311Write(0x03, 0x10);
     es8311Write(0x04, 0x10);
     es8311Write(0x05, 0x00);
@@ -51,10 +47,12 @@ inline void initAudio() {
     es8311Write(0x07, 0x00);
     es8311Write(0x08, 0xFF);
     es8311Write(0x09, 0x00); // SDP IN: I2S 16-bit
+    es8311Write(0x0A, 0x00); // SDP OUT: I2S 16-bit
     es8311Write(0x0D, 0x01); // Analog power up
     es8311Write(0x0E, 0x02);
     es8311Write(0x12, 0x00); // DAC power up
     es8311Write(0x13, 0x10); // HP/Speaker output enable
+    es8311Write(0x14, 0x1A); // PGA gain
     es8311Write(0x31, 0x00); // Unmute DAC
     es8311Write(0x32, 0xBF); // Volume (~80%)
     es8311Write(0x37, 0x08);
@@ -96,14 +94,14 @@ inline void audioTask(void * arg) {
 
     for (uint8_t n = 0; n < notes; n++) {
         uint16_t f = (mode == 1) ? freqs_shiny[n] : 880;
-        const int frames = 16000 / 12; // ~83 ms por nota
+        const int frames = 16000 / 8; // ~125 ms por nota
         float phase = 0.0f;
         float step = 2.0f * 3.14159265f * (float)f / 16000.0f;
         int sent = 0;
         while (sent < frames) {
             int chunk = (frames - sent > 128) ? 128 : (frames - sent);
             for (int i = 0; i < chunk; i++) {
-                int16_t s = (int16_t)(sinf(phase) * 7000.0f);
+                int16_t s = (int16_t)(sinf(phase) * 12000.0f);
                 buf[i * 2]     = s;
                 buf[i * 2 + 1] = s;
                 phase += step;

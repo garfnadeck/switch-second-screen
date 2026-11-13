@@ -176,6 +176,36 @@ int     ultimoErro()   { return s_erro; }
 uint8_t ultimoStatus() { return s_status; }
 const char * infoChip0x28() { return s_info0x28; }
 
+bool i2cProbe(uint8_t addr7)
+{
+    if (!s_bus) return false;
+    return i2c_master_probe(s_bus, addr7, 50) == ESP_OK;
+}
+
+bool i2cWriteReg(uint8_t addr7, uint8_t reg, uint8_t val)
+{
+    if (!s_bus) return false;
+    static i2c_master_dev_handle_t s_aux = NULL;
+    static uint8_t s_aux_addr = 0;
+    if (!s_aux || s_aux_addr != addr7) {
+        if (s_aux) {
+            i2c_master_bus_rm_device(s_aux);
+            s_aux = NULL;
+        }
+        i2c_device_config_t cfg = {};
+        cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+        cfg.device_address  = addr7;
+        cfg.scl_speed_hz    = 100000;
+        if (i2c_master_bus_add_device(s_bus, &cfg, &s_aux) != ESP_OK || !s_aux) {
+            s_aux = NULL;
+            return false;
+        }
+        s_aux_addr = addr7;
+    }
+    uint8_t buf[2] = { reg, val };
+    return i2c_master_transmit(s_aux, buf, sizeof(buf), pdMS_TO_TICKS(50)) == ESP_OK;
+}
+
 }  // namespace es3c35p_touch
 
 #else  // fora do ESP32: sem toque
@@ -186,6 +216,8 @@ bool read(uint16_t *, uint16_t *) { return false; }
 int     ultimoErro()   { return -1; }
 uint8_t ultimoStatus() { return 0; }
 const char * infoChip0x28() { return "simulador"; }
+bool i2cProbe(uint8_t) { return false; }
+bool i2cWriteReg(uint8_t, uint8_t, uint8_t) { return false; }
 }  // namespace es3c35p_touch
 
 #endif

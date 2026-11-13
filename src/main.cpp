@@ -696,7 +696,7 @@ void setup() {
         }
     });
 
-    // Sprites do MicroSD (/sd/sprites/<id>.png -> /assets/za/sprites/<id>.png)
+    // Sprites do MicroSD (/sd/sprites/<id>.bin ou .png -> /assets/za/sprites/...)
     server.onNotFound([]() {
         String uri = server.uri();
         if (uri.startsWith("/sd/sprites/") && AssetManager::isSDReady()) {
@@ -704,8 +704,9 @@ void setup() {
             if (SD_MMC.exists(path)) {
                 File f = SD_MMC.open(path, "r");
                 if (f) {
+                    const char * mime = path.endsWith(".png") ? "image/png" : "application/octet-stream";
                     server.sendHeader("Cache-Control", "max-age=86400");
-                    server.streamFile(f, "image/png");
+                    server.streamFile(f, mime);
                     f.close();
                     return;
                 }
@@ -718,6 +719,7 @@ void setup() {
     server.on("/api/settings", HTTP_GET, []() {
         String j = String("{\"bright\":") + String((int)state.brightness) +
                    ",\"sound\":" + (state.sound_enabled ? "true" : "false") +
+                   ",\"audio_ready\":" + (es3c35p_extra::isAudioReady() ? "true" : "false") +
                    ",\"autostop\":" + (state.auto_stop_shiny ? "true" : "false") +
                    ",\"autoheal\":" + (state.auto_heal ? "true" : "false") +
                    ",\"flip\":" + (state.screen_flip ? "true" : "false") +

@@ -20,4 +20,8 @@ int      ultimoErro();
 uint8_t  ultimoStatus();
 const char * infoChip0x28();
 
+// Acesso ao mesmo barramento I2C0 (IO38/IO39) para o codec de audio ES8311 (0x18).
+bool i2cProbe(uint8_t addr7);
+bool i2cWriteReg(uint8_t addr7, uint8_t reg, uint8_t val);
+
 }  // namespace es3c35p_touch
