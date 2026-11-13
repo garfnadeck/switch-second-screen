@@ -127,6 +127,9 @@ class SysBotbaseClient extends ChangeNotifier {
     for (final entry in botwVersions.entries) {
       if (bid.startsWith(entry.key.toUpperCase())) return entry.value;
     }
+    if (profile == GameProfile.zeldaBotw) {
+      return botwVersions['8E9978D50BDD20B4'];
+    }
     return null;
   }
 
@@ -477,6 +480,31 @@ class SysBotbaseClient extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Waits briefly for any in-flight poll read to finish so pointerPoke
+  /// never interleaves with pointerPeek on the single sys-botbase TCP stream.
+  Future<void> _sendPoke(String cmd) async {
+    final s = _socket;
+    if (s == null || !connected) return;
+    for (int i = 0; i < 12 && _busy; i++) {
+      await Future.delayed(const Duration(milliseconds: 25));
+    }
+    _busy = true;
+    try {
+      s.write('$cmd\r\n');
+      await s.flush();
+    } catch (_) {
+    } finally {
+      _busy = false;
+    }
+  }
+
+  Future<String?> _sendAndWaitQueued(String cmd, {int timeoutMs = 800}) async {
+    for (int i = 0; i < 12 && _busy; i++) {
+      await Future.delayed(const Duration(milliseconds: 25));
+    }
+    return _sendAndWait(cmd, timeoutMs: timeoutMs);
+  }
+
   void _applyDetectedTitle(String? tid, String? bid) {
     if (tid != null && tid.isNotEmpty) titleId = tid.trim().toUpperCase();
     if (bid != null && bid.isNotEmpty) buildId = bid.trim().toUpperCase();
@@ -726,16 +754,31 @@ class SysBotbaseClient extends ChangeNotifier {
 
   Future<void> pokeBotwHearts(int quarters, {bool setMax = false}) async {
     final p = activeBotwProfile;
-    if (p == null || !connected) return;
+    if (p == null || !connected) {
+      lastLog = 'BotW: conecte ao Switch primeiro';
+      notifyListeners();
+      return;
+    }
     final q = quarters.clamp(4, 120);
     final b = ByteData(4)..setUint32(0, q, Endian.little);
+    final hexU32 = _toLittleEndianHex(b.buffer.asUint8List());
+    final check = p.heartsChain.isNotEmpty
+        ? await _sendAndWaitQueued('pointerPeek 4 ${_chainArgs(p.heartsChain)}')
+        : null;
+    if (check == null || check.trim().isEmpty) {
+      lastLog = 'BotW: entre no jogo (save carregado) p/ editar coracoes';
+      notifyListeners();
+      return;
+    }
     if (p.heartsChain.isNotEmpty) {
-      _sendFireAndForget('pointerPoke 0x${_toLittleEndianHex(b.buffer.asUint8List())} ${_chainArgs(p.heartsChain)}');
+      await _sendPoke('pointerPoke 0x$hexU32 ${_chainArgs(p.heartsChain)}');
+      await _sendPoke('pointerPoke 0x$hexU32 0x02CC5FE0 0xE40 0x5B08 0x5DB8');
       botwHeartsCur = q;
     }
     if (setMax && p.maxHeartsChain.isNotEmpty) {
       final f = ByteData(4)..setFloat32(0, q.toDouble(), Endian.little);
-      _sendFireAndForget('pointerPoke 0x${_toLittleEndianHex(f.buffer.asUint8List())} ${_chainArgs(p.maxHeartsChain)}');
+      await _sendPoke('pointerPoke 0x${_toLittleEndianHex(f.buffer.asUint8List())} ${_chainArgs(p.maxHeartsChain)}');
+      await _sendPoke('pointerPoke 0x$hexU32 0x02CC5FE0 0xE40 0x5B08 0x5DE0');
       botwHeartsMax = q;
     }
     lastLog = 'BotW: Coracoes -> ${(q / 4).toStringAsFixed(0)}';
@@ -744,12 +787,22 @@ class SysBotbaseClient extends ChangeNotifier {
 
   Future<void> pokeBotwStaminaFull({bool threeWheels = false}) async {
     final p = activeBotwProfile;
-    if (p == null || !connected || p.staminaChain.isEmpty) return;
+    if (p == null || !connected || p.staminaChain.isEmpty) {
+      lastLog = 'BotW: conecte ao Switch primeiro';
+      notifyListeners();
+      return;
+    }
+    final check = await _sendAndWaitQueued('pointerPeek 4 ${_chainArgs(p.staminaChain)}');
+    if (check == null || check.trim().isEmpty) {
+      lastLog = 'BotW: entre no jogo (save carregado) p/ editar stamina';
+      notifyListeners();
+      return;
+    }
     final val = threeWheels ? 3000.0 : 1000.0;
     final b = ByteData(8)
       ..setFloat32(0, val, Endian.little)
       ..setFloat32(4, val, Endian.little);
-    _sendFireAndForget('pointerPoke 0x${_toLittleEndianHex(b.buffer.asUint8List())} ${_chainArgs(p.staminaChain)}');
+    await _sendPoke('pointerPoke 0x${_toLittleEndianHex(b.buffer.asUint8List())} ${_chainArgs(p.staminaChain)}');
     botwStaminaPct = 100;
     lastLog = threeWheels ? 'BotW: Stamina 3 rodas!' : 'BotW: Stamina cheia!';
     notifyListeners();
@@ -757,10 +810,20 @@ class SysBotbaseClient extends ChangeNotifier {
 
   Future<void> pokeBotwRupees(int amount) async {
     final p = activeBotwProfile;
-    if (p == null || !connected || p.rupeesChain.isEmpty) return;
+    if (p == null || !connected || p.rupeesChain.isEmpty) {
+      lastLog = 'BotW: conecte ao Switch primeiro';
+      notifyListeners();
+      return;
+    }
+    final check = await _sendAndWaitQueued('pointerPeek 4 ${_chainArgs(p.rupeesChain)}');
+    if (check == null || check.trim().isEmpty) {
+      lastLog = 'BotW: entre no jogo (save carregado) p/ editar rupees';
+      notifyListeners();
+      return;
+    }
     final v = amount.clamp(0, 999999);
     final b = ByteData(4)..setUint32(0, v, Endian.little);
-    _sendFireAndForget('pointerPoke 0x${_toLittleEndianHex(b.buffer.asUint8List())} ${_chainArgs(p.rupeesChain)}');
+    await _sendPoke('pointerPoke 0x${_toLittleEndianHex(b.buffer.asUint8List())} ${_chainArgs(p.rupeesChain)}');
     botwRupees = v;
     lastLog = 'BotW: Rupees -> $v';
     notifyListeners();

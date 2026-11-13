@@ -1280,6 +1280,12 @@ class _HudHomeState extends State<HudHome> {
                     Expanded(child: _miniBtn('B', const Color(0xFF7B112C), () => c.sendButtonClick('B'))),
                   ],
                 ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Como ativar: 1) No Switch, abra o Tesla (L + ▼ + R3 no controle fisico) -> emuiibo -> Emulation: ON -> escolha o Amiibo.\n'
+                  '2) No BotW: Opcoes -> amiibo -> Use amiibo. 3) Segure L (runa Amiibo) no jogo.',
+                  style: TextStyle(fontSize: 10, color: Color(0xFF99A2C8), height: 1.3),
+                ),
               ],
             ),
           ),
