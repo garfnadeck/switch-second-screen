@@ -561,6 +561,26 @@ class _HudHomeState extends State<HudHome> {
               style: const TextStyle(fontSize: 10, color: Color(0xFF00F5D4)),
             ),
           ],
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Text('Versao BotW:', style: TextStyle(fontSize: 11, color: Color(0xFF99A2C8))),
+              const SizedBox(width: 8),
+              ...['auto', '1.0.0', '1.6.0'].map((v) {
+                final sel = c.botwSelectedVersion == v;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(v == 'auto' ? 'Auto (BuildID)' : v, style: const TextStyle(fontSize: 11)),
+                    selected: sel,
+                    selectedColor: const Color(0xFF0F3460),
+                    backgroundColor: const Color(0xFF101324),
+                    onSelected: (_) => c.setBotwVersion(v),
+                  ),
+                );
+              }),
+            ],
+          ),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(10),

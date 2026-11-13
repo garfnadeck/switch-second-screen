@@ -30,7 +30,8 @@ class BotwMemoryProfile {
 
 class SysBotbaseClient extends ChangeNotifier {
   static const Map<String, BotwMemoryProfile> botwVersions = {
-    '1.6.0': BotwMemoryProfile(versionLabel: 'BotW 1.6.0'),
+    '2094F152836683A3': BotwMemoryProfile(versionLabel: 'BotW 1.0.0'),
+    '8E9978D50BDD20B4': BotwMemoryProfile(versionLabel: 'BotW 1.6.0'),
   };
   static const List<int> _partyBase = [0x610A710, 0x18, 0x1B0, 0xF0, 0x50, 0x30, 0x0];
   static const List<int> _posBase = [0x47D71A0, 0x248, 0x0, 0x138, 0x90];
@@ -74,6 +75,8 @@ class SysBotbaseClient extends ChangeNotifier {
   String buildId = '';
 
   BotwMemoryProfile? get activeBotwProfile {
+    if (botwSelectedVersion == '1.0.0') return botwVersions['2094F152836683A3'];
+    if (botwSelectedVersion == '1.6.0') return botwVersions['8E9978D50BDD20B4'];
     final bid = buildId.toUpperCase();
     for (final entry in botwVersions.entries) {
       if (bid.startsWith(entry.key.toUpperCase())) return entry.value;
@@ -116,6 +119,7 @@ class SysBotbaseClient extends ChangeNotifier {
   int botwBeasts = 0; // bitmask 0..3: Ruta, Rudania, Medoh, Naboris
   bool botwMasterSword = false;
   bool botwHylianShield = false;
+  String botwSelectedVersion = 'auto'; // 'auto', '1.0.0', '1.6.0'
 
   // TCP internals
   Socket? _socket;
@@ -143,6 +147,7 @@ class SysBotbaseClient extends ChangeNotifier {
     botwBeasts = prefs.getInt('botwBeasts') ?? 0;
     botwMasterSword = prefs.getBool('botwMasterSword') ?? false;
     botwHylianShield = prefs.getBool('botwHylianShield') ?? false;
+    botwSelectedVersion = prefs.getString('botwSelectedVersion') ?? 'auto';
     final fwRaw = prefs.getString('favWarps');
     if (fwRaw != null) {
       try {
@@ -172,6 +177,7 @@ class SysBotbaseClient extends ChangeNotifier {
     await prefs.setInt('botwBeasts', botwBeasts);
     await prefs.setBool('botwMasterSword', botwMasterSword);
     await prefs.setBool('botwHylianShield', botwHylianShield);
+    await prefs.setString('botwSelectedVersion', botwSelectedVersion);
     await prefs.setString(
       'favWarps',
       jsonEncode(favWarps.map((e) => e.toJson()).toList()),
@@ -231,6 +237,12 @@ class SysBotbaseClient extends ChangeNotifier {
 
   void toggleBotwHylianShield() {
     botwHylianShield = !botwHylianShield;
+    _savePrefs();
+    notifyListeners();
+  }
+
+  void setBotwVersion(String v) {
+    botwSelectedVersion = v;
     _savePrefs();
     notifyListeners();
   }
