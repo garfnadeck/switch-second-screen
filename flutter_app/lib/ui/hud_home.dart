@@ -1940,6 +1940,14 @@ class _HudHomeState extends State<HudHome> {
               },
               child: const Text('Salvar Pin', style: TextStyle(color: Color(0xFFFFD166))),
             ),
+          if (_botwNavTarget != null)
+            TextButton(
+              onPressed: () {
+                setState(() => _botwNavTarget = null);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Limpar GPS', style: TextStyle(color: Colors.orangeAccent)),
+            ),
           TextButton(
             onPressed: () {
               final label = pinIndex != null
