@@ -1716,9 +1716,15 @@ class _HudHomeState extends State<HudHome> {
             ),
             const SizedBox(width: 6),
             _miniBtn(
-              _warpMode ? 'Warp: ON' : 'Warp: OFF',
-              _warpMode ? const Color(0xFFB71C1C) : const Color(0xFF23294E),
-              () => setState(() => _warpMode = !_warpMode),
+              '+ Pin Aqui',
+              const Color(0xFF6A1B9A),
+              () => _showBotwTeleportDialog(
+                c,
+                c.posX,
+                max(c.posAlt, 200.0),
+                c.posY,
+                defaultName: 'Pin ${c.botwPins.length + 1}',
+              ),
             ),
           ],
         ),
@@ -1768,7 +1774,7 @@ class _HudHomeState extends State<HudHome> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF0A141E),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _warpMode ? Colors.redAccent : th.cardBorder),
+                  border: Border.all(color: th.cardBorder),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(9),
@@ -1779,12 +1785,11 @@ class _HudHomeState extends State<HudHome> {
                     scaleEnabled: true,
                     child: LayoutBuilder(
                       builder: (_, box) => GestureDetector(
-                        onTapDown: (d) {
-                          if (!_warpMode) return;
+                        onLongPressStart: (d) {
                           final tx = (d.localPosition.dx / box.maxWidth) * 12000.0 - 6000.0;
                           final tz = (d.localPosition.dy / box.maxHeight) * 10000.0 - 5000.0;
                           final ty = max(c.posAlt, 260.0);
-                          c.pokeBotwPosition(tx, ty, tz);
+                          _showBotwTeleportDialog(c, tx, ty, tz);
                         },
                         child: Stack(
                           fit: StackFit.expand,
@@ -1802,6 +1807,7 @@ class _HudHomeState extends State<HudHome> {
                                 koroks: c.botwKorokList,
                                 showKoroks: _botwShowKoroks,
                                 shrineDoneCount: c.botwShrines,
+                                pins: c.botwPins,
                               ),
                             ),
                           ],
@@ -1819,19 +1825,109 @@ class _HudHomeState extends State<HudHome> {
           height: 32,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: spots.length,
+            itemCount: c.botwPins.length + spots.length,
             separatorBuilder: (_, _) => const SizedBox(width: 6),
             itemBuilder: (_, i) {
-              final s = spots[i];
+              if (i < c.botwPins.length) {
+                final pin = c.botwPins[i];
+                return _miniBtn(
+                  '📍 ${pin.name}',
+                  const Color(0xFF6A1B9A),
+                  () => _showBotwTeleportDialog(
+                    c,
+                    pin.x,
+                    pin.y,
+                    pin.z,
+                    defaultName: pin.name,
+                    pinIndex: i,
+                  ),
+                );
+              }
+              final s = spots[i - c.botwPins.length];
               return _miniBtn(
                 s.$1,
                 const Color(0xFF0F3460),
-                () => c.pokeBotwPosition(s.$2, s.$3, s.$4),
+                () => _showBotwTeleportDialog(c, s.$2, s.$3, s.$4, defaultName: s.$1),
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _showBotwTeleportDialog(
+    SysBotbaseClient c,
+    double x,
+    double y,
+    double z, {
+    String? defaultName,
+    int? pinIndex,
+  }) async {
+    final nameCtrl = TextEditingController(text: defaultName ?? 'Pin ${c.botwPins.length + 1}');
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF13172B),
+        title: Text(
+          pinIndex != null ? 'Pin: ${c.botwPins[pinIndex].name}' : 'Confirmar Teleporte / Pin',
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'X: ${x.toStringAsFixed(0)}   Y: ${y.toStringAsFixed(0)}   Z: ${z.toStringAsFixed(0)}',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF00E5FF), fontWeight: FontWeight.w600),
+            ),
+            if (pinIndex == null) ...[
+              const SizedBox(height: 10),
+              TextField(
+                controller: nameCtrl,
+                style: const TextStyle(fontSize: 13, color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Nome do Pin (opcional)',
+                  labelStyle: TextStyle(fontSize: 12, color: Colors.white60),
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          if (pinIndex != null)
+            TextButton(
+              onPressed: () {
+                c.removeBotwPin(pinIndex);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Remover Pin', style: TextStyle(color: Colors.redAccent)),
+            )
+          else
+            TextButton(
+              onPressed: () {
+                final label = nameCtrl.text.trim().isEmpty ? 'Pin ${c.botwPins.length + 1}' : nameCtrl.text.trim();
+                c.addBotwPin(label, x, y, z);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Salvar Pin', style: TextStyle(color: Color(0xFFFFD166))),
+            ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00838F)),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              c.pokeBotwPosition(x, y, z);
+            },
+            child: const Text('Teleportar'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1899,6 +1995,7 @@ class _BotwMapPainter extends CustomPainter {
   final List<BotwMarker> koroks;
   final bool showKoroks;
   final int shrineDoneCount;
+  final List<BotwPin> pins;
 
   const _BotwMapPainter({
     required this.linkNormX,
@@ -1910,6 +2007,7 @@ class _BotwMapPainter extends CustomPainter {
     required this.koroks,
     required this.showKoroks,
     required this.shrineDoneCount,
+    required this.pins,
   });
 
   @override
@@ -1986,6 +2084,31 @@ class _BotwMapPainter extends CustomPainter {
       tp.paint(canvas, Offset((sx + 5).clamp(0, size.width - tp.width), (sz - 5).clamp(0, size.height - tp.height)));
     }
 
+    final pinFill = Paint()..color = const Color(0xFFE040FB);
+    final pinBorder = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3;
+    for (final p in pins) {
+      final px = ((p.x + 6000.0) / 12000.0).clamp(0.0, 1.0) * size.width;
+      final pz = ((p.z + 5000.0) / 10000.0).clamp(0.0, 1.0) * size.height;
+      canvas.drawCircle(Offset(px, pz), 4.5, pinFill);
+      canvas.drawCircle(Offset(px, pz), 4.5, pinBorder);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: p.name,
+          style: const TextStyle(
+            color: Color(0xFFFFD166),
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            shadows: [Shadow(color: Colors.black, blurRadius: 3)],
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset((px + 6).clamp(0, size.width - tp.width), (pz - 6).clamp(0, size.height - tp.height)));
+    }
+
     final lx = linkNormX * size.width;
     final lz = linkNormZ * size.height;
     canvas.drawCircle(
@@ -2017,5 +2140,6 @@ class _BotwMapPainter extends CustomPainter {
       old.showKoroks != showKoroks ||
       old.shrineDoneCount != shrineDoneCount ||
       old.shrines.length != shrines.length ||
-      old.koroks.length != koroks.length;
+      old.koroks.length != koroks.length ||
+      old.pins.length != pins.length;
 }

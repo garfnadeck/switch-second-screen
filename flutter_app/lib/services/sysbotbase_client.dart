@@ -34,6 +34,22 @@ class BotwMarker {
   });
 }
 
+class BotwPin {
+  final String name;
+  final double x;
+  final double y;
+  final double z;
+  const BotwPin({required this.name, required this.x, required this.y, required this.z});
+
+  Map<String, dynamic> toJson() => {'name': name, 'x': x, 'y': y, 'z': z};
+  factory BotwPin.fromJson(Map<String, dynamic> j) => BotwPin(
+        name: '${j['name'] ?? 'Pin'}',
+        x: (j['x'] as num?)?.toDouble() ?? 0,
+        y: (j['y'] as num?)?.toDouble() ?? 260,
+        z: (j['z'] as num?)?.toDouble() ?? 0,
+      );
+}
+
 class BotwMemoryProfile {
   final String versionLabel;
   final List<int> heartsChain;
@@ -160,6 +176,7 @@ class SysBotbaseClient extends ChangeNotifier {
   String botwSelectedVersion = 'auto'; // 'auto', '1.0.0', '1.6.0'
   List<BotwMarker> botwShrineList = [];
   List<BotwMarker> botwKorokList = [];
+  List<BotwPin> botwPins = [];
   Map<String, int> _botwExtraFlagIdx = {};
   bool botwProgressSyncing = false;
   bool _botwSyncedOnce = false;
@@ -203,6 +220,13 @@ class SysBotbaseClient extends ChangeNotifier {
               ? FavWarp.fromJson(Map<String, dynamic>.from(list[i]))
               : const FavWarp(),
         );
+      } catch (_) {}
+    }
+    final pinsRaw = prefs.getString('botwPins');
+    if (pinsRaw != null) {
+      try {
+        final list = jsonDecode(pinsRaw) as List;
+        botwPins = list.map((e) => BotwPin.fromJson(Map<String, dynamic>.from(e))).toList();
       } catch (_) {}
     }
     await _loadBotwMapData();
@@ -677,6 +701,23 @@ class SysBotbaseClient extends ChangeNotifier {
     posY = z;
     zoneName = _botwRegionName(x, z);
     lastLog = 'Teleporte BOTW -> (${x.toStringAsFixed(0)}, ${y.toStringAsFixed(0)}, ${z.toStringAsFixed(0)})';
+    notifyListeners();
+  }
+
+  Future<void> addBotwPin(String name, double x, double y, double z) async {
+    botwPins.add(BotwPin(name: name, x: x, y: y, z: z));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('botwPins', jsonEncode(botwPins.map((p) => p.toJson()).toList()));
+    lastLog = 'Pin salvo: $name';
+    notifyListeners();
+  }
+
+  Future<void> removeBotwPin(int index) async {
+    if (index < 0 || index >= botwPins.length) return;
+    final removed = botwPins.removeAt(index);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('botwPins', jsonEncode(botwPins.map((p) => p.toJson()).toList()));
+    lastLog = 'Pin removido: ${removed.name}';
     notifyListeners();
   }
 
