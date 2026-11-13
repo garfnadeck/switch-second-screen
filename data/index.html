@@ -1,180 +1,151 @@
 <!DOCTYPE html>
-<html lang='pt'>
+<html lang='pt-br'>
 <head>
-  <meta charset='UTF-8'>
-  <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-  <title>Switch HUD (MVP)</title>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no'>
+  <title>Switch HUD</title>
   <style>
-    /* Espelho do layout da tela fisica 480x320 (LVGL). Mesma paleta do ui_manager.h */
-    * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: #05050A; overflow: hidden; user-select: none;
-      font-family: 'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif; }
-    #wrap { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); }
-    #stage { width: 480px; height: 320px; background: #12121F; position: relative; overflow: hidden;
-      transform-origin: top left; color: #fff; font-size: 14px; }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    html, body { margin: 0; height: 100%; background: #0B0E1A; color: #fff; font-family: system-ui, -apple-system, sans-serif; overflow: hidden; }
+    body { display: flex; align-items: center; justify-content: center; }
+    #wrap { position: relative; }
+    #stage { position: absolute; left: 0; top: 0; width: 480px; height: 320px; background: #12121F; transform-origin: 0 0; overflow: hidden; }
 
-    /* Barra superior 38px */
-    #top { position: absolute; left: 0; top: 0; width: 480px; height: 38px; background: #1F1F38;
-      display: flex; align-items: center; justify-content: space-between; padding: 0 8px; }
-    #top .title { color: #00F5D4; font-size: 14px; }
-    #top .game { width: 185px; height: 30px; background: #0F3460; border-radius: 6px; border: 1px solid #2D3E66;
-      display: flex; align-items: center; justify-content: space-between; padding: 0 10px; font-size: 12px; }
+    /* Top bar (480x38) */
+    #top { position: absolute; left: 0; top: 0; width: 480px; height: 38px; background: #0B0E1A;
+      display: flex; align-items: center; justify-content: space-between; padding: 0 6px 0 8px; }
+    #top .title { color: #00F5D4; font-weight: 700; font-size: 14px; letter-spacing: .5px; }
+    #bat-badge { font-size: 11px; font-weight: 700; color: #00E676; margin-left: auto; margin-right: 8px; }
+    #gamesel { width: 175px; height: 28px; background: #0F3460; color: #fff; border-radius: 6px; border: 1px solid #2D3E66;
+      font: inherit; font-size: 12px; padding: 0 6px; cursor: pointer; }
 
-    /* Abas 32px */
-    #tabs { position: absolute; left: 0; top: 38px; width: 480px; height: 32px; background: #18182C; display: flex; }
-    .tab { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; color: #fff; }
-    .tab.active { color: #2D8CFF; box-shadow: inset 0 -3px 0 #2D8CFF; background: #0F1B33; }
+    /* Tabs (480x34) */
+    #tabs { position: absolute; left: 0; top: 38px; width: 480px; height: 34px; display: flex; background: #14192E; }
+    .tab { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #99A2C8; cursor: pointer; }
+    .tab.active { color: #00F5D4; background: #181F3A; box-shadow: inset 0 -3px 0 #00F5D4; font-weight: 600; }
 
-    /* Area de conteudo 480x224 */
-    .page { position: absolute; left: 0; top: 70px; width: 480px; height: 224px; display: none; }
+    .page { position: absolute; left: 0; top: 72px; width: 480px; height: 222px; display: none; padding: 4px 6px; }
     .page.active { display: block; }
 
-    /* Status */
-    #zone { position: absolute; left: 10px; top: 4px; font-size: 12px; color: #00F5D4; }
-    .prow { position: absolute; left: 10px; right: 10px; height: 30px; font-size: 12px; }
-    .prow .n { position: absolute; left: 0; top: 5px; width: 118px; white-space: nowrap; overflow: hidden; }
-    .prow .b { position: absolute; left: 122px; top: 6px; width: 190px; height: 12px; background: #1F1F38; border-radius: 4px; overflow: hidden; }
-    .prow .f { height: 100%; width: 0; border-radius: 4px; background: #444466; transition: width .3s; }
-    .prow .h { position: absolute; left: 318px; top: 5px; color: #CCCCDD; }
-    .prow .s { position: absolute; left: 402px; top: 5px; color: #FFC400; }
-    .cy { color: #00F5D4; } .gr { color: #00E676; } .rd { color: #FF1744; } .mu { color: #8888AA; }
+    /* Status Z-A: 2x3 Cards igual LVGL */
+    #zdash { position: relative; width: 100%; height: 100%; }
+    #z-hdr { display: flex; justify-content: space-between; align-items: center; height: 18px; margin-bottom: 3px; font-size: 11px; }
+    #zone { color: #00F5D4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
+    #zone.shiny { color: #FFD700; font-weight: 700; }
+    #z-sd { color: #8888AA; font-size: 10px; }
+    #party { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px 6px; }
+    .pcard { position: relative; height: 61px; background: #181C32; border: 1px solid #2A3558; border-radius: 7px;
+      padding: 4px 6px 4px 10px; display: flex; align-items: center; gap: 6px; cursor: pointer; overflow: hidden; }
+    .pcard:hover { border-color: #00F5D4; }
+    .pcard.shiny { border-color: #FFD700; box-shadow: inset 0 0 8px rgba(255, 215, 0, .18); }
+    .pcard .acc { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #333856; }
+    .pcard .ico { width: 40px; height: 40px; border-radius: 6px; background: #101324; display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
+    .pcard .ico img { width: 40px; height: 40px; image-rendering: pixelated; }
+    .pcard .ico .fb { font-size: 10px; color: #7780A8; }
+    .pcard .info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; height: 50px; }
+    .pcard .r1 { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 600; }
+    .pcard .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pcard .lv { color: #99A2C8; font-size: 10px; flex-shrink: 0; margin-left: 4px; }
+    .pcard .bar { height: 5px; background: #101324; border-radius: 3px; overflow: hidden; }
+    .pcard .bar div { height: 100%; width: 0; background: #00E676; transition: width .2s; }
+    .pcard .r3 { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #AAAACC; }
 
-    /* Macros 3x2 */
-    #grid { position: absolute; left: 3px; right: 3px; top: 4px; display: grid;
-      grid-template-columns: repeat(3, 1fr); gap: 8px 6px; }
-    #mhead { position: absolute; left: 3px; right: 3px; top: 2px; height: 28px; display: none; align-items: center; justify-content: space-between; }
-    #mhead .ttl { color: #00F5D4; font-size: 14px; }
-    .hbtn { height: 28px; width: 92px; border-radius: 8px; border: 2px solid #2D3E66; background: #1F1F38; color: #fff; font: inherit; font-size: 12px; cursor: pointer; }
-    .hbtn.stop, .slot.stop { background: #5A1020; border-color: #FF1744; }
-    .hbtn.stop { color: #FF6E88; }
-    #grid.cat { top: 34px; }
-    .slot { position: relative; height: 90px; background: #0F3460; border: 2px solid #1F4E8C; border-radius: 8px;
-      color: #fff; font: inherit; font-size: 13px; display: flex; flex-direction: column; align-items: center;
-      justify-content: center; text-align: center; line-height: 1.3; cursor: pointer; padding: 2px; }
-    .slot:active { background: #1F4E8C; }
-    .slot .ic { color: #00F5D4; font-size: 15px; }
-    .slot .sub { color: #8888AA; font-size: 12px; }
-    .slot .lp { color: #8888AA; }
-    .slot .dot { position: absolute; top: 0; right: 0; width: 12px; height: 12px; border-radius: 50%; background: #FF1744; }
-    .slot.on { background: #133E35; border-color: #00E676; }
-    .slot.on .dot { background: #00E676; }
+    /* Modal Mini Menu & Pontos Rapidos */
+    .modal { display: none; position: absolute; left: 24px; right: 24px; top: 34px; bottom: 26px; background: #14182D;
+      border: 2px solid #00F5D4; border-radius: 10px; z-index: 30; padding: 8px; font-size: 11px; }
+    .modal .mhdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; gap: 6px; }
+    .modal .mttl { color: #00F5D4; font-weight: 700; font-size: 12px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .modal .mgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+    .modal .mgrid button { height: 36px; background: #1E2749; border: 1px solid #2D3E66; color: #fff; border-radius: 6px; font: inherit; font-size: 10px; cursor: pointer; padding: 0 3px; }
+    .modal .mgrid button.go { background: #133E35; border-color: #00E676; color: #00E676; }
+    .modal .mgrid button.gd { background: #4A3800; border-color: #FFD700; color: #FFE27A; }
+    .modal .mgrid button.rd { background: #3A1424; border-color: #FF5252; color: #FF8A80; }
 
-    /* Mapa: quadro quadrado a esquerda, camadas/info a direita */
-    #mapbox { position: absolute; left: 10px; top: 8px; width: 208px; height: 208px; background: #182232;
-      border: 2px solid #1F4E8C; border-radius: 6px; overflow: hidden; cursor: crosshair; }
-    #tileGrid { position: absolute; inset: 0; display: grid; }
-    .tile { background-size: cover; background-position: center; border: 1px solid #0b1220;
-      display: flex; align-items: center; justify-content: center; font-size: 10px; color: #00F5D4; }
-    #pin { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
-      background: #FF1744; border: 2px solid #fff; pointer-events: none; transition: left .15s, top .15s; }
-    #mside { position: absolute; left: 230px; right: 10px; top: 8px; font-size: 12px; }
-    #layers { display: flex; flex-direction: column; gap: 4px; max-height: 128px; overflow-y: auto; }
-    .lbtn { background: #0F3460; border: 1px solid #1F4E8C; border-radius: 6px; color: #fff; font: inherit;
-      font-size: 12px; padding: 5px 8px; text-align: left; cursor: pointer; }
-    .lbtn.active { background: #133E35; border-color: #00E676; }
-    #mzone { margin-top: 8px; color: #00F5D4; } #mcoord { margin-top: 2px; } #mpoi { margin-top: 2px; color: #8888AA; }
-
-    /* Rede */
-    #net { position: absolute; left: 12px; right: 12px; top: 6px; font-size: 12px; line-height: 1.4; }
-    #net .row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
-    #net label { width: 78px; color: #00F5D4; }
-    #net input { flex: 1; min-width: 0; height: 28px; background: #1E1E36; color: #fff; border: 1px solid #2D3E66;
-      border-radius: 6px; padding: 0 8px; font: inherit; font-size: 12px; user-select: text; -webkit-user-select: text; }
-    #net button { height: 28px; background: #0F3460; color: #fff; border: 1px solid #1F4E8C; border-radius: 6px;
-      padding: 0 10px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
-    #net .hint { margin-top: 8px; color: #8888AA; font-size: 11px; }
-    #net .netlist { margin-top: 6px; max-height: 74px; overflow-y: auto; display: none; }
-    #net .netlist.on { display: block; }
-    #net .netlist button { display: flex; width: 100%; justify-content: space-between; margin-top: 3px;
-                           background: #1E1E36; border-color: #2D3E66; }
-    #net .netlist button.sel { border-color: #00F5D4; color: #00F5D4; }
-    #net .netlist .sig { color: #8888AA; }
-
-    /* Config */
-    #cfg { position: absolute; left: 14px; top: 8px; right: 14px; font-size: 12px; line-height: 1.4; }
-    #cfg button { margin-top: 6px; background: #006064; color: #fff; border: 1px solid #00F5D4; border-radius: 7px;
-      padding: 6px 10px; font: inherit; font-size: 11px; cursor: pointer; }
-    #cfg button.rd { background: #B71C1C; border-color: #FF6E88; }
-    #cfg .ota-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
-    #cfg input[type=file] { font-size: 11px; color: #CCCCDD; max-width: 220px; }
-
-    /* Shiny Banner, Bateria e Modal Mini Menu */
-    #bat-badge { font-size: 11px; color: #00E676; margin-left: auto; margin-right: 8px; }
-    #shiny-banner { display: none; position: absolute; left: 220px; right: 8px; top: 2px; background: #4A3800;
-      border: 1px solid #FFC400; color: #FFE27A; border-radius: 6px; padding: 2px 6px; font-size: 11px;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .prow { cursor: pointer; }
-    .prow:hover { background: rgba(0, 245, 212, 0.08); border-radius: 4px; }
-    #pkm-modal { display: none; position: absolute; left: 20px; right: 20px; top: 44px; bottom: 32px;
-      background: #14182D; border: 2px solid #00F5D4; border-radius: 10px; z-index: 25; padding: 8px; font-size: 12px; }
-    #pkm-modal .mhdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; color: #00F5D4; }
-    #pkm-modal .mgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
-    #pkm-modal .mgrid button { height: 42px; background: #1E2749; border: 1px solid #2D3E66; color: #fff;
-      border-radius: 7px; font: inherit; font-size: 11px; cursor: pointer; }
-    #pkm-modal .mgrid button.go { border-color: #00E676; color: #00E676; }
-    #warp-btn { margin-top: 6px; width: 100%; height: 28px; background: #1E3A5F; border: 1px solid #2D5A8C;
-      color: #fff; border-radius: 6px; font: inherit; font-size: 11px; cursor: pointer; }
-    #warp-btn.on { background: #1B5E20; border-color: #00E676; }
-
-    /* Seletor de jogo + tema FireRed */
-    #gamesel { width: 185px; height: 30px; background: #0F3460; color: #fff; border-radius: 6px; border: 1px solid #2D3E66;
-      font: inherit; font-size: 12px; padding: 0 6px; cursor: pointer; }
-    body.fr #top .title { color: #FF8A3D; }
-    body.fr .tab.active { color: #FF8A3D; box-shadow: inset 0 -3px 0 #FF8A3D; background: #2A160A; }
-    body.fr .slot .ic { color: #FF8A3D; }
-
-    /* Painel FireRed (Status) */
-    #frdash { position: absolute; inset: 0; display: none; }
-    #frdash .cap { position: absolute; left: 8px; font-size: 12px; color: #FF8A3D; }
-    #frcount { position: absolute; left: 8px; top: 12px; width: 210px; font-size: 28px; line-height: 36px; white-space: nowrap; overflow: hidden; }
-    .fbtn { position: absolute; top: 4px; height: 44px; border-radius: 8px; border: 2px solid #2D3E66; background: #1F1F38;
-      color: #fff; font: inherit; font-size: 13px; cursor: pointer; line-height: 1.2; }
+    /* FireRed Status */
+    #frdash { position: relative; width: 100%; height: 100%; display: none; }
+    #frdash .cap { position: absolute; left: 4px; font-size: 11px; color: #FF8A3D; }
+    #frcount { position: absolute; left: 4px; top: 12px; width: 210px; font-size: 28px; line-height: 36px; }
+    .fbtn { position: absolute; top: 4px; height: 42px; border-radius: 8px; border: 2px solid #2D3E66; background: #1F1F38; color: #fff; font: inherit; font-size: 13px; cursor: pointer; }
     .fbtn.pl { background: #0F3460; border-color: #1F4E8C; color: #00F5D4; }
     .fbtn.rs { background: #3A1424; border-color: #8C2B3F; }
-    #frshiny { position: absolute; left: 8px; top: 54px; font-size: 12px; color: #CCCCDD; white-space: nowrap; }
-    #frbar { position: absolute; left: 8px; top: 72px; width: 464px; height: 10px; background: #1F1F38; border-radius: 4px; overflow: hidden; }
-    #frbar div { height: 100%; width: 0; border-radius: 4px; background: #4C8DFF; transition: width .3s; }
-    #frstats { position: absolute; left: 8px; top: 90px; font-size: 12px; color: #9AA3C7; white-space: nowrap; }
-    .badge { position: absolute; top: 130px; width: 55px; height: 34px; border-radius: 8px; border: 2px solid #2D3E66; background: #1F1F38;
-      color: #777799; font: inherit; font-size: 11px; cursor: pointer; padding: 0; }
+    #frshiny { position: absolute; left: 4px; top: 52px; font-size: 11px; color: #CCCCDD; }
+    #frbar { position: absolute; left: 4px; top: 70px; width: 460px; height: 10px; background: #1F1F38; border-radius: 4px; overflow: hidden; }
+    #frbar div { height: 100%; width: 0; background: #4C8DFF; }
+    #frstats { position: absolute; left: 4px; top: 86px; font-size: 11px; color: #9AA3C7; }
+    .badge { position: absolute; top: 124px; width: 54px; height: 32px; border-radius: 7px; border: 2px solid #2D3E66; background: #1F1F38; color: #777799; font: inherit; font-size: 10px; cursor: pointer; }
     .badge.on { background: #6B4E00; border-color: #FFC400; color: #FFE27A; }
-    #frach { position: absolute; left: 8px; top: 176px; font-size: 14px; white-space: nowrap; }
+    #frach { position: absolute; left: 4px; top: 168px; font-size: 13px; }
+    body.fr #top .title { color: #FF8A3D; }
+    body.fr .tab.active { color: #FF8A3D; box-shadow: inset 0 -3px 0 #FF8A3D; background: #2A160A; }
 
-    /* Criar (macros do usuario) */
-    #um { position: absolute; left: 10px; right: 10px; top: 6px; font-size: 12px; }
-    .umrow { display: flex; align-items: center; gap: 6px; height: 30px; margin-bottom: 4px; background: #181830;
-      border: 1px solid #2D3E66; border-radius: 8px; padding: 0 6px; }
-    .umrow .no { color: #00F5D4; width: 14px; } .umrow .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Mapa igual LVGL (viewport 248x212 + painel 218x212) */
+    #mapwrap { display: flex; gap: 6px; height: 212px; }
+    #mapbox { position: relative; width: 248px; height: 212px; border-radius: 8px; overflow: hidden; border: 2px solid #2A3558; background: #0F1326; cursor: crosshair; flex-shrink: 0; }
+    #mapcanvas { position: absolute; left: 50%; top: 50%; width: 208px; height: 208px; transform-origin: center center; transition: transform .15s; }
+    #tileGrid { position: absolute; inset: 0; display: grid; }
+    .tile { background-size: 100% 100%; }
+    .tdot { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #00F5D4; opacity: .55; transform: translate(-50%,-50%); pointer-events: none; }
+    #pring { position: absolute; width: 24px; height: 24px; border-radius: 50%; border: 1px solid #00F5D4; background: rgba(0,245,212,.18); transform: translate(-50%,-50%); pointer-events: none; }
+    #pring.shiny { border-color: #FFD700; background: rgba(255,215,0,.28); }
+    #pin { position: absolute; width: 11px; height: 11px; border-radius: 50%; background: #FF1744; border: 2px solid #fff; transform: translate(-50%,-50%); pointer-events: none; }
+    #mside { width: 214px; height: 212px; background: #181C32; border: 1px solid #2A3558; border-radius: 8px; padding: 6px; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; }
+    #mzone { color: #00F5D4; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #coordbox { background: #101324; border: 1px solid #262E4E; border-radius: 6px; padding: 4px 6px; line-height: 1.35; font-family: monospace; font-size: 11px; }
+    #mmeta { color: #99A2C8; font-size: 10px; }
+    .mrow { display: flex; gap: 4px; }
+    .mbtn { flex: 1; height: 34px; border-radius: 6px; border: 0; background: #23294E; color: #fff; font: inherit; font-size: 11px; cursor: pointer; }
+    .mbtn.cy { background: #0F3460; } .mbtn.tl { background: #006064; } .mbtn.on { background: #1B5E20; }
+
+    /* Macros */
+    #mhead { display: none; align-items: center; gap: 6px; margin-bottom: 4px; height: 28px; }
+    #mhead .ttl { flex: 1; text-align: center; color: #00F5D4; font-size: 13px; }
+    .hbtn { height: 26px; padding: 0 10px; border-radius: 6px; border: 0; background: #1E2749; color: #fff; font: inherit; font-size: 11px; cursor: pointer; }
+    .hbtn.stop { background: #7B112C; }
+    #grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; height: 210px; }
+    #grid.cat { height: 178px; }
+    .slot { position: relative; border-radius: 8px; border: 2px solid #2D3E66; background: #1F1F38; color: #fff; font: inherit; font-size: 12px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; }
+    .slot .ic { font-size: 16px; color: #00F5D4; }
+    .slot .sub { font-size: 10px; color: #8888AA; }
+    .slot.on { background: #133E35; border-color: #00E676; }
+    .slot.stop { background: #3A1424; border-color: #8C2B3F; }
+
+    /* Config igual LVGL + OTA */
+    #cfg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11px; }
+    #cfg label { color: #00F5D4; font-size: 11px; display: block; margin-bottom: 2px; }
+    #cfg select, #cfg input[type=text] { width: 100%; height: 26px; background: #1E1E36; color: #fff; border: 1px solid #2D3E66; border-radius: 5px; padding: 0 6px; font: inherit; font-size: 11px; }
+    .cbtn { height: 26px; border-radius: 5px; border: 0; background: #2A2A44; color: #fff; font: inherit; font-size: 11px; cursor: pointer; padding: 0 8px; }
+    .cbtn.cy { background: #006064; } .cbtn.rd { background: #880E4F; } .cbtn.gr { background: #1B5E20; } .cbtn.bl { background: #283593; }
+    .crow-bot { position: absolute; left: 6px; right: 6px; bottom: 4px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+    .crow-bot button { height: 30px; border-radius: 6px; border: 0; background: #37474F; color: #fff; font: inherit; font-size: 11px; cursor: pointer; }
+    .crow-bot button.on { background: #1B5E20; }
+
+    /* Rede & Criar */
+    #net { font-size: 11px; }
+    #net .row { display: flex; align-items: center; gap: 5px; margin-top: 5px; }
+    #net label { width: 70px; color: #00F5D4; }
+    #net input { flex: 1; height: 26px; background: #1E1E36; color: #fff; border: 1px solid #2D3E66; border-radius: 5px; padding: 0 6px; font: inherit; font-size: 11px; user-select: text; -webkit-user-select: text; }
+    #net button { height: 26px; background: #0F3460; color: #fff; border: 1px solid #1F4E8C; border-radius: 5px; padding: 0 8px; font: inherit; font-size: 11px; cursor: pointer; }
+    #net .hint { margin-top: 5px; color: #8888AA; font-size: 10px; }
+    #net .netlist { margin-top: 4px; max-height: 60px; overflow-y: auto; display: none; }
+    #net .netlist.on { display: block; }
+    #net .netlist button { display: flex; width: 100%; justify-content: space-between; margin-top: 2px; background: #1E1E36; }
+
+    .umrow { display: flex; align-items: center; gap: 6px; height: 29px; margin-bottom: 4px; background: #181830; border: 1px solid #2D3E66; border-radius: 7px; padding: 0 6px; font-size: 11px; }
+    .umrow .no { color: #00F5D4; width: 14px; } .umrow .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .umrow.on { border-color: #00E676; background: #133E35; }
-    .mini { height: 24px; min-width: 34px; border-radius: 6px; border: 1px solid #1F4E8C; background: #0F3460; color: #fff;
-      font: inherit; font-size: 12px; cursor: pointer; padding: 0 8px; white-space: nowrap; }
+    .mini { height: 22px; min-width: 30px; border-radius: 5px; border: 1px solid #1F4E8C; background: #0F3460; color: #fff; font: inherit; font-size: 11px; cursor: pointer; padding: 0 6px; }
     .mini.go { border-color: #00E676; color: #00E676; } .mini.rd { border-color: #FF1744; color: #FF6E88; background: #3A1424; }
-    .mini:disabled { opacity: .35; cursor: default; }
-    body.fr .umrow .no { color: #FF8A3D; }
-
-    /* Editor de macro (cobre o palco 480x320) */
-    #ed { position: absolute; left: 0; top: 0; width: 480px; height: 320px; background: #12121F; z-index: 20; display: none; font-size: 12px; }
-    #ed input { height: 26px; background: #1E1E36; color: #fff; border: 1px solid #2D3E66; border-radius: 6px; padding: 0 6px;
-      font: inherit; font-size: 12px; user-select: text; -webkit-user-select: text; min-width: 0; }
-    #ed .bar { position: absolute; left: 6px; right: 6px; display: flex; align-items: center; gap: 5px; }
-    #steps { position: absolute; left: 6px; right: 6px; top: 66px; height: 106px; overflow-y: auto; background: #0E0E1A;
-      border: 1px solid #2D3E66; border-radius: 6px; }
-    .st { display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 6px; border-bottom: 1px solid #1B1B30; cursor: pointer; white-space: nowrap; }
-    .st .k { color: #8888AA; width: 20px; } .st .t { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-    .st.sel { background: #1F3A66; } .st.run { background: #133E35; box-shadow: inset 3px 0 #00E676; }
-    .st.next { background: #4A3A10; box-shadow: inset 3px 0 #FFC400; }
-    .st button { height: 18px; min-width: 20px; font-size: 11px; border-radius: 4px; border: 1px solid #2D3E66; background: #1F1F38; color: #fff; padding: 0 4px; cursor: pointer; }
-    #pad { position: absolute; left: 6px; right: 6px; top: 192px; }
-    #pad .r { display: flex; gap: 4px; margin-bottom: 4px; }
-    .pb { flex: 1; height: 32px; border-radius: 7px; border: 2px solid #2D3E66; background: #1F1F38; color: #fff; font: inherit;
-      font-size: 12px; cursor: pointer; padding: 0; touch-action: none; }
+    #ed { position: absolute; inset: 0; background: #12121F; z-index: 35; display: none; font-size: 11px; padding: 4px 6px; }
+    #ed input { height: 24px; background: #1E1E36; color: #fff; border: 1px solid #2D3E66; border-radius: 5px; padding: 0 6px; font: inherit; user-select: text; -webkit-user-select: text; }
+    #steps { height: 106px; overflow-y: auto; background: #0E0E1A; border: 1px solid #2D3E66; border-radius: 5px; margin: 4px 0; }
+    .st { display: flex; align-items: center; gap: 4px; height: 21px; padding: 0 6px; border-bottom: 1px solid #1B1B30; cursor: pointer; }
+    .st.sel { background: #1F3A66; } .st .t { flex: 1; }
+    .pb { flex: 1; height: 30px; border-radius: 6px; border: 2px solid #2D3E66; background: #1F1F38; color: #fff; font: inherit; font-size: 11px; cursor: pointer; }
     .pb.on { background: #0F5E8C; border-color: #00F5D4; color: #00F5D4; }
-    #ed.rec .pb { border-color: #8C2B3F; } #ed.rec .pb.on { background: #8C1F3A; border-color: #FF6E88; color: #fff; }
-    #recdot { color: #FF1744; }
 
-    /* Rodape */
-    #foot { position: absolute; left: 0; bottom: 0; width: 480px; height: 26px; display: flex; align-items: center;
-      justify-content: space-between; padding: 0 8px; font-size: 10px; color: #8888AA; }
+    /* Rodape (480x26) */
+    #foot { position: absolute; left: 0; bottom: 0; width: 480px; height: 26px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; font-size: 10px; color: #8888AA; }
   </style>
 </head>
 <body>
@@ -190,824 +161,541 @@
     </div>
 
     <div id='tabs'>
-      <div class='tab' id='t-status' onclick='tab("status")'>Status</div>
-      <div class='tab active' id='t-macros' onclick='tab("macros")'>Macros</div>
+      <div class='tab active' id='t-status' onclick='tab("status")'>Status</div>
       <div class='tab' id='t-mapa' onclick='tab("mapa")'>Mapa</div>
+      <div class='tab' id='t-macros' onclick='tab("macros")'>Macros</div>
+      <div class='tab' id='t-config' onclick='tab("config")'>Config</div>
       <div class='tab' id='t-rede' onclick='tab("rede")'>Rede</div>
       <div class='tab' id='t-criar' onclick='tab("criar")'>Criar</div>
-      <div class='tab' id='t-config' onclick='tab("config")'>Config</div>
     </div>
 
-    <div class='page' id='p-status'>
-      <div id='zdash'><div id='zone'>Zona: -</div><div id='shiny-banner'></div><div id='party'></div></div>
+    <div class='page active' id='p-status'>
+      <div id='zdash'>
+        <div id='z-hdr'><span id='zone'>Zona: -</span><span id='z-sd'>SD: -</span></div>
+        <div id='party'></div>
+      </div>
       <div id='frdash'>
         <div class='cap' style='top:2px'>ENCONTROS</div>
         <div id='frcount'>0</div>
         <button class='fbtn' style='left:226px;width:70px' onclick='frOp("dec")'>-1</button>
         <button class='fbtn pl' style='left:302px;width:90px' onclick='frOp("inc")'>+1</button>
-        <button class='fbtn rs' style='left:398px;width:74px' id='frrst'>Zerar<br><span class='mu'>segure</span></button>
+        <button class='fbtn rs' style='left:398px;width:70px' id='frrst'>Zerar</button>
         <div id='frshiny'>Chance de shiny acumulada: 0.0%</div>
         <div id='frbar'><div id='frbarf'></div></div>
         <div id='frstats'></div>
-        <div class='cap' style='top:112px'>INSIGNIAS DE KANTO (toque para marcar)</div>
+        <div class='cap' style='top:106px'>INSIGNIAS DE KANTO</div>
         <div id='frbadges'></div>
         <div id='frach'></div>
       </div>
     </div>
-    <div class='page active' id='p-macros'>
-      <div id='mhead'><button class='hbtn' onclick='backMenu()'>&#8249; Voltar</button><span class='ttl' id='mttl'></span><button class='hbtn stop' onclick='stopAll()'>&#9632; PARAR</button></div>
-      <div id='grid'></div>
-    </div>
+
     <div class='page' id='p-mapa'>
-      <div id='mapbox' onclick='mapClick(event)'><div id='tileGrid'></div><div id='pin'></div></div>
-      <div id='mside'>
-        <div id='layers'></div>
-        <div id='mzone'>Zona: -</div>
-        <div id='mcoord'>X: - Y: -</div>
-        <div id='mpoi'></div>
-        <button id='warp-btn' onclick='toggleWarp()'>Warp ao Clicar: OFF</button>
-      </div>
-    </div>
-    <div class='page' id='p-rede'>
-      <div id='net'>
-        <div id='netinfo' class='mu'>Rede: ?</div>
-        <div class='row'><label>IP do Switch</label><input id='swip' inputmode='decimal' placeholder='192.168.x.x'>
-          <button onclick='saveSwitch()'>Salvar</button><button onclick='scan()'>Detectar</button></div>
-        <div id='swmsg' class='hint'>&nbsp;</div>
-        <div id='scanmsg' class='hint'>&nbsp;</div>
-        <div class='row'><label>Wi-Fi</label><input id='ssid' placeholder='nome da rede (vazio = rede da placa)' autocapitalize='off'>
-          <button onclick='wifiScan()'>Buscar redes</button></div>
-        <div id='wifilist' class='netlist'></div>
-        <div class='row'><label>Senha</label><input id='pass' type='password' placeholder='(manter a atual)'>
-          <button onclick='saveWifi()'>Salvar e reiniciar</button></div>
-        <div class='hint'>Sem Wi-Fi? Ligue o Switch e o celular na rede <b>SwitchHUD</b> (senha switchhud1) e toque em Detectar.</div>
-      </div>
-    </div>
-    <div class='page' id='p-criar'><div id='um'></div></div>
-    <div class='page' id='p-config'>
-      <div id='cfg'>
-        <div><span class='cy'>Firmware:</span> <span id='cfg-fw'>?</span> &nbsp;|&nbsp; <span class='cy'>Pagina:</span> <span id='cfg-page'></span></div>
-        <div><span class='cy'>Tela fisica:</span> <span id='cfg-disp'>?</span> &nbsp;|&nbsp; <span class='cy'>USB:</span> <span id='cfg-usb'>?</span></div>
-        <div><span class='cy'>Macro ativa:</span> <span id='cfg-act'>nenhuma</span> (<span id='cfg-exe'>0</span>)</div>
-        <div><span class='cy'>Leitura RAM:</span> <span id='cfg-link'>?</span></div>
-        <div style='display:flex;gap:8px;flex-wrap:wrap'>
-          <button onclick='flipDisplay()'>Girar Tela 180°</button>
-          <button class='rd' onclick='bootsel()'>Modo BOOT (USB)</button>
+      <div id='mapwrap'>
+        <div id='mapbox' onclick='mapClick(event)'>
+          <div id='mapcanvas'>
+            <div id='tileGrid'></div>
+            <div id='trail'></div>
+            <div id='pring'></div>
+            <div id='pin'></div>
+          </div>
         </div>
-        <div class='ota-row'>
-          <input type='file' id='ota-file' accept='.bin'>
-          <button onclick='uploadOta()'>Atualizar Wi-Fi (OTA)</button>
-          <span id='ota-msg' class='mu'></span>
+        <div id='mside'>
+          <div>
+            <div id='mzone'>Lumiose City</div>
+            <div id='coordbox'>X: 0.0<br>Z: 0.0<br>Alt: 0.0</div>
+            <div id='mmeta'>Dist C20: 0m | Zoom: 2x</div>
+          </div>
+          <div style='display:flex;flex-direction:column;gap:4px'>
+            <div class='mrow'>
+              <button class='mbtn cy' id='mcam' onclick='toggleCam()'>Cam: Radar 2x</button>
+              <button class='mbtn' id='mlay' onclick='cycleLayer()'>Mapa: Lumiose</button>
+            </div>
+            <div class='mrow'>
+              <button class='mbtn' onclick='cycleZoom()'>Zoom</button>
+              <button class='mbtn tl' onclick='openWarps()'>Pontos</button>
+              <button class='mbtn' id='mwarp' onclick='toggleWarp()'>Warp: OFF</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div id='pkm-modal'>
-      <div class='mhdr'>
-        <span id='pkm-ttl'>Pokemon</span>
+    <div class='page' id='p-macros'>
+      <div id='mhead'><button class='hbtn' onclick='backMenu()'>&#8249; Voltar</button><span class='ttl' id='mttl'></span><button class='hbtn stop' onclick='stopAll()'>&#9632; PARAR</button></div>
+      <div id='grid'></div>
+    </div>
+
+    <div class='page' id='p-config'>
+      <div id='cfg'>
         <div>
-          <button class='mini' id='pkm-pg' onclick='pkmTogglePage()'>Pag 1/2</button>
-          <button class='mini rd' onclick='pkmClose()'>✕</button>
+          <label>Diagnostico &amp; Teste</label>
+          <div style='background:#101324;border:1px solid #262E4E;border-radius:6px;padding:5px 7px;line-height:1.4'>
+            <div>USB: <span id='cfg-usb'>?</span> | Macro: <span id='cfg-act'>nenhuma</span></div>
+            <div>Execs: <span id='cfg-exe'>0</span> | RAM: <span id='cfg-link'>?</span></div>
+            <div style='color:#8888AA;font-size:10px'>Fw: <span id='cfg-fw'>?</span> | Pg: <span id='cfg-page'></span></div>
+          </div>
+          <div style='display:flex;gap:5px;margin-top:6px'>
+            <button class='cbtn gd' style='background:#6B4E00;color:#FFE27A;flex:1' onclick='testShiny()'>Testar Shiny + Som (5s)</button>
+            <button class='cbtn rd' onclick='bootsel()'>BOOT</button>
+          </div>
         </div>
+        <div>
+          <label>Switch IP &amp; Tela</label>
+          <div style='display:flex;gap:4px'>
+            <input id='swip-cfg' type='text' placeholder='192.168.x.x' style='flex:1'>
+            <button class='cbtn' onclick='saveSwitchCfg()'>OK</button>
+          </div>
+          <div style='display:flex;gap:5px;margin-top:5px'>
+            <button class='cbtn' style='flex:1' onclick='tab("rede")'>Detectar / Wi-Fi</button>
+            <button class='cbtn cy' style='flex:1' onclick='flipDisplay()'>Girar 180°</button>
+          </div>
+          <div style='display:flex;gap:4px;align-items:center;margin-top:6px'>
+            <input type='file' id='ota-file' accept='.bin' style='font-size:10px;color:#CCCCDD;width:130px'>
+            <button class='cbtn bl' onclick='uploadOta()'>OTA</button>
+          </div>
+          <div id='ota-msg' style='font-size:10px;color:#00F5D4;margin-top:2px'></div>
+        </div>
+      </div>
+      <div class='crow-bot'>
+        <button class='bl' style='background:#283593' id='btn-bright' onclick='cycleBright()'>Brilho: 100%</button>
+        <button id='btn-sound' onclick='toggleSetting("sound")'>Som: ON</button>
+        <button id='btn-autostop' onclick='toggleSetting("autostop")'>AutoStop: ON</button>
+        <button id='btn-autoheal' onclick='toggleSetting("autoheal")'>AutoCura: OFF</button>
+      </div>
+    </div>
+
+    <div class='page' id='p-rede'>
+      <div id='net'>
+        <div id='netinfo' style='color:#8888AA'>Rede: ?</div>
+        <div class='row'><label>Switch IP</label><input id='swip' inputmode='decimal' placeholder='192.168.x.x'>
+          <button onclick='saveSwitch()'>Salvar</button><button onclick='scan()'>Detectar</button></div>
+        <div id='scanmsg' class='hint'>&nbsp;</div>
+        <div class='row'><label>Wi-Fi</label><input id='ssid' placeholder='nome da rede'>
+          <button onclick='wifiScan()'>Buscar</button></div>
+        <div id='wifilist' class='netlist'></div>
+        <div class='row'><label>Senha</label><input id='pass' type='password' placeholder='(manter a atual)'>
+          <button onclick='saveWifi()'>Salvar e reiniciar</button></div>
+      </div>
+    </div>
+
+    <div class='page' id='p-criar'><div id='um'></div></div>
+
+    <div class='modal' id='pkm-modal'>
+      <div class='mhdr'>
+        <span class='mttl' id='pkm-ttl'>Pokemon</span>
+        <button class='mini' id='pkm-pg' onclick='pkmTogglePage()'>Pag 2 &gt;</button>
+        <button class='mini rd' onclick='pkmClose()'>X</button>
       </div>
       <div class='mgrid' id='pkm-grid'></div>
     </div>
 
+    <div class='modal' id='warps-modal'>
+      <div class='mhdr'>
+        <span class='mttl'>Teleportes Rapidos &amp; Favoritos</span>
+        <button class='mini rd' onclick='closeWarps()'>X</button>
+      </div>
+      <div class='mgrid' id='warps-grid' style='grid-template-columns:repeat(3,1fr)'></div>
+    </div>
+
     <div id='ed'>
-      <div class='bar' style='top:4px'>
-        <button class='mini' onclick='edClose()'>&#8249; Voltar</button>
-        <input id='edname' maxlength='16' placeholder='nome do macro' style='flex:1'>
-        <span class='mu'>Repetir</span><input id='edrep' type='number' min='0' max='65000' value='1' style='width:54px' title='0 = infinito'>
+      <div style='display:flex;gap:4px;align-items:center'>
+        <button class='mini' onclick='edClose()'>&#8249;</button>
+        <input id='edname' maxlength='16' placeholder='nome' style='flex:1'>
+        <span>Rep</span><input id='edrep' type='number' min='0' max='65000' value='1' style='width:46px'>
         <button class='mini go' onclick='edSave()'>Salvar</button>
       </div>
-      <div class='bar' style='top:36px'>
-        <button class='mini rd' id='edrec' onclick='recToggle()'><span id='recdot'>&#9679;</span> Gravar</button>
-        <button class='mini' onclick='umRun("test")'>&#9654; Testar</button>
-        <button class='mini' onclick='umRun("step")'>&#9197; Passo a passo</button>
-        <button class='mini go' id='ednext' onclick='umNext()' disabled>Próximo &#9654;</button>
-        <button class='mini rd' onclick='stopAll()'>&#9632;</button>
+      <div style='display:flex;gap:4px;margin-top:4px'>
+        <button class='mini rd' id='edrec' onclick='recToggle()'>Gravar</button>
+        <button class='mini' onclick='umRun("test")'>Testar</button>
         <button class='mini' onclick='edClear()'>Limpar</button>
+        <span id='edinfo' style='color:#8888AA;margin-left:auto;align-self:center'></span>
       </div>
       <div id='steps'></div>
-      <div id='edinfo' class='mu' style='position:absolute;left:8px;top:174px;font-size:11px;white-space:nowrap'></div>
-      <div id='pad'>
-        <div class='r' id='padr1'></div>
-        <div class='r' id='padr2'></div>
-        <div class='r'>
-          <input id='edms' type='number' min='20' max='60000' value='200' style='width:70px' title='tempo em ms'><span class='mu' style='align-self:center'>ms</span>
-          <button class='mini' style='flex:1' onclick='stepAdd(false)'>+ Passo</button>
-          <button class='mini' style='flex:1' onclick='stepAdd(true)'>+ Espera</button>
-          <button class='mini' style='flex:1' id='edupd' onclick='stepUpdate()' disabled>Atualizar</button>
-        </div>
+      <div style='display:flex;gap:3px;margin-bottom:3px' id='padr1'></div>
+      <div style='display:flex;gap:3px;margin-bottom:3px' id='padr2'></div>
+      <div style='display:flex;gap:4px'>
+        <input id='edms' type='number' min='20' max='60000' value='200' style='width:60px'>
+        <button class='mini' style='flex:1' onclick='stepAdd(false)'>+ Passo</button>
+        <button class='mini' style='flex:1' onclick='stepAdd(true)'>+ Espera</button>
       </div>
     </div>
+
     <div id='foot'><span id='foot-l'>[USB-HID] aguardando placa...</span><span id='foot-r'></span></div>
   </div>
 </div>
 
 <script>
-  const PAGE_VERSION = 'mvp-2026-10-23d';   // muda a cada versao: confere se o uploadfs gravou esta pagina
-
-  // Mesmos 6 slots do UIManager / modulo Z-A / usb_hid_provider.h
-  // 17 macros = slots do usb_hid_provider.h (0..16). t = toggle (liga/desliga). 12 por pagina (4x3).
+  const PAGE_VERSION = 'lvgl-1to1-2026-11-13';
   const ZA_SLOTS = [
-    { ic: '\u{1F3AE}', name: 'Parear L+R' },
-    { ic: '\u{1F500}', name: 'Combo Esq+Y' },
-    { ic: '⚡', name: 'Turbo A', t: 1 },
-    { ic: '\u{1F504}', name: 'AFK Círculo', t: 1 },
-    { ic: '\u{1F5FA}', name: 'Mapa (+)' },
-    { ic: '↩', name: 'Cancelar 2xB' },
-    { ic: '▶', name: 'Auto-Catch' },
-    { ic: '➡', name: 'Esquiva' },
-    { ic: '\u{1F501}', name: 'Spam Y', t: 1 },
-    { ic: '\u{1F501}', name: 'Spam B', t: 1 },
-    { ic: '⬆', name: 'Andar reto', t: 1 },
-    { ic: '⏩', name: 'Correr', t: 1 },
-    { ic: '☰', name: 'Menu (X)' },
-    { ic: '\u{1F3E0}', name: 'Home' },
-    { ic: '\u{1F441}', name: 'Reset Cam' },
-    { ic: '➕', name: 'Curar HP' },
+    { ic: '🎮', name: 'Parear L+R' }, { ic: '🔀', name: 'Combo Esq+Y' },
+    { ic: '⚡', name: 'Turbo A', t: 1 }, { ic: '🔄', name: 'AFK Circulo', t: 1 },
+    { ic: '🗺', name: 'Mapa (+)' }, { ic: '↩', name: 'Cancelar 2xB' },
+    { ic: '▶', name: 'Auto-Catch' }, { ic: '➡', name: 'Esquiva' },
+    { ic: '🔁', name: 'Spam Y', t: 1 }, { ic: '🔁', name: 'Spam B', t: 1 },
+    { ic: '⬆', name: 'Andar reto', t: 1 }, { ic: '⏩', name: 'Correr', t: 1 },
+    { ic: '☰', name: 'Menu (X)' }, { ic: '🏠', name: 'Home' },
+    { ic: '👁', name: 'Reset Cam' }, { ic: '➕', name: 'Curar HP' },
     { ic: '✔', name: 'Curar Status' }
   ];
-  // Mini menus (mesmas categorias do modulo LVGL): cada slot aparece em uma categoria
   const ZA_CATS = [
-    { name: 'Batalha/Cura', ic: '\u{1F500}', slots: [1, 7, 6, 8, 15, 16] },
-    { name: 'Movimento', ic: '⏩',     slots: [10, 11, 14] },
-    { name: 'Farm',      ic: '\u{1F504}', slots: [3, 2, 9] },
-    { name: 'Sistema',   ic: '⚙',     slots: [12, 13, 4, 5, 0] }
+    { name: 'Batalha/Cura', ic: '🔀', slots: [1, 7, 6, 8, 15, 16] },
+    { name: 'Movimento', ic: '⏩', slots: [10, 11, 14] },
+    { name: 'Farm', ic: '🔄', slots: [3, 2, 9] },
+    { name: 'Sistema', ic: '⚙', slots: [12, 13, 4, 5, 0] },
+    { name: 'Meus macros', ic: '✎', slots: [100, 101, 102, 103, 104, 105] }
   ];
-
-  // ---- Pokemon FireRed: mesmos slots/categorias do modulo LVGL e de usb_hid_provider.h (frTrigger) ----
   const FR_SLOTS = [
-    { ic: '\u23FB', name: 'Soft Reset' }, { ic: '\u{1F504}', name: 'Caça Reset', t: 1 },
-    { ic: '\u{1F33F}', name: 'Grama <->', t: 1 }, { ic: '⚡', name: 'Spam A', t: 1 },
-    { ic: '\u{1F501}', name: 'Spam B', t: 1 }, { ic: '▶', name: 'Avançar texto' },
-    { ic: '☰', name: 'Menu (+)' }, { ic: '\u{1F392}', name: 'Bolsa' },
-    { ic: '\u{1F4BE}', name: 'Salvar' }, { ic: '✖', name: 'Fechar menus' },
-    { ic: '➕', name: 'Poção' }, { ic: '\u{1F3E5}', name: 'Centro Pokémon' },
+    { ic: '⏻', name: 'Soft Reset' }, { ic: '🔄', name: 'Caca Reset', t: 1 },
+    { ic: '🌿', name: 'Grama <->', t: 1 }, { ic: '⚡', name: 'Spam A', t: 1 },
+    { ic: '🔁', name: 'Spam B', t: 1 }, { ic: '▶', name: 'Avancar texto' },
+    { ic: '☰', name: 'Menu (+)' }, { ic: '🎒', name: 'Bolsa' },
+    { ic: '💾', name: 'Salvar' }, { ic: '✖', name: 'Fechar menus' },
+    { ic: '➕', name: 'Pocao' }, { ic: '🏥', name: 'Centro Pokemon' },
     { ic: '⬆', name: 'Correr cima', t: 1 }, { ic: '⬇', name: 'Correr baixo', t: 1 },
     { ic: '⬅', name: 'Correr esq', t: 1 }, { ic: '➡', name: 'Correr dir', t: 1 },
-    { ic: '\u{1F504}', name: 'Patrulha <->', t: 1 }, { ic: '\u{1F504}', name: 'Patrulha ^v', t: 1 },
+    { ic: '🔄', name: 'Patrulha <->', t: 1 }, { ic: '🔄', name: 'Patrulha ^v', t: 1 },
     { ic: '▶', name: 'Golpe 1' }, { ic: '▶', name: 'Golpe 2' }, { ic: '▶', name: 'Golpe 3' }, { ic: '▶', name: 'Golpe 4' },
-    { ic: '\u{1F500}', name: 'Trocar' }, { ic: '\u{1F3C3}', name: 'Fugir' },
-    { ic: '\u{1F9EA}', name: 'Testar 1 ciclo' }
+    { ic: '🔀', name: 'Trocar' }, { ic: '🏃', name: 'Fugir' }, { ic: '🧪', name: 'Testar 1 ciclo' }
   ];
   const FR_CATS = [
-    { name: 'Caça',      ic: '\u{1F441}', slots: [0, 24, 1, 2, 3, 5] },
-    { name: 'Menu/Cura', ic: '☰',     slots: [6, 7, 8, 9, 10, 11] },
-    { name: 'Movimento', ic: '⏩',     slots: [12, 13, 14, 15, 16, 17] },
-    { name: 'Batalha',   ic: '\u{1F500}', slots: [18, 19, 20, 21, 22, 23] }
+    { name: 'Caca', ic: '👁', slots: [0, 24, 1, 2, 3, 5] },
+    { name: 'Menu/Cura', ic: '☰', slots: [6, 7, 8, 9, 10, 11] },
+    { name: 'Movimento', ic: '⏩', slots: [12, 13, 14, 15, 16, 17] },
+    { name: 'Batalha', ic: '🔀', slots: [18, 19, 20, 21, 22, 23] },
+    { name: 'Meus macros', ic: '✎', slots: [100, 101, 102, 103, 104, 105] }
   ];
-  const BADGES = ['Pedra', 'Cascata', 'Trovão', 'Arco-íris', 'Alma', 'Pântano', 'Vulcão', 'Terra'];
-  let SLOTS = ZA_SLOTS, CATS = ZA_CATS, game = 'pkmn_za';
-  // Macros do usuario: slots 100..105, nomes vem da placa (aba Criar)
+  const BADGES = ['Pedra', 'Cascata', 'Trovao', 'Arco-iris', 'Alma', 'Pantano', 'Vulcao', 'Terra'];
   const UM_BASE = 100;
+  let SLOTS = ZA_SLOTS, CATS = ZA_CATS, game = 'pkmn_za', curCat = -1;
   let UM = Array.from({ length: 6 }, (_, i) => ({ i, name: '', repeat: 1, n: 0, steps: '' }));
-  let umIdx = -1, umPos = 0, umWait = false, umCyc = 0;
-  ZA_CATS.push({ name: 'Meus macros', ic: '✎', slots: [100, 101, 102, 103, 104, 105] });
-  FR_CATS.push({ name: 'Meus macros', ic: '✎', slots: [100, 101, 102, 103, 104, 105] });
-  let curCat = -1;
+  let active = -1, execs = 0, usb = null, online = false, lastMsg = '', swPort = 6000;
+  let partyData = [], pkmSlot = 0, pkmPage = 0, cfgState = { bright: 100, sound: true, autostop: true, autoheal: false };
+  const $ = id => document.getElementById(id);
 
-  let active = -1, execs = 0, usb = null, online = false, lastMsg = '';
+  function tab(id) {
+    ['status', 'mapa', 'macros', 'config', 'rede', 'criar'].forEach(t => {
+      $('t-' + t).classList.toggle('active', t === id);
+      $('p-' + t).classList.toggle('active', t === id);
+    });
+  }
+  function fit() {
+    const s = Math.min(window.innerWidth / 480, window.innerHeight / 320, 2.2);
+    $('stage').style.transform = `scale(${s})`;
+    $('wrap').style.width = (480 * s) + 'px';
+    $('wrap').style.height = (320 * s) + 'px';
+  }
+  window.addEventListener('resize', fit);
+  async function post(p, d) { return (await fetch(p, { method: 'POST', body: new URLSearchParams(d) })).json(); }
 
-  const $ = (id) => document.getElementById(id);
-
-  // Troca o jogo na pagina (sync=true: tambem avisa a placa)
   async function setGame(g, sync) {
     if (g !== 'pkmn_za' && g !== 'pkmn_fr') return;
-    game = g; const fr = (g === 'pkmn_fr');
+    game = g; const fr = g === 'pkmn_fr';
     SLOTS = fr ? FR_SLOTS : ZA_SLOTS; CATS = fr ? FR_CATS : ZA_CATS;
-    document.body.classList.toggle('fr', fr);
-    $('gamesel').value = g;
-    $('zdash').style.display = fr ? 'none' : 'block';
-    $('frdash').style.display = fr ? 'block' : 'none';
+    document.body.classList.toggle('fr', fr); $('gamesel').value = g;
+    $('zdash').style.display = fr ? 'none' : 'block'; $('frdash').style.display = fr ? 'block' : 'none';
     $('t-mapa').style.display = fr ? 'none' : 'flex';
-    if (fr && $('p-mapa').classList.contains('active')) tab('status');
     curCat = -1; buildGrid();
-    if (fr) pollFr();
-    if (sync) { try { apply(await (await fetch('/api/profile?game=' + g, { cache: 'no-store' })).json()); } catch (e) { online = false; render(); } }
+    if (sync) try { apply(await (await fetch('/api/profile?game=' + g, { cache: 'no-store' })).json()); } catch (e) {}
   }
   function pickGame(g) { setGame(g, true); }
 
-  // ---- FireRed: painel divertido ----
-  let frBuilt = false, frHold = null;
-  function buildFr() {
-    const bx = $('frbadges');
-    BADGES.forEach((n, i) => {
-      const b = document.createElement('button');
-      b.className = 'badge'; b.id = 'bd' + i; b.style.left = (6 + i * 58) + 'px'; b.textContent = n;
-      b.onclick = () => frOp('badge&i=' + i);
-      bx.appendChild(b);
-    });
-    const r = $('frrst');   // segurar ~0,8 s para zerar
-    const start = () => { frHold = setTimeout(() => { frHold = null; frOp('reset'); }, 800); };
-    const stop = () => { if (frHold) { clearTimeout(frHold); frHold = null; } };
-    r.onmousedown = start; r.ontouchstart = start; r.onmouseup = stop; r.onmouseleave = stop; r.ontouchend = stop;
-    frBuilt = true;
-  }
-  function fmtT(s) { const p = n => String(n).padStart(2, '0'); return `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(s % 60)}`; }
-  function paintFr(d) {
-    if (!frBuilt) buildFr();
-    $('frcount').textContent = d.enc;
-    const pct = d.shiny * 100;
-    $('frshiny').textContent = `Chance de shiny acumulada: ${pct.toFixed(1)}%  (1/8192 por encontro)`;
-    const f = $('frbarf'); f.style.width = Math.min(100, pct) + '%';
-    f.style.background = pct >= 63 ? '#FFC400' : pct >= 30 ? '#00F5D4' : '#4C8DFF';
-    $('frstats').textContent = `Resets ${d.resets}  |  Passos ~${d.steps}  |  Caça ${fmtT(d.hunt)}  |  Macros ${d.runs}`;
-    BADGES.forEach((_, i) => $('bd' + i).classList.toggle('on', !!(d.badges & (1 << i))));
-    let n = 0; for (let i = 0; i < 13; i++) if (d.ach & (1 << i)) n++;
-    $('frach').innerHTML = d.last >= 0 ? `<span style='color:#FFC400'>✔ ${n}/13</span>  Última: ${d.names[d.last]}`
-            : `<span class='mu'>Conquistas 0/13 - comece a jogar!</span>`;
-    const ach = d.ach | 0;
-    if (frSeen !== null && ach !== frSeen && d.last >= 0) toast('\u{1F3C6} ' + d.names[d.last]);
-    frSeen = ach;
-  }
-  let frSeen = null;
-  function toast(t) {
-    const el = document.createElement('div');
-    el.textContent = t;
-    el.style.cssText = 'position:absolute;left:50%;bottom:30px;pointer-events:none;transform:translateX(-50%);background:#6B4E00;border:2px solid #FFC400;color:#FFE27A;padding:8px 14px;border-radius:10px;font-size:13px;z-index:9;white-space:nowrap';
-    $('stage').appendChild(el); setTimeout(() => el.remove(), 3500);
-  }
-  async function pollFr() {
-    if (game !== 'pkmn_fr') return;
-    try { paintFr(await (await fetch('/api/fr', { cache: 'no-store' })).json()); } catch (e) {}
-  }
-  async function frOp(op) {
-    try { paintFr(await (await fetch('/api/fr?op=' + op, { cache: 'no-store' })).json()); } catch (e) { online = false; render(); }
-  }
-
-  function slotInfo(i) {
-    if (i >= UM_BASE) { const u = UM[i - UM_BASE]; return { ic: '✎', name: u && u.name ? u.name : '(vazio)', t: u && u.repeat === 0 }; }
-    return SLOTS[i];
-  }
-
-  function slotBtn(i) {
-    const s = slotInfo(i), b = document.createElement('button');
-    b.className = 'slot'; b.id = 'b' + i; b.onclick = () => macro(i);
-    b.innerHTML = `<span class='dot'></span><span class='ic'>${s.ic}</span><span>${s.name}${s.t ? " <span class='lp'>~</span>" : ''}</span>`;
-    return b;
-  }
-
-  function buildGrid() {
-    const g = $('grid'); g.innerHTML = '';
-    if (curCat < 0) {                                   // menu: 5 categorias + PARAR TUDO
-      g.classList.remove('cat'); $('mhead').style.display = 'none';
-      CATS.forEach((c, k) => {
-        const b = document.createElement('button');
-        b.className = 'slot'; b.id = 'c' + k; b.onclick = () => { curCat = k; buildGrid(); };
-        b.innerHTML = `<span class='dot'></span><span class='ic'>${c.ic}</span><span>${c.name}</span><span class='sub'>${c.slots.length} macros</span>`;
-        g.appendChild(b);
-      });
-      const st = document.createElement('button');
-      st.className = 'slot stop'; st.onclick = stopAll;
-      st.innerHTML = `<span class='ic' style='color:#FF6E88'>&#9632;</span><span>PARAR TUDO</span>`;
-      g.appendChild(st);
-    } else {                                            // categoria: grade 3x2 + cabecalho
-      g.classList.add('cat'); $('mhead').style.display = 'flex'; $('mttl').textContent = CATS[curCat].name;
-      CATS[curCat].slots.forEach(i => g.appendChild(slotBtn(i)));
-    }
-    render();
-  }
-  function backMenu() { curCat = -1; buildGrid(); }
-  async function stopAll() {
-    lastMsg = 'PARAR TUDO';
-    try { apply(await (await fetch('/api/stop', { cache: 'no-store' })).json()); }
-    catch (e) { online = false; render(); }
-  }
-
-  // ---- Status: time (barras de vida) ----
-  let partyBuilt = false, partyData = [], pkmSlot = 0, pkmPage = 0, warpMode = false;
-  const PKM_ACTS = [
-    [
-      { lbl: 'Curar HP', act: 0, go: 1 }, { lbl: 'Curar Status', act: 1, go: 1 },
-      { lbl: 'Nivel +1', act: 2 }, { lbl: 'Nivel 100', act: 3 },
-      { lbl: 'Tornar Shiny', act: 4, go: 1 }, { lbl: 'Tornar Alpha', act: 5 },
-      { lbl: '+10 Rare Candy', act: 6, item: 50 }, { lbl: '+10 Master Ball', act: 7, item: 1 }
-    ],
-    [
-      { lbl: 'Max IVs (31)', act: 8, go: 1 }, { lbl: 'EV Atk/Spe', act: 9 },
-      { lbl: 'EV SpA/Spe', act: 10 }, { lbl: 'EV HP/Def', act: 11 },
-      { lbl: 'Nat: Adamant', act: 12 }, { lbl: 'Nat: Modest', act: 13 },
-      { lbl: 'Nat: Timid', act: 14 }, { lbl: 'Nat: Jolly', act: 15 }
-    ]
-  ];
+  /* ---- Status 2x3 LVGL ---- */
   function buildParty() {
     const p = $('party'); p.innerHTML = '';
-    for (let i = 0; i < 6; i++)
-      p.insertAdjacentHTML('beforeend', `<div class='prow' onclick='pkmOpen(${i})' style='top:${20 + i * 30}px'><div class='n' id='pn${i}'>---</div>` +
-              `<div class='b'><div class='f' id='pf${i}'></div></div><div class='h' id='ph${i}'>sem dados</div><div class='s' id='ps${i}'></div></div>`);
-    partyBuilt = true;
+    for (let i = 0; i < 6; i++) {
+      p.insertAdjacentHTML('beforeend',
+        `<div class='pcard' id='pc${i}' onclick='pkmOpen(${i})'>` +
+        `<div class='acc' id='pa${i}'></div>` +
+        `<div class='ico'><img id='pi${i}' style='display:none' onerror='this.style.display="none";$("pf${i}").style.display="block"'><span class='fb' id='pf${i}'>-</span></div>` +
+        `<div class='info'><div class='r1'><span class='nm' id='pn${i}'>---</span><span class='lv' id='pl${i}'></span></div>` +
+        `<div class='bar'><div id='pb${i}'></div></div>` +
+        `<div class='r3'><span id='ph${i}'>--</span><span id='ps${i}'></span></div></div></div>`);
+    }
   }
+  const PKM_PAGES = [
+    [
+      { lbl: '+ Curar HP', act: 0, cls: 'go' }, { lbl: 'Curar Status', act: 1, cls: 'go' },
+      { lbl: 'Restaurar PP', act: 2, cls: 'go' }, { lbl: 'Full Restore', act: 3, cls: 'go' },
+      { lbl: 'Curar Time', act: 4, cls: 'go' }, { lbl: '* Shiny ON/OFF', act: 5, cls: 'gd' },
+      { lbl: 'Max 6 IVs', act: 6, cls: 'go' }, { lbl: 'Leftovers', act: 7, item: 234 },
+      { lbl: 'Sitrus B.', act: 7, item: 158 }, { lbl: 'Lucky Egg', act: 7, item: 231 },
+      { lbl: 'Life Orb', act: 7, item: 270 }, { lbl: 'Sem Item', act: 7, item: 0, cls: 'rd' }
+    ],
+    [
+      { lbl: '+1 Level', act: 8 }, { lbl: '+10 Levels', act: 9 },
+      { lbl: 'Level 100', act: 10, cls: 'go' }, { lbl: 'Alpha XXL', act: 11, cls: 'rd' },
+      { lbl: 'EV Atk+Spe', act: 12 }, { lbl: 'EV SpA+Spe', act: 13 },
+      { lbl: 'EV HP+Def', act: 14 }, { lbl: 'Zerar EVs', act: 15, cls: 'rd' },
+      { lbl: 'Adamant', act: 16, item: 3 }, { lbl: 'Jolly', act: 16, item: 13 },
+      { lbl: 'Modest', act: 16, item: 15 }, { lbl: 'Timid', act: 16, item: 10 }
+    ]
+  ];
   function pkmOpen(i) {
-    const m = partyData[i];
-    if (!m || !m.max) return;
-    pkmSlot = i; pkmPage = 0;
-    $('pkm-ttl').textContent = `${m.n} Lv${m.lv} (Slot ${i + 1})`;
-    pkmRender();
-    $('pkm-modal').style.display = 'block';
+    const m = partyData[i]; if (!m || !m.max) return;
+    pkmSlot = i; pkmPage = 0; pkmRender(); $('pkm-modal').style.display = 'block';
   }
   function pkmClose() { $('pkm-modal').style.display = 'none'; }
   function pkmTogglePage() { pkmPage = pkmPage ? 0 : 1; pkmRender(); }
   function pkmRender() {
-    $('pkm-pg').textContent = `Pag ${pkmPage + 1}/2`;
+    const m = partyData[pkmSlot] || {};
+    $('pkm-ttl').textContent = `#${pkmSlot + 1} ${m.n || '?'} Lv${m.lv || 0}` + (m.shiny ? ' ★' : '') + (m.alpha ? ' α' : '');
+    $('pkm-pg').textContent = pkmPage ? '< Pag 1' : 'Pag 2 >';
     const g = $('pkm-grid'); g.innerHTML = '';
-    PKM_ACTS[pkmPage].forEach(a => {
+    PKM_PAGES[pkmPage].forEach(a => {
       const b = document.createElement('button');
-      if (a.go) b.className = 'go';
+      if (a.cls) b.className = a.cls;
       b.textContent = a.lbl;
       b.onclick = async () => {
         try {
           await post('/api/pokemon/edit', { slot: pkmSlot, action: a.act, item: a.item || 0 });
-          lastMsg = `${a.lbl} (Slot ${pkmSlot + 1})`;
-          pkmClose(); pollParty(); render();
-        } catch (e) { alert('Erro ao enviar comando'); }
+          lastMsg = `${a.lbl} (#${pkmSlot + 1})`; pkmClose(); pollParty(); render();
+        } catch (e) {}
       };
       g.appendChild(b);
     });
   }
+
+  let lastSp = [0, 0, 0, 0, 0, 0], trail = [], curPos = { x: -830, y: -500, z: 24 };
   async function pollParty() {
     try {
       const d = await (await fetch('/api/party', { cache: 'no-store' })).json();
       partyData = d.party || [];
       $('cfg-link').textContent = d.link || '-';
-      $('zone').textContent = d.zone ? `Zona: ${d.zone}  X:${d.x} Z:${d.y}` : 'Zona: -';
       if (d.bat_pct !== undefined) {
         $('bat-badge').textContent = `BAT ${d.bat_pct}%`;
         $('bat-badge').style.color = d.bat_pct <= 20 ? '#FF1744' : d.bat_pct <= 50 ? '#FFC400' : '#00E676';
       }
-      const sb = $('shiny-banner');
+      const z = $('zone');
       if (d.shiny_stash) {
-        sb.style.display = 'block';
-        sb.textContent = `★ SHINY STASH! ${d.shiny_name || 'Pokemon'}`;
+        z.className = 'shiny';
+        z.textContent = `★ SHINY: ${d.shiny_name || 'Pokemon'}!`;
       } else {
-        sb.style.display = 'none';
+        z.className = '';
+        z.textContent = d.zone ? `${d.zone} | X:${d.x} Z:${d.y}` : 'Lumiose City';
       }
       if (d.x !== undefined && d.y !== undefined && (d.x !== 0 || d.y !== 0)) {
-        px = Math.max(4, Math.min(96, 50 + ((d.x - (-830)) / 980) * 100));
-        py = Math.max(4, Math.min(96, 50 - ((d.y - (-500)) / 980) * 100));
-        $('pin').style.left = px + '%';
-        $('pin').style.top = py + '%';
-        $('mcoord').textContent = `X: ${d.x}  Z: ${d.y}  Alt: ${d.z || 0}`;
-        if (d.zone) $('mzone').textContent = 'Zona: ' + d.zone;
+        curPos = { x: d.x, y: d.y, z: d.z || 0 };
+        updateMapView(d.shiny_stash);
       }
       d.party.forEach((m, i) => {
         const has = m.max > 0, pct = has ? Math.min(100, m.hp * 100 / m.max) : 0;
-        $('pn' + i).textContent = has ? `${m.n} Lv${m.lv}` : '---';
-        $('ph' + i).textContent = has ? `${m.hp}/${m.max}` : 'sem dados';
-        $('ps' + i).textContent = m.st || '';
-        const f = $('pf' + i); f.style.width = pct + '%';
-        f.style.background = !has ? '#444466' : pct > 50 ? '#00E676' : pct > 20 ? '#FFC400' : '#FF1744';
+        const col = !has ? '#333856' : m.hp === 0 ? '#FF1744' : pct > 50 ? '#00E676' : pct > 20 ? '#FFC400' : '#FF1744';
+        $('pc' + i).classList.toggle('shiny', !!(has && m.shiny));
+        $('pa' + i).style.background = col;
+        $('pn' + i).textContent = has ? (m.n + (m.shiny ? ' ★' : '') + (m.alpha ? ' α' : '')) : '---';
+        $('pl' + i).textContent = has ? `Lv${m.lv}` : '';
+        $('ph' + i).textContent = has ? `${m.hp}/${m.max}` : 'Vazio';
+        $('ps' + i).textContent = has ? `${m.st || 'OK'}${m.iv ? ' 6IV' : ''}` : '';
+        $('pb' + i).style.width = pct + '%';
+        $('pb' + i).style.background = col;
+        if (has && m.sp > 0 && lastSp[i] !== m.sp) {
+          lastSp[i] = m.sp;
+          $('pi' + i).src = `/sd/sprites/${m.sp}.png`;
+          $('pi' + i).style.display = 'block';
+          $('pf' + i).style.display = 'none';
+        } else if (!has) {
+          lastSp[i] = 0; $('pi' + i).style.display = 'none'; $('pf' + i).style.display = 'block'; $('pf' + i).textContent = '-';
+        }
       });
     } catch (e) {}
   }
 
+  /* ---- Mapa calibrado 1:1 ---- */
+  let layers = [], curLayerIdx = 0, mapZoom = 1, warpMode = false, favWarps = [];
+  const PRESETS = [
+    { name: 'Torre Prisma', x: -830, y: 24, z: -500 }, { name: 'Campo 1', x: -718, y: 24, z: -910 },
+    { name: 'Campo 5', x: -480, y: 24, z: -660 }, { name: 'Campo 10', x: -1140, y: 24, z: -340 },
+    { name: 'Campo 15', x: -620, y: 24, z: -180 }
+  ];
+  async function loadMaps() {
+    try {
+      const cfg = await (await fetch('/maps_config.json', { cache: 'no-store' })).json();
+      layers = Array.isArray(cfg) ? cfg : ((cfg.games && cfg.games.pkmn_za) || []);
+      if (layers.length) selectLayer(0);
+    } catch (e) {}
+  }
+  function selectLayer(idx) {
+    if (!layers.length) return;
+    curLayerIdx = idx % layers.length;
+    const l = layers[curLayerIdx];
+    $('mlay').textContent = 'Mapa: ' + (l.name || l.id);
+    const g = $('tileGrid'); g.innerHTML = '';
+    const n = l.grid || 4;
+    g.style.gridTemplateColumns = `repeat(${n},1fr)`; g.style.gridTemplateRows = `repeat(${n},1fr)`;
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+      const d = document.createElement('div'); d.className = 'tile';
+      if (l.has_tiles) d.style.backgroundImage = `url("${l.base_path}/${c}_${r}.jpg")`;
+      g.appendChild(d);
+    }
+    updateMapView(false);
+  }
+  function cycleLayer() { selectLayer(curLayerIdx + 1); }
+  function cycleZoom() { mapZoom = (mapZoom + 1) % 3; updateMapView(false); }
+  function toggleCam() { mapZoom = mapZoom ? 0 : 1; updateMapView(false); }
+  function toggleWarp() {
+    warpMode = !warpMode;
+    if (warpMode) mapZoom = 0;
+    $('mwarp').classList.toggle('on', warpMode);
+    $('mwarp').textContent = warpMode ? 'Warp: ON' : 'Warp: OFF';
+    updateMapView(false);
+  }
+  function updateMapView(shiny) {
+    const px = Math.max(2, Math.min(98, 50 + ((curPos.x + 830) / 980) * 100));
+    const py = Math.max(2, Math.min(98, 50 - ((curPos.y + 500) / 980) * 100));
+    $('pin').style.left = px + '%'; $('pin').style.top = py + '%';
+    $('pring').style.left = px + '%'; $('pring').style.top = py + '%';
+    $('pring').classList.toggle('shiny', !!shiny);
+    const sc = mapZoom === 0 ? 1 : mapZoom === 1 ? 2 : 3;
+    const tx = mapZoom === 0 ? 0 : (50 - px) * 2.08;
+    const ty = mapZoom === 0 ? 0 : (50 - py) * 2.08;
+    $('mapcanvas').style.transform = `translate(calc(-50% + ${tx * sc}px), calc(-50% + ${ty * sc}px)) scale(${sc})`;
+    $('coordbox').innerHTML = `X: ${curPos.x.toFixed(1)}<br>Z: ${curPos.y.toFixed(1)}<br>Alt: ${curPos.z.toFixed(1)}`;
+    const dist = Math.round(Math.hypot(curPos.x + 830, curPos.y + 500));
+    $('mmeta').textContent = `Dist C20: ${dist}m | Zoom: ${sc}x`;
+    $('mcam').textContent = mapZoom === 0 ? 'Cam: Cidade 1x' : `Cam: Radar ${sc}x`;
+  }
+  function mapClick(e) {
+    if (!warpMode) return;
+    const r = $('mapcanvas').getBoundingClientRect();
+    const px = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
+    const py = Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100));
+    const wx = (-830 + ((px - 50) / 100) * 980).toFixed(1);
+    const wz = (-500 - ((py - 50) / 100) * 980).toFixed(1);
+    post('/api/teleport', { wx, wy: 24, wz }).then(() => { lastMsg = `Warp ${wx},${wz}`; render(); });
+  }
+  async function openWarps() {
+    try { favWarps = (await (await fetch('/api/warps', { cache: 'no-store' })).json()).favs || []; } catch (e) {}
+    const g = $('warps-grid'); g.innerHTML = '';
+    PRESETS.forEach(p => {
+      const b = document.createElement('button'); b.textContent = p.name;
+      b.onclick = () => { post('/api/teleport', { wx: p.x, wy: p.y, wz: p.z }); closeWarps(); };
+      g.appendChild(b);
+    });
+    const bs = document.createElement('button'); bs.className = 'go'; bs.textContent = '+ Salvar Atual';
+    bs.onclick = async () => {
+      let slot = favWarps.findIndex(f => !f.valid); if (slot < 0) slot = 0;
+      await post('/api/warps', { slot, wx: curPos.x, wy: curPos.z, wz: curPos.y });
+      openWarps();
+    };
+    g.appendChild(bs);
+    for (let i = 0; i < 3; i++) {
+      const f = favWarps[i] || {};
+      const bf = document.createElement('button');
+      bf.textContent = f.valid ? f.name : `Fav ${i + 1} (Vazio)`;
+      bf.onclick = () => { if (f.valid) { post('/api/teleport', { wx: f.x, wy: f.y, wz: f.z }); closeWarps(); } };
+      g.appendChild(bf);
+    }
+    $('warps-modal').style.display = 'block';
+  }
+  function closeWarps() { $('warps-modal').style.display = 'none'; }
+
+  /* ---- Config & Settings ---- */
+  async function loadSettings() {
+    try {
+      cfgState = await (await fetch('/api/settings', { cache: 'no-store' })).json();
+      $('z-sd').textContent = cfgState.sd ? 'SD: OK' : 'SD: -';
+      paintSettings();
+    } catch (e) {}
+  }
+  function paintSettings() {
+    $('btn-bright').textContent = `Brilho: ${cfgState.bright}%`;
+    $('btn-sound').textContent = cfgState.sound ? 'Som: ON' : 'Som: OFF';
+    $('btn-sound').classList.toggle('on', !!cfgState.sound);
+    $('btn-autostop').textContent = cfgState.autostop ? 'AutoStop: ON' : 'AutoStop: OFF';
+    $('btn-autostop').classList.toggle('on', !!cfgState.autostop);
+    $('btn-autoheal').textContent = cfgState.autoheal ? 'AutoCura: ON' : 'AutoCura: OFF';
+    $('btn-autoheal').classList.toggle('on', !!cfgState.autoheal);
+  }
+  async function cycleBright() {
+    const b = cfgState.bright <= 25 ? 50 : cfgState.bright <= 50 ? 75 : cfgState.bright <= 75 ? 100 : 25;
+    cfgState.bright = b; paintSettings(); await post('/api/settings', { bright: b });
+  }
+  async function toggleSetting(k) {
+    cfgState[k] = !cfgState[k]; paintSettings(); await post('/api/settings', { [k]: cfgState[k] ? 1 : 0 });
+  }
+  async function testShiny() {
+    await post('/api/test_shiny', {});
+    lastMsg = 'Teste Shiny (5s): Som + LED + AutoStop'; render(); pollParty();
+  }
+  async function flipDisplay() { await post('/api/display/flip', {}); }
+  async function bootsel() { if (confirm('Reiniciar placa?')) { try { await fetch('/api/reboot'); } catch (e) {} } }
+  async function uploadOta() {
+    const f = $('ota-file').files[0]; if (!f) { $('ota-msg').textContent = 'Selecione o firmware.bin'; return; }
+    $('ota-msg').textContent = 'Enviando...';
+    const fd = new FormData(); fd.append('update', f, f.name);
+    try { const d = await (await fetch('/api/ota', { method: 'POST', body: fd })).json(); $('ota-msg').textContent = d.ok ? 'OK! Reiniciando...' : 'Erro'; }
+    catch (e) { $('ota-msg').textContent = 'Reiniciando...'; }
+  }
+
+  /* ---- Macros, Rede, Criar & FireRed ---- */
+  function slotInfo(i) { return i >= UM_BASE ? { ic: '✎', name: UM[i - UM_BASE]?.name || '(vazio)', t: UM[i - UM_BASE]?.repeat === 0 } : SLOTS[i]; }
+  function buildGrid() {
+    const g = $('grid'); g.innerHTML = '';
+    if (curCat < 0) {
+      g.classList.remove('cat'); $('mhead').style.display = 'none';
+      CATS.forEach((c, k) => {
+        const b = document.createElement('button'); b.className = 'slot'; b.id = 'c' + k;
+        b.onclick = () => { curCat = k; buildGrid(); };
+        b.innerHTML = `<span class='ic'>${c.ic}</span><span>${c.name}</span><span class='sub'>${c.slots.length} macros</span>`;
+        g.appendChild(b);
+      });
+      const st = document.createElement('button'); st.className = 'slot stop'; st.onclick = stopAll;
+      st.innerHTML = `<span class='ic' style='color:#FF6E88'>&#9632;</span><span>PARAR TUDO</span>`; g.appendChild(st);
+    } else {
+      g.classList.add('cat'); $('mhead').style.display = 'flex'; $('mttl').textContent = CATS[curCat].name;
+      CATS[curCat].slots.forEach(i => {
+        const s = slotInfo(i), b = document.createElement('button'); b.className = 'slot'; b.id = 'b' + i;
+        b.onclick = () => macro(i); b.innerHTML = `<span class='ic'>${s.ic}</span><span>${s.name}</span>`; g.appendChild(b);
+      });
+    }
+    render();
+  }
+  function backMenu() { curCat = -1; buildGrid(); }
+  async function stopAll() { lastMsg = 'PARAR TUDO'; try { apply(await (await fetch('/api/stop', { cache: 'no-store' })).json()); } catch (e) {} }
+  async function macro(slot) { lastMsg = 'Macro: ' + slotInfo(slot).name; try { apply(await (await fetch('/api/macro?slot=' + slot, { cache: 'no-store' })).json()); } catch (e) {} }
   function render() {
     document.querySelectorAll('.slot[id^=b]').forEach(el => el.classList.toggle('on', +el.id.slice(1) === active));
     CATS.forEach((c, k) => { const el = $('c' + k); if (el) el.classList.toggle('on', c.slots.includes(active)); });
-    const act = active >= 0 ? (slotInfo(active) || { name: '?' }).name : 'nenhuma';
-    $('cfg-usb').innerHTML = usb === null ? `<span class='mu'>?</span>` : (usb ? `<span class='gr'>ON</span>` : `<span class='rd'>OFF</span>`);
-    $('cfg-act').textContent = act; $('cfg-exe').textContent = execs;
-    $('foot-l').textContent = online ? `[USB-HID] ${lastMsg || 'online'}` : '[USB-HID] SEM CONEXAO COM A PLACA';
+    $('cfg-usb').innerHTML = usb ? '<span style="color:#00E676">ON</span>' : '<span style="color:#FF6E88">OFF</span>';
+    $('cfg-act').textContent = active >= 0 ? (slotInfo(active)?.name || '?') : 'nenhuma';
+    $('cfg-exe').textContent = execs;
+    $('foot-l').textContent = online ? `[USB-HID] ${lastMsg || 'online'}` : '[USB-HID] SEM CONEXAO';
   }
-
   function apply(d) {
-    active = (d.active_slot === undefined) ? -1 : d.active_slot;
-    execs = d.executions || 0;
+    active = d.active_slot === undefined ? -1 : d.active_slot; execs = d.executions || 0;
     if (d.usb !== undefined) usb = d.usb;
-    if (d.um_idx !== undefined) { umIdx = d.um_idx; umPos = d.um_pos; umWait = d.um_wait; umCyc = d.um_cyc; umRender(); }
-    if (d.game && d.game !== game && (d.game === 'pkmn_za' || d.game === 'pkmn_fr')) setGame(d.game, false);
-    online = true;
-    render();
+    if (d.game && d.game !== game) setGame(d.game, false);
+    online = true; render();
   }
-
-  async function macro(slot) {
-    lastMsg = 'Macro: ' + slotInfo(slot).name;
-    try { apply(await (await fetch('/api/macro?slot=' + slot, { cache: 'no-store' })).json()); }
-    catch (e) { online = false; render(); }
-  }
-
-  async function poll() {
-    try { apply(await (await fetch('/api/macro_status', { cache: 'no-store' })).json()); }
-    catch (e) { online = false; render(); }
-  }
-
-
-  // ======================= CRIAR MACROS =======================
-  const BN = [['ZL', 64], ['L', 16], ['R', 32], ['ZR', 128], ['−', 256], ['+', 512], ['HOME', 4096]];
-  const BN2 = [['◀', 'd4'], ['▲', 'd1'], ['▼', 'd2'], ['▶', 'd8'], ['Y', 1], ['X', 8], ['B', 2], ['A', 4]];
-  const NAMES = { 1: 'Y', 2: 'B', 4: 'A', 8: 'X', 16: 'L', 32: 'R', 64: 'ZL', 128: 'ZR', 256: '−', 512: '+', 4096: 'HOME' };
-  const ARROW = ['▲', '▲▶', '▶', '▼▶', '▼', '▼◀', '◀', '▲◀'];
-  let ed = { idx: -1, steps: [], sel: -1, rec: false, raw: [], t0: null };
-  let padMask = 0, padDirs = 0, padBeat = null;
-
-  function hatFrom(d) {
-    const u = d & 1, dn = d & 2, l = d & 4, r = d & 8;
-    if (u && r) return 1; if (dn && r) return 3; if (dn && l) return 5; if (u && l) return 7;
-    if (u) return 0; if (r) return 2; if (dn) return 4; if (l) return 6; return 8;
-  }
-  function dirsFromHat(h) { return [1, 9, 8, 10, 2, 6, 4, 5][h] || 0; }
-  function cleanName(n) { return n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 _.+-]/g, '').slice(0, 16); }
-  function parseSteps(t) {
-    return t ? t.split(';').map(x => { const [b, h, ms] = x.split(':').map(Number); return { b, h, ms }; }) : [];
-  }
-  function stepsTxt(a) { return a.map(s => `${s.b}:${s.h}:${s.ms}`).join(';'); }
-  function stepLabel(s) {
-    const n = Object.keys(NAMES).filter(k => s.b & k).map(k => NAMES[k]);
-    if (s.h < 8) n.push(ARROW[s.h]);
-    return n.length ? n.join('+') : '— espera';
-  }
-
-  // ---- lista de macros ----
-  function umRender() {
-    const el = $('um'); if (!el) return;
-    if (!el.dataset.built || el.dataset.ver !== JSON.stringify(UM.map(u => [u.name, u.n, u.repeat]))) {
-      el.dataset.built = 1; el.dataset.ver = JSON.stringify(UM.map(u => [u.name, u.n, u.repeat]));
-      el.innerHTML = '<div class="mu" style="margin-bottom:4px">Macros criados por voce (valem para qualquer jogo)</div>';
-      UM.forEach((u, i) => {
-        const d = document.createElement('div'); d.className = 'umrow'; d.id = 'ur' + i;
-        d.innerHTML = `<span class='no'>${i + 1}</span><span class='nm'>${u.n ? u.name || '(sem nome)' : '<span class="mu">(vazio)</span>'}` +
-                `${u.n ? ` <span class='mu'>${u.n} passos ${u.repeat === 0 ? '∞' : '×' + u.repeat}</span>` : ''}</span>` +
-                `<button class='mini go' ${u.n ? '' : 'disabled'} onclick='macro(${UM_BASE + i})'>&#9654;</button>` +
-                `<button class='mini' onclick='edOpen(${i})'>${u.n ? 'Editar' : 'Criar'}</button>` +
-                `<button class='mini rd' ${u.n ? '' : 'disabled'} onclick='umDelete(${i})'>✕</button>`;
-        el.appendChild(d);
-      });
-    }
-    UM.forEach((_, i) => { const r = $('ur' + i); if (r) r.classList.toggle('on', umIdx === i); });
-    // editor: destaca o passo em execucao
-    if (ed.idx >= 0) {
-      document.querySelectorAll('#steps .st').forEach((r, k) => {
-        r.classList.toggle('run', umIdx === ed.idx && k === umPos && !umWait);
-        r.classList.toggle('next', umIdx === ed.idx && k === umPos && umWait);
-      });
-      $('ednext').disabled = !(umIdx === ed.idx && umWait);
-      if (umIdx === ed.idx && umCyc) $('edinfo').textContent = infoTxt() + `  |  ciclo ${umCyc}`;
-    }
-  }
-  async function loadUM() {
-    try { UM = (await (await fetch('/api/um', { cache: 'no-store' })).json()).slots; } catch (e) { return; }
-    $('um').dataset.built = ''; umRender(); buildGrid();
-  }
-  async function umDelete(i) {
-    if (!confirm('Excluir o macro ' + (i + 1) + '?')) return;
-    try { UM = (await post('/api/um', { i, clear: 1 })).slots; } catch (e) {}
-    $('um').dataset.built = ''; umRender(); buildGrid();
-  }
-
-  // ---- editor ----
-  function infoTxt() {
-    const tot = ed.steps.reduce((a, s) => a + s.ms, 0);
-    return `${ed.steps.length}/64 passos · ${(tot / 1000).toFixed(1)} s por ciclo`;
-  }
-  function edOpen(i) {
-    const u = UM[i];
-    ed = { idx: i, steps: parseSteps(u.steps), sel: -1, rec: false, raw: [], t0: null };
-    $('edname').value = u.name; $('edrep').value = u.repeat;
-    padMask = 0; padDirs = 0; buildPad(); stepsRender(); $('ed').style.display = 'block'; $('ed').classList.remove('rec');
-  }
-  function edClose() { if (ed.rec) finishRec(); ed.idx = -1; $('ed').style.display = 'none'; }
-  function edClear() { ed.steps = []; ed.sel = -1; stepsRender(); }
-
-  function stepsRender() {
-    const box = $('steps'); box.innerHTML = '';
-    ed.steps.forEach((s, k) => {
-      const r = document.createElement('div'); r.className = 'st' + (k === ed.sel ? ' sel' : '');
-      r.innerHTML = `<span class='k'>${k + 1}</span><span class='t'>${stepLabel(s)}</span><span class='mu'>${s.ms} ms</span>` +
-              `<button title='subir'>↑</button><button title='excluir'>✕</button>`;
-      r.onclick = () => stepSelect(k);
-      const [up, del] = r.querySelectorAll('button');
-      up.onclick = (e) => { e.stopPropagation(); if (k > 0) { [ed.steps[k - 1], ed.steps[k]] = [ed.steps[k], ed.steps[k - 1]]; ed.sel = k - 1; stepsRender(); } };
-      del.onclick = (e) => { e.stopPropagation(); ed.steps.splice(k, 1); ed.sel = -1; stepsRender(); };
-      box.appendChild(r);
-    });
-    box.scrollTop = box.scrollHeight;
-    $('edinfo').textContent = infoTxt(); $('edupd').disabled = ed.sel < 0;
-  }
-  function stepSelect(k) {
-    ed.sel = k; const s = ed.steps[k];
-    padMask = s.b; padDirs = dirsFromHat(s.h); $('edms').value = s.ms; padUI();
-    const rows = document.querySelectorAll('#steps .st'); rows.forEach((r, j) => r.classList.toggle('sel', j === k)); $('edupd').disabled = false;
-  }
-  function curStep(wait) {
-    const ms = Math.max(20, Math.min(60000, parseInt($('edms').value) || 200));
-    return wait ? { b: 0, h: 8, ms } : { b: padMask, h: hatFrom(padDirs), ms };
-  }
-  function stepAdd(wait) {
-    if (ed.steps.length >= 64) { alert('Limite de 64 passos'); return; }
-    ed.steps.push(curStep(wait)); ed.sel = -1; stepsRender();
-  }
-  function stepUpdate() { if (ed.sel >= 0) { ed.steps[ed.sel] = curStep(false); stepsRender(); stepSelect(ed.sel); } }
-
-  // ---- controle virtual (editar = alterna; gravar = momentaneo + envia ao vivo) ----
-  function buildPad() {
-    ['padr1', 'padr2'].forEach(id => $(id).innerHTML = '');
-    const mk = (row, [t, v]) => {
-      const b = document.createElement('button'); b.className = 'pb'; b.textContent = t; b.dataset.v = v;
-      const set = (down) => {
-        const dir = typeof v === 'string';
-        const bit = dir ? +v.slice(1) : v;
-        const cur = dir ? padDirs : padMask;
-        let nv;
-        if (ed.rec) nv = down ? (cur | bit) : (cur & ~bit);          // gravando: segura enquanto toca
-        else if (down) nv = cur ^ bit; else return;                  // editando: cada toque alterna
-        if (dir) padDirs = nv; else padMask = nv;
-        padChanged();
-      };
-      b.onpointerdown = (e) => { e.preventDefault(); b.setPointerCapture(e.pointerId); set(true); };
-      b.onpointerup = () => set(false); b.onpointercancel = () => set(false);
-      $(row).appendChild(b);
-    };
-    BN.forEach(x => mk('padr1', x)); BN2.forEach(x => mk('padr2', x));
-    padUI();
-  }
-  function padUI() {
-    document.querySelectorAll('#pad .pb').forEach(b => {
-      const v = b.dataset.v, dir = v[0] === 'd' && v.length === 2 && isNaN(+v);
-      const on = dir ? (padDirs & +v.slice(1)) : (padMask & +v);
-      b.classList.toggle('on', !!on);
-    });
-  }
-  function padSend() { fetch(`/api/pad?b=${padMask}&h=${hatFrom(padDirs)}`, { cache: 'no-store' }).catch(() => {}); }
-  function padChanged() {
-    padUI();
-    if (!ed.rec) return;
-    const now = performance.now();
-    if (ed.t0 === null) { if (!padMask && !padDirs) return; ed.t0 = now; }
-    ed.raw.push({ t: now - ed.t0, b: padMask, h: hatFrom(padDirs) });
-    padSend();
-    if (padMask || padDirs) { if (!padBeat) padBeat = setInterval(padSend, 800); }
-    else if (padBeat) { clearInterval(padBeat); padBeat = null; }
-  }
-
-  // ---- gravador ----
-  async function recToggle() {
-    if (ed.rec) { finishRec(); return; }
-    try { await fetch('/api/stop', { cache: 'no-store' }); } catch (e) {}
-    ed.rec = true; ed.raw = []; ed.t0 = null; padMask = 0; padDirs = 0; padUI();
-    $('ed').classList.add('rec'); $('edrec').innerHTML = '&#9632; Parar gravação';
-    $('edinfo').textContent = 'Gravando: aperte os botões (a contagem começa no 1º toque)';
-  }
-  function finishRec() {
-    const now = performance.now();
-    ed.rec = false; $('ed').classList.remove('rec'); $('edrec').innerHTML = '<span id="recdot">&#9679;</span> Gravar';
-    if (padBeat) { clearInterval(padBeat); padBeat = null; }
-    padMask = 0; padDirs = 0; padSend(); padUI();
-    const ev = ed.raw;
-    if (ev.length) {
-      const end = now - ed.t0;
-      ev.forEach((e, k) => {
-        const next = k + 1 < ev.length ? ev[k + 1].t : end;
-        const ms = Math.max(20, Math.min(60000, Math.round((next - e.t) / 10) * 10));
-        if (ed.steps.length < 64) ed.steps.push({ b: e.b, h: e.h, ms });
-      });
-      if (ed.steps.length >= 64) alert('Limite de 64 passos atingido: os demais foram descartados');
-      const last = ed.steps[ed.steps.length - 1];
-      if (last && last.b === 0 && last.h === 8 && ev.length) ed.steps.pop();   // tira a espera final (tempo ate tocar em Parar)
-    }
-    ed.raw = []; stepsRender();
-  }
-
-  // ---- salvar / executar ----
-  async function edSave() {
-    if (ed.rec) finishRec();
-    const name = cleanName($('edname').value.trim()) || ('Macro ' + (ed.idx + 1));
-    $('edname').value = name;
-    const rep = Math.max(0, Math.min(65000, parseInt($('edrep').value) || 0));
-    if (!ed.steps.length) { alert('Adicione ao menos um passo'); return false; }
-    try {
-      const d = await post('/api/um', { i: ed.idx, name, repeat: rep, steps: stepsTxt(ed.steps) });
-      if (!d.slots) { alert('Erro ao salvar: ' + (d.err || '?')); return false; }
-      UM = d.slots; $('um').dataset.built = ''; umRender(); buildGrid();
-      lastMsg = 'Macro salvo: ' + name; render();
-      return true;
-    } catch (e) { alert('Sem conexão com a placa'); return false; }
-  }
-  async function umRun(mode) {
-    if (!(await edSave())) return;
-    try { apply(await (await fetch(`/api/um_run?i=${ed.idx}&mode=${mode}`, { cache: 'no-store' })).json()); } catch (e) {}
-  }
-  async function umNext() { try { apply(await (await fetch('/api/um_run?mode=next', { cache: 'no-store' })).json()); } catch (e) {} }
-
+  async function poll() { try { apply(await (await fetch('/api/macro_status', { cache: 'no-store' })).json()); } catch (e) { online = false; render(); } }
   async function loadVersion() {
-    try {
-      const v = await (await fetch('/api/version', { cache: 'no-store' })).json();
-      $('cfg-fw').textContent = v.fw;
-      $('cfg-disp').textContent = v.display ? 'sim (LVGL)' : 'nao (so USB HID + web)';
-      $('foot-r').textContent = 'fw ' + v.fw.slice(0, 11) + ' | pg ' + PAGE_VERSION;
-    } catch (e) {
-      $('cfg-fw').textContent = 'antigo (sem /api/version)';
-      $('foot-r').textContent = 'fw antigo | pg ' + PAGE_VERSION;
-    }
+    try { const v = await (await fetch('/api/version', { cache: 'no-store' })).json(); $('cfg-fw').textContent = v.fw.slice(0, 11); $('foot-r').textContent = 'fw ' + v.fw.slice(0, 11); } catch (e) {}
   }
-
-  function tab(id) {
-    ['status', 'macros', 'mapa', 'rede', 'criar', 'config'].forEach(t => {
-      $('t-' + t).classList.toggle('active', t === id);
-      $('p-' + t).classList.toggle('active', t === id);
-    });
-  }
-
-  async function bootsel() {
-    if (confirm('Colocar a placa em modo BOOT USB?')) {
-      try { await fetch('/api/reboot'); } catch (e) {}
-      alert('Placa reiniciada em modo BOOT.');
-    }
-  }
-  async function flipDisplay() {
-    try { await post('/api/display/flip', {}); lastMsg = 'Tela girada 180°'; render(); } catch (e) {}
-  }
-  async function uploadOta() {
-    const f = $('ota-file').files[0];
-    if (!f) { $('ota-msg').textContent = 'Escolha o firmware.bin'; return; }
-    $('ota-msg').textContent = 'Enviando...';
-    const fd = new FormData(); fd.append('update', f, f.name);
-    try {
-      const r = await fetch('/api/ota', { method: 'POST', body: fd });
-      const d = await r.json();
-      $('ota-msg').textContent = d.ok ? 'OK! Reiniciando...' : ('Erro: ' + (d.err || 'falhou'));
-    } catch (e) { $('ota-msg').textContent = 'Reiniciando placa...'; }
-  }
-
-  // Ajusta a moldura 480x320 a tela (celular ou desktop), sem mudar o desenho
-  function fit() {
-    const s = Math.min(window.innerWidth / 480, window.innerHeight / 320, 2.2);
-    $('stage').style.transform = `scale(${s})`;
-    const w = $('wrap'); w.style.width = (480 * s) + 'px'; w.style.height = (320 * s) + 'px';
-  }
-  window.addEventListener('resize', fit);
-
-  // ---------------- Rede: IP do Switch / Wi-Fi (gravados na placa) ----------------
-  const msg = (t) => { $('swmsg').textContent = t; };
   async function loadNet() {
     try {
       const c = await (await fetch('/api/config', { cache: 'no-store' })).json();
-      $('swip').value = c.switch_ip; $('ssid').value = c.ssid;
-      $('netinfo').textContent = c.net === 'ap' ? `Rede da placa (SwitchHUD) - pagina em ${c.ip}` : `Conectada ao Wi-Fi - placa em ${c.ip}`;
-      swPort = c.switch_port;
-    } catch (e) { $('netinfo').textContent = 'Rede: sem resposta da placa'; }
+      $('swip').value = c.switch_ip; $('swip-cfg').value = c.switch_ip; $('ssid').value = c.ssid; swPort = c.switch_port;
+      $('netinfo').textContent = c.net === 'ap' ? `AP SwitchHUD - ${c.ip}` : `Wi-Fi conectado - ${c.ip}`;
+    } catch (e) {}
   }
-  let swPort = 6000;
-  async function post(path, data) {
-    const r = await fetch(path, { method: 'POST', body: new URLSearchParams(data) });
-    return r.json();
-  }
-  async function saveSwitch() {
-    try {
-      const r = await post('/api/config', { switch_ip: $('swip').value.trim(), switch_port: swPort });
-      msg(r.ok ? 'IP salvo: ' + $('swip').value.trim() + '. Conectando ao Switch...' : 'Erro: ' + (r.err || 'falha ao salvar'));
-    } catch (e) { msg('Erro: placa nao respondeu'); }
-  }
-  async function saveWifi() {
-    if (!confirm('Salvar o Wi-Fi e reiniciar a placa? O Switch vai reconectar o controle.')) return;
-    try { await post('/api/config', { ssid: $('ssid').value, pass: $('pass').value }); } catch (e) {}
-    msg('Reiniciando... reconecte o celular e abra a pagina de novo.');
-  }
-  let scanTimer = null;
-  async function scan() {
-    try { await post('/api/scan', {}); } catch (e) { $('scanmsg').textContent = 'Erro: placa nao respondeu'; return; }
-    $('scanmsg').textContent = 'Procurando o Switch (0%)... precisa estar ligado com o sys-botbase';
-    clearInterval(scanTimer);
-    scanTimer = setInterval(async () => {
-      try {
-        const d = await (await fetch('/api/scan_status', { cache: 'no-store' })).json();
-        if (d.state === 'running') $('scanmsg').textContent = `Procurando o Switch (${d.progress}%)...`;
-        else {
-          clearInterval(scanTimer);
-          if (d.state === 'found') { $('swip').value = d.ip; $('scanmsg').textContent = 'Switch encontrado em ' + d.ip + ' (salvo).'; }
-          else $('scanmsg').textContent = 'Nao encontrei. Confira: Switch na mesma rede, sys-botbase ativo.';
-        }
-      } catch (e) { /* a placa fica ocupada durante a varredura: tenta de novo */ }
-    }, 1200);
-  }
-
-  // ---------------- Busca de redes Wi-Fi ao redor ----------------
-  // Toque numa rede: o nome vai para o campo Wi-Fi e o cursor para a senha.
-  function sinal(rssi) { return rssi >= -60 ? 'forte' : rssi >= -75 ? 'medio' : 'fraco'; }
-  function drawNets(d) {
-    const box = $('wifilist');
-    box.textContent = '';
-    d.nets.forEach((n) => {
-      const b = document.createElement('button');
-      const nome = document.createElement('span');
-      nome.textContent = (n.secure ? '🔒 ' : '') + n.ssid;
-      const sig = document.createElement('span');
-      sig.className = 'sig';
-      sig.textContent = `${n.rssi} dBm · ${sinal(n.rssi)}`;
-      b.append(nome, sig);
-      if ($('ssid').value === n.ssid) b.classList.add('sel');
-      b.onclick = () => {
-        $('ssid').value = n.ssid;
-        box.querySelectorAll('button').forEach((x) => x.classList.remove('sel'));
-        b.classList.add('sel');
-        $('pass').focus();
-      };
-      box.appendChild(b);
-    });
-    box.classList.add('on');
-  }
-  let wifiTimer = null;
-  async function wifiScan() {
-    try { await post('/api/wifi/scan', {}); } catch (e) { msg('Erro: placa nao respondeu'); return; }
-    msg('Procurando redes Wi-Fi...');
-    clearInterval(wifiTimer);
-    wifiTimer = setInterval(async () => {
-      try {
-        const d = await (await fetch('/api/wifi/results', { cache: 'no-store' })).json();
-        if (d.state === 'running') return;
-        clearInterval(wifiTimer);
-        if (d.state === 'done') {
-          drawNets(d);
-          msg(d.count ? `${d.count} rede(s) encontrada(s). Escolha uma e digite a senha.` : 'Nenhuma rede encontrada. Tente de novo.');
-        } else msg('A busca de redes falhou. Tente de novo.');
-      } catch (e) { /* o radio pode estar ocupado: tenta de novo no proximo ciclo */ }
-    }, 1000);
-  }
-
-  // ---------------- Mapa (Lumiose) ----------------
-  // /maps_config.json: { games: { pkmn_za: [ {id,name,zone,poi,z,grid,has_tiles,base_path,theme} ] } }
-  let layers = [], px = 50, py = 50, curLayer = null;
-
-  function note(t) { $('mpoi').textContent = t; }
-
-  async function loadMaps() {
-    let why = '';
-    try {
-      const r = await fetch('/maps_config.json', { cache: 'no-store' });
-      if (!r.ok) why = `maps_config.json: HTTP ${r.status} (rode uploadfs)`;
-      else {
-        const cfg = await r.json();
-        // aceita { games:{ pkmn_za:[...] } }, { pkmn_za:[...] } ou uma lista direta
-        layers = Array.isArray(cfg) ? cfg : ((cfg.games && cfg.games.pkmn_za) || cfg.pkmn_za || []);
-        if (!layers.length) why = 'maps_config.json sem camadas em games.pkmn_za (chaves: ' +
-                Object.keys(cfg.games || cfg).join(', ') + ')';
-      }
-    } catch (e) { why = 'maps_config.json invalido/ausente'; }
-    const bar = $('layers'); bar.innerHTML = '';
-    if (!layers.length) { $('mzone').textContent = 'Mapa sem dados'; note(why); return; }
-    layers.forEach(l => {
-      const b = document.createElement('button');
-      b.className = 'lbtn'; b.id = 'lb-' + l.id; b.textContent = l.name || l.id;
-      b.onclick = () => selectLayer(l.id);
-      bar.appendChild(b);
-    });
-    selectLayer(layers[0].id);
-  }
-
-  function updCoord() {
-    const z = curLayer && curLayer.z !== undefined ? curLayer.z : 0;
-    $('mcoord').textContent = `X: ${2039 + Math.floor(px / 5)}  Y: ${2034 + Math.floor(py / 5)}  Z: ${z}`;
-    $('pin').style.left = px + '%'; $('pin').style.top = py + '%';
-  }
-
-  function selectLayer(id) {
-    curLayer = layers.find(l => l.id === id); if (!curLayer) return;
-    layers.forEach(l => $('lb-' + l.id).classList.toggle('active', l.id === id));
-    $('mzone').textContent = 'Zona: ' + (curLayer.zone || curLayer.name || curLayer.id);
-    note(curLayer.poi || '');
-    const g = $('tileGrid'); g.innerHTML = '';
-    const n = curLayer.grid || 4;
-    g.style.gridTemplateColumns = `repeat(${n}, 1fr)`; g.style.gridTemplateRows = `repeat(${n}, 1fr)`;
-    let bad = 0, firstBad = '';
-    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
-      const d = document.createElement('div'); d.className = 'tile';
-      if (curLayer.has_tiles) {
-        // base_path vem do maps_config.json (ex.: /m/lumiose) ; tile = <col>_<linha>.jpg
-        const url = `${curLayer.base_path}/${c}_${r}.jpg`;
-        const img = new Image();
-        img.onload = () => { d.style.backgroundImage = `url("${url}")`; };
-        img.onerror = () => { bad++; if (!firstBad) firstBad = url; d.textContent = 'x'; note(`${bad} tile(s) nao carregaram. 1o: ${firstBad}`); };
-        img.src = url;
-      } else { d.style.background = curLayer.theme || '#182232'; if (!r && !c) d.textContent = curLayer.id.toUpperCase(); }
-      g.appendChild(d);
-    }
-    updCoord();
-  }
-
-  function toggleWarp() {
-    warpMode = !warpMode;
-    const b = $('warp-btn');
-    b.classList.toggle('on', warpMode);
-    b.textContent = warpMode ? 'Warp ao Clicar: ON' : 'Warp ao Clicar: OFF';
-  }
-  function mapClick(e) {
-    const r = $('mapbox').getBoundingClientRect();
-    px = Math.max(5, Math.min(95, (e.clientX - r.left) / r.width * 100));
-    py = Math.max(5, Math.min(95, (e.clientY - r.top) / r.height * 100));
-    if (warpMode) {
-      const wx = (-830 + ((px - 50) / 100) * 980).toFixed(1);
-      const wz = (-500 - ((py - 50) / 100) * 980).toFixed(1);
-      post('/api/teleport', { wx: wx, wy: 24.0, wz: wz }).then(() => {
-        lastMsg = `Warp -> ${wx}, ${wz}`; render();
-      }).catch(() => {});
-    } else {
-      updCoord();
-    }
-  }
+  async function saveSwitch() { await post('/api/config', { switch_ip: $('swip').value.trim(), switch_port: swPort }); $('swip-cfg').value = $('swip').value.trim(); }
+  async function saveSwitchCfg() { $('swip').value = $('swip-cfg').value.trim(); await saveSwitch(); }
+  async function saveWifi() { if (confirm('Salvar Wi-Fi e reiniciar?')) { await post('/api/config', { ssid: $('ssid').value, pass: $('pass').value }); } }
+  async function scan() { await post('/api/scan', {}); $('scanmsg').textContent = 'Procurando Switch...'; const t = setInterval(async () => { const d = await (await fetch('/api/scan_status')).json(); $('scanmsg').textContent = d.state === 'running' ? `Buscando (${d.progress}%)` : d.state === 'found' ? `Encontrado: ${d.ip}` : 'Nao encontrado'; if (d.state !== 'running') { clearInterval(t); if (d.ip) { $('swip').value = d.ip; $('swip-cfg').value = d.ip; } } }, 1200); }
+  async function wifiScan() { await post('/api/wifi/scan', {}); const t = setInterval(async () => { const d = await (await fetch('/api/wifi/results')).json(); if (d.state === 'done') { clearInterval(t); const b = $('wifilist'); b.innerHTML = ''; b.classList.add('on'); d.nets.forEach(n => { const bt = document.createElement('button'); bt.textContent = `${n.ssid} (${n.rssi} dBm)`; bt.onclick = () => $('ssid').value = n.ssid; b.appendChild(bt); }); } }, 1000); }
+  async function loadUM() { try { UM = (await (await fetch('/api/um')).json()).slots; umRender(); buildGrid(); } catch (e) {} }
+  function umRender() { const el = $('um'); el.innerHTML = ''; UM.forEach((u, i) => { const d = document.createElement('div'); d.className = 'umrow'; d.innerHTML = `<span class='no'>${i + 1}</span><span class='nm'>${u.name || '(vazio)'}</span><button class='mini go' onclick='macro(${UM_BASE + i})'>&#9654;</button><button class='mini' onclick='edOpen(${i})'>Editar</button>`; el.appendChild(d); }); }
+  let ed = { idx: -1, steps: [] };
+  function edOpen(i) { ed = { idx: i, steps: [] }; $('edname').value = UM[i].name; $('edrep').value = UM[i].repeat; $('ed').style.display = 'block'; }
+  function edClose() { $('ed').style.display = 'none'; }
+  function edClear() { ed.steps = []; $('steps').innerHTML = ''; }
+  async function edSave() { await post('/api/um', { i: ed.idx, name: $('edname').value || ('Macro ' + (ed.idx + 1)), repeat: $('edrep').value, steps: ed.steps.map(s => `${s.b}:${s.h}:${s.ms}`).join(';') }); loadUM(); edClose(); }
+  function stepAdd(w) { ed.steps.push({ b: w ? 0 : 4, h: 8, ms: +$('edms').value || 200 }); $('steps').innerHTML = ed.steps.map((s, k) => `<div class='st'>${k + 1}. ${s.b ? 'A' : 'Espera'} (${s.ms}ms)</div>`).join(''); }
+  async function frOp(op) { try { const d = await (await fetch('/api/fr?op=' + op)).json(); $('frcount').textContent = d.enc; } catch (e) {} }
 
   $('cfg-page').textContent = PAGE_VERSION;
-  buildParty(); buildGrid(); loadMaps(); loadNet(); loadUM(); fit(); loadVersion(); poll(); pollParty();
-  setInterval(poll, 350); setInterval(pollParty, 1500); setInterval(pollFr, 1000);
+  buildParty(); buildGrid(); loadMaps(); loadNet(); loadSettings(); loadUM(); fit(); loadVersion(); poll(); pollParty();
+  setInterval(poll, 350); setInterval(pollParty, 1000);
 </script>
 </body>
 </html>

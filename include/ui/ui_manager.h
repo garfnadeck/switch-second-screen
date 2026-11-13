@@ -542,6 +542,7 @@ public:
         warps_dirty = false;
         return d;
     }
+    void refreshConfigButtonsPublic() { refreshConfigButtons(); }
 
     void buildUI() {
         router.init(state);   // idempotente: nao reinicializa se o main ja chamou

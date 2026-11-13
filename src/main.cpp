@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <LittleFS.h>
+#include <SD_MMC.h>
 #include <ArduinoOTA.h>
 #include <Update.h>
 #if defined(ARDUINO_ARCH_RP2040)
@@ -32,6 +33,7 @@
 
 WebServer server(80);
 static bool apMode = false;     // true = Wi-Fi do roteador falhou, placa em modo AP "SwitchHUD"
+uint32_t shinyTestUntilMs = 0;
 GameState state;
 ProviderRouter router;          // unico dono do provider USB HID (router.usb())
 #ifdef HAS_DISPLAY
@@ -673,6 +675,132 @@ void setup() {
         }
     });
 
+    // Atualizacao de arquivos da Web UI (LittleFS) via Wi-Fi
+    static File fsUploadFile;
+    static bool fsUploadOk = false;
+    server.on("/api/fs/upload", HTTP_POST, []() {
+        server.send(fsUploadOk ? 200 : 500, "application/json", fsUploadOk ? "{\"ok\":true}" : "{\"ok\":false}");
+    }, []() {
+        HTTPUpload &up = server.upload();
+        if (up.status == UPLOAD_FILE_START) {
+            String p = server.hasArg("path") ? server.arg("path") : ("/" + up.filename);
+            if (!p.startsWith("/")) p = "/" + p;
+            fsUploadFile = LittleFS.open(p, "w");
+            fsUploadOk = (bool)fsUploadFile;
+        } else if (up.status == UPLOAD_FILE_WRITE) {
+            if (fsUploadOk && fsUploadFile.write(up.buf, up.currentSize) != up.currentSize) {
+                fsUploadOk = false;
+            }
+        } else if (up.status == UPLOAD_FILE_END) {
+            if (fsUploadFile) fsUploadFile.close();
+        }
+    });
+
+    // Sprites do MicroSD (/sd/sprites/<id>.png -> /assets/za/sprites/<id>.png)
+    server.onNotFound([]() {
+        String uri = server.uri();
+        if (uri.startsWith("/sd/sprites/") && AssetManager::isSDReady()) {
+            String path = "/assets/za/sprites/" + uri.substring(12);
+            if (SD_MMC.exists(path)) {
+                File f = SD_MMC.open(path, "r");
+                if (f) {
+                    server.sendHeader("Cache-Control", "max-age=86400");
+                    server.streamFile(f, "image/png");
+                    f.close();
+                    return;
+                }
+            }
+        }
+        server.send(404, "text/plain", "Not found");
+    });
+
+    // Configuracoes rapidas (Brilho, Som, AutoStop, AutoCura, Flip)
+    server.on("/api/settings", HTTP_GET, []() {
+        String j = String("{\"bright\":") + String((int)state.brightness) +
+                   ",\"sound\":" + (state.sound_enabled ? "true" : "false") +
+                   ",\"autostop\":" + (state.auto_stop_shiny ? "true" : "false") +
+                   ",\"autoheal\":" + (state.auto_heal ? "true" : "false") +
+                   ",\"flip\":" + (state.screen_flip ? "true" : "false") +
+                   ",\"sd\":" + (AssetManager::isSDReady() ? "true" : "false") + "}";
+        server.send(200, "application/json", j);
+    });
+
+    server.on("/api/settings", HTTP_POST, []() {
+        if (server.hasArg("bright")) {
+            int b = server.arg("bright").toInt();
+            if (b >= 15 && b <= 100) {
+                state.brightness = (uint8_t)b;
+#if defined(HAS_DISPLAY) && defined(ARDUINO_ARCH_ESP32)
+                es3c35p_display::setBrightness(state.brightness);
+#endif
+            }
+        }
+        if (server.hasArg("sound")) {
+            state.sound_enabled = (server.arg("sound").toInt() != 0 || server.arg("sound") == "true");
+            es3c35p_extra::setSoundEnabled(state.sound_enabled);
+            if (state.sound_enabled) es3c35p_extra::playBeep(false);
+        }
+        if (server.hasArg("autostop")) {
+            state.auto_stop_shiny = (server.arg("autostop").toInt() != 0 || server.arg("autostop") == "true");
+        }
+        if (server.hasArg("autoheal")) {
+            state.auto_heal = (server.arg("autoheal").toInt() != 0 || server.arg("autoheal") == "true");
+        }
+        saveSettings();
+#ifdef HAS_DISPLAY
+        ui.refreshConfigButtonsPublic();
+#endif
+        server.send(200, "application/json", "{\"ok\":true}");
+    });
+
+    // Favoritos de Teleporte (/warps.txt)
+    server.on("/api/warps", HTTP_GET, []() {
+        String j = "{\"favs\":[";
+#ifdef HAS_DISPLAY
+        for (uint8_t i = 0; i < 3; i++) {
+            const WarpPoint &wp = ui.getFavWarp(i);
+            if (i) j += ",";
+            j += String("{\"valid\":") + (wp.valid ? "true" : "false") +
+                 ",\"name\":\"" + jsonClean(wp.name) + "\",\"x\":" + String(wp.x, 1) +
+                 ",\"y\":" + String(wp.y_alt, 1) + ",\"z\":" + String(wp.z, 1) + "}";
+        }
+#endif
+        j += "]}";
+        server.send(200, "application/json", j);
+    });
+
+    server.on("/api/warps", HTTP_POST, []() {
+#ifdef HAS_DISPLAY
+        uint8_t slot = server.hasArg("slot") ? (uint8_t)server.arg("slot").toInt() : 0;
+        if (slot < 3) {
+            float wx = server.hasArg("wx") ? server.arg("wx").toFloat() : state.map.x;
+            float wy = server.hasArg("wy") ? server.arg("wy").toFloat() : state.map.z;
+            float wz = server.hasArg("wz") ? server.arg("wz").toFloat() : state.map.y;
+            char nm[18];
+            if (server.hasArg("name") && server.arg("name").length() > 0) {
+                snprintf(nm, sizeof(nm), "%s", server.arg("name").c_str());
+            } else {
+                snprintf(nm, sizeof(nm), "Fav %u (%.0f,%.0f)", (unsigned)(slot + 1), wx, wz);
+            }
+            ui.setFavWarp(slot, nm, wx, wy, wz);
+            saveWarps();
+            server.send(200, "application/json", "{\"ok\":true}");
+            return;
+        }
+#endif
+        server.send(400, "application/json", "{\"ok\":false}");
+    });
+
+    // Teste de Shiny Stash (5s) para validar Audio ES8311 + LED Dourado + AutoStop
+    server.on("/api/test_shiny", HTTP_POST, []() {
+        state.shiny_stash_found = true;
+        state.shiny_stash_species = 25;
+        snprintf(state.shiny_stash_name, sizeof(state.shiny_stash_name), "Pikachu (TESTE)");
+        extern uint32_t shinyTestUntilMs;
+        shinyTestUntilMs = millis() + 5000UL;
+        server.send(200, "application/json", "{\"ok\":true}");
+    });
+
     ArduinoOTA.setHostname("switch-hud");
     ArduinoOTA.begin();
 
@@ -709,6 +837,12 @@ void loop() {
 
     // Automacao Shiny Stash + Audio + Auto-Heal + LED RGB + Auto-Dim
     {
+        if (shinyTestUntilMs && (int32_t)(millis() - shinyTestUntilMs) >= 0) {
+            shinyTestUntilMs = 0;
+            state.shiny_stash_found = false;
+            state.shiny_stash_species = 0;
+            state.shiny_stash_name[0] = '\0';
+        }
         static bool prevShiny = false;
         if (state.shiny_stash_found && !prevShiny) {
             es3c35p_extra::playBeep(true);
