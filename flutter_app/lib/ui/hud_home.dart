@@ -647,6 +647,18 @@ class _HudHomeState extends State<HudHome> {
             ),
           ),
           const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _miniBtn('Curar Full', const Color(0xFF880E4F), () => c.pokeBotwHearts(c.botwHeartsMax)),
+              _miniBtn('30 Coracoes', const Color(0xFFB71C1C), () => c.pokeBotwHearts(120, setMax: true)),
+              _miniBtn('Stamina 3x', const Color(0xFF00695C), () => c.pokeBotwStaminaFull(threeWheels: true)),
+              _miniBtn('+10k Rupees', const Color(0xFF1B5E20), () => c.pokeBotwRupees(c.botwRupees + 10000)),
+              _miniBtn('999k Rupees', const Color(0xFF2E7D32), () => c.pokeBotwRupees(999999)),
+            ],
+          ),
+          const SizedBox(height: 6),
           Row(
             children: [
               const Text('Versao:', style: TextStyle(fontSize: 11, color: Color(0xFF99A2C8))),

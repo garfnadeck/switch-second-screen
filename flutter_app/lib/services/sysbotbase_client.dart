@@ -542,6 +542,51 @@ class SysBotbaseClient extends ChangeNotifier {
     if (changed) notifyListeners();
   }
 
+  String _toLittleEndianHex(Uint8List bytes) =>
+      bytes.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join();
+
+  Future<void> pokeBotwHearts(int quarters, {bool setMax = false}) async {
+    final p = activeBotwProfile;
+    if (p == null || !connected) return;
+    final q = quarters.clamp(4, 120);
+    final b = ByteData(4)..setUint32(0, q, Endian.little);
+    if (p.heartsChain.isNotEmpty) {
+      _sendFireAndForget('pointerPoke 0x${_toLittleEndianHex(b.buffer.asUint8List())} ${_chainArgs(p.heartsChain)}');
+      botwHeartsCur = q;
+    }
+    if (setMax && p.maxHeartsChain.isNotEmpty) {
+      final f = ByteData(4)..setFloat32(0, q.toDouble(), Endian.little);
+      _sendFireAndForget('pointerPoke 0x${_toLittleEndianHex(f.buffer.asUint8List())} ${_chainArgs(p.maxHeartsChain)}');
+      botwHeartsMax = q;
+    }
+    lastLog = 'BotW: Coracoes -> ${(q / 4).toStringAsFixed(0)}';
+    notifyListeners();
+  }
+
+  Future<void> pokeBotwStaminaFull({bool threeWheels = false}) async {
+    final p = activeBotwProfile;
+    if (p == null || !connected || p.staminaChain.isEmpty) return;
+    final val = threeWheels ? 3000.0 : 1000.0;
+    final b = ByteData(8)
+      ..setFloat32(0, val, Endian.little)
+      ..setFloat32(4, val, Endian.little);
+    _sendFireAndForget('pointerPoke 0x${_toLittleEndianHex(b.buffer.asUint8List())} ${_chainArgs(p.staminaChain)}');
+    botwStaminaPct = 100;
+    lastLog = threeWheels ? 'BotW: Stamina 3 rodas!' : 'BotW: Stamina cheia!';
+    notifyListeners();
+  }
+
+  Future<void> pokeBotwRupees(int amount) async {
+    final p = activeBotwProfile;
+    if (p == null || !connected || p.rupeesChain.isEmpty) return;
+    final v = amount.clamp(0, 999999);
+    final b = ByteData(4)..setUint32(0, v, Endian.little);
+    _sendFireAndForget('pointerPoke 0x${_toLittleEndianHex(b.buffer.asUint8List())} ${_chainArgs(p.rupeesChain)}');
+    botwRupees = v;
+    lastLog = 'BotW: Rupees -> $v';
+    notifyListeners();
+  }
+
   Future<void> _pollPartySlot(int slot) async {
     final c = List<int>.from(_partyBase);
     c[3] = _partyBase[3] + slot * 8;
