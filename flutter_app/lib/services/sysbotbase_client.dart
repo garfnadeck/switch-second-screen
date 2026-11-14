@@ -335,6 +335,7 @@ class SysBotbaseClient extends ChangeNotifier {
   bool _botwSyncedOnce = false;
   bool botwAutoBoostOnConnect = true;
   bool _botwAutoAppliedOnce = false;
+  bool _botwSaveReady = false;
   List<BotwPouchItem> botwInventory = [];
   bool botwInventoryLoading = false;
   int? _cachedHeapBase;
@@ -611,6 +612,7 @@ class SysBotbaseClient extends ChangeNotifier {
     _cachedHeapBase = null;
     _botwSyncedOnce = false;
     _botwAutoAppliedOnce = false;
+    _botwSaveReady = false;
     connected = false;
     linkStatus = status;
     notifyListeners();
@@ -810,10 +812,13 @@ class SysBotbaseClient extends ChangeNotifier {
       final raw = hex != null ? Pa9Crypto.hexToBytes(hex) : null;
       if (raw != null && raw.length >= 4) {
         final curH = ByteData.sublistView(raw).getUint32(0, Endian.little);
-        if (curH <= 160 && curH != botwHeartsCur) {
-          botwHeartsCur = curH;
-          if (botwHeartsMax < curH) botwHeartsMax = curH;
-          changed = true;
+        if (curH > 0 && curH <= 160) {
+          _botwSaveReady = true;
+          if (curH != botwHeartsCur) {
+            botwHeartsCur = curH;
+            if (botwHeartsMax < curH) botwHeartsMax = curH;
+            changed = true;
+          }
         }
       }
     }
@@ -881,14 +886,22 @@ class SysBotbaseClient extends ChangeNotifier {
     }
 
     if (changed) notifyListeners();
-    if (!_botwSyncedOnce && !botwProgressSyncing && botwShrineList.isNotEmpty) {
+    if (_botwSaveReady && !_botwSyncedOnce && !botwProgressSyncing && botwShrineList.isNotEmpty) {
       _botwSyncedOnce = true;
-      unawaited(syncBotwProgress());
-      unawaited(syncBotwInventory());
-    }
-    if (botwAutoBoostOnConnect && !_botwAutoAppliedOnce && botwHeartsCur > 0 && botwHeartsMax >= 12) {
+      unawaited(_initBotwOnSaveReady());
+    } else if (_botwSaveReady && botwAutoBoostOnConnect && !_botwAutoAppliedOnce && !botwProgressSyncing && !botwInventoryLoading) {
       _botwAutoAppliedOnce = true;
       unawaited(_applyBotwAutoBoost());
+    }
+  }
+
+  Future<void> _initBotwOnSaveReady() async {
+    await syncBotwProgress();
+    await syncBotwInventory();
+    if (botwAutoBoostOnConnect && !_botwAutoAppliedOnce && _botwSaveReady) {
+      _botwAutoAppliedOnce = true;
+      await Future.delayed(const Duration(milliseconds: 200));
+      await _applyBotwAutoBoost();
     }
   }
 
@@ -896,12 +909,18 @@ class SysBotbaseClient extends ChangeNotifier {
     botwAutoBoostOnConnect = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('botwAutoBoostOnConnect', value);
+    if (value && _botwSaveReady && !_botwAutoAppliedOnce) {
+      _botwAutoAppliedOnce = true;
+      unawaited(_applyBotwAutoBoost());
+    }
     notifyListeners();
   }
 
   Future<void> _applyBotwAutoBoost() async {
     await pokeBotwHearts(120, setMax: true);
+    await Future.delayed(const Duration(milliseconds: 100));
     await pokeBotwStaminaFull(threeWheels: true);
+    await Future.delayed(const Duration(milliseconds: 100));
     await pokeBotwMaxSlots();
     lastLog = 'BotW: Auto-Boost aplicado (30❤ / 3 Rodas / Max Slots)!';
     notifyListeners();
