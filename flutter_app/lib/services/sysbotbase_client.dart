@@ -336,6 +336,12 @@ class SysBotbaseClient extends ChangeNotifier {
   bool botwAutoBoostOnConnect = true;
   bool _botwAutoAppliedOnce = false;
   bool _botwSaveReady = false;
+  bool autoReconnect = true;
+  bool androidBgService = true;
+  bool _connecting = false;
+  bool _manualDisconnect = false;
+  Timer? _reconnectTimer;
+  static const _bgChannel = MethodChannel('com.switchhud.switch_hud/bg');
   List<BotwPouchItem> botwInventory = [];
   bool botwInventoryLoading = false;
   int? _cachedHeapBase;
@@ -370,6 +376,8 @@ class SysBotbaseClient extends ChangeNotifier {
     botwMasterSword = prefs.getBool('botwMasterSword') ?? false;
     botwHylianShield = prefs.getBool('botwHylianShield') ?? false;
     botwAutoBoostOnConnect = prefs.getBool('botwAutoBoostOnConnect') ?? true;
+    autoReconnect = prefs.getBool('autoReconnect') ?? true;
+    androidBgService = prefs.getBool('androidBgService') ?? true;
     botwSelectedVersion = prefs.getString('botwSelectedVersion') ?? 'auto';
     final fwRaw = prefs.getString('favWarps');
     if (fwRaw != null) {
@@ -392,6 +400,8 @@ class SysBotbaseClient extends ChangeNotifier {
     }
     await _loadBotwMapData();
     notifyListeners();
+    _startReconnectTimer();
+    unawaited(_syncAndroidBgService());
     connect();
   }
 
@@ -534,8 +544,57 @@ class SysBotbaseClient extends ChangeNotifier {
     await connect();
   }
 
-  Future<void> connect() async {
-    if (_socket != null) return;
+  void _startReconnectTimer() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (autoReconnect && !connected && !_connecting && !_manualDisconnect && !scanning) {
+        unawaited(connect());
+      }
+    });
+  }
+
+  Future<void> onAppResumed() async {
+    if (!connected) {
+      if (autoReconnect && !_manualDisconnect && !_connecting) {
+        await connect();
+      }
+      return;
+    }
+    // Verifica se o socket sobreviveu ao background do iOS; se estiver morto, reconecta
+    final alive = await _sendAndWaitQueued('getTitleID', timeoutMs: 700);
+    if (alive == null && autoReconnect && !_manualDisconnect) {
+      disconnect(status: 'reconectando...');
+      await connect();
+    }
+  }
+
+  Future<void> setAutoReconnect(bool v) async {
+    autoReconnect = v;
+    if (v) _manualDisconnect = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('autoReconnect', v);
+    notifyListeners();
+  }
+
+  Future<void> setAndroidBgService(bool v) async {
+    androidBgService = v;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('androidBgService', v);
+    await _syncAndroidBgService();
+    notifyListeners();
+  }
+
+  Future<void> _syncAndroidBgService() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await _bgChannel.invokeMethod(androidBgService ? 'startService' : 'stopService');
+    } catch (_) {}
+  }
+
+  Future<void> connect({bool manual = false}) async {
+    if (manual) _manualDisconnect = false;
+    if (_socket != null || _connecting) return;
+    _connecting = true;
     linkStatus = 'conectando...';
     notifyListeners();
     try {
@@ -578,6 +637,7 @@ class SysBotbaseClient extends ChangeNotifier {
       _botwStatsCycle = 0;
       _botwForceFullRefresh = true;
       _startPolling();
+      unawaited(_syncAndroidBgService());
       notifyListeners();
     } catch (e) {
       connected = false;
@@ -589,16 +649,14 @@ class SysBotbaseClient extends ChangeNotifier {
           now.difference(_lastAutoScan).inSeconds >= 20) {
         _lastAutoScan = now;
         Future.microtask(scanNetwork);
-      } else {
-        // Auto-retry in 5s
-        Future.delayed(const Duration(seconds: 5), () {
-          if (!connected && !scanning) connect();
-        });
       }
+    } finally {
+      _connecting = false;
     }
   }
 
-  void disconnect({String status = 'desconectado'}) {
+  void disconnect({String status = 'desconectado', bool manual = false}) {
+    if (manual) _manualDisconnect = true;
     _pollTimer?.cancel();
     _pollTimer = null;
     if (_pendingReply != null && !_pendingReply!.isCompleted) {
@@ -2096,6 +2154,8 @@ class SysBotbaseClient extends ChangeNotifier {
 
   @override
   void dispose() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     disconnect();
     super.dispose();
   }

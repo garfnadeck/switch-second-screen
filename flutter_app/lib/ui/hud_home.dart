@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:io';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/game_state.dart';
 import '../services/emuiibo_ftp_service.dart';
@@ -13,7 +16,7 @@ class HudHome extends StatefulWidget {
   State<HudHome> createState() => _HudHomeState();
 }
 
-class _HudHomeState extends State<HudHome> {
+class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
   int _tabIdx = 0; // 0=Status, 1=Mapa, 2=Macros, 3=Rede, 4=Config
   int _macroCat = -1;
   bool _followCam = true;
@@ -82,11 +85,19 @@ class _HudHomeState extends State<HudHome> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ipCtrl = TextEditingController(text: widget.client.switchIp);
     _portCtrl = TextEditingController(text: '${widget.client.switchPort}');
     _amiiboSearchCtrl = TextEditingController();
     _ftpPortCtrl = TextEditingController(text: '5000');
     widget.client.addListener(_onClientUpdate);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(widget.client.onAppResumed());
+    }
   }
 
   void _onClientUpdate() {
@@ -99,6 +110,7 @@ class _HudHomeState extends State<HudHome> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.client.removeListener(_onClientUpdate);
     _ipCtrl.dispose();
     _portCtrl.dispose();
@@ -2448,6 +2460,154 @@ class _HudHomeState extends State<HudHome> {
                 child: Text(c.autoHeal ? 'AutoCura: ON' : 'AutoCura: OFF'),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: th.cardBg,
+              borderRadius: BorderRadius.circular(th.cardRadius),
+              border: Border.all(color: th.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Conexão Automática & Segundo Plano',
+                  style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+                const SizedBox(height: 4),
+                SwitchListTile.adaptive(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Auto-Reconexão Automática',
+                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: const Text(
+                    'Reconecta sozinho se a rede cair ou ao voltar do segundo plano.',
+                    style: TextStyle(color: Colors.white60, fontSize: 11),
+                  ),
+                  value: c.autoReconnect,
+                  onChanged: c.setAutoReconnect,
+                ),
+                if (!kIsWeb && Platform.isAndroid)
+                  SwitchListTile.adaptive(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Manter ativo em 2º Plano (Android)',
+                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: const Text(
+                      'Usa Foreground Service com notificação fixa para manter o Auto-Boost rodando.',
+                      style: TextStyle(color: Colors.white60, fontSize: 11),
+                    ),
+                    value: c.androidBgService,
+                    onChanged: c.setAndroidBgService,
+                  )
+                else
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'iOS: o sistema pausa sockets após alguns segundos minimizado, mas o app reconecta automaticamente assim que você volta para ele.',
+                      style: TextStyle(color: Colors.white54, fontSize: 11),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: th.cardBg,
+              borderRadius: BorderRadius.circular(th.cardRadius),
+              border: Border.all(color: th.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'FAQ — Como Usar o SwitchHUD',
+                  style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+                const SizedBox(height: 4),
+                for (final item in const [
+                  (
+                    '1. Como conectar o Switch pela primeira vez?',
+                    'Instale o sys-botbase no cartão SD (pasta atmosphere/contents/430000000000000B/), ligue o Switch e o celular no mesmo Wi-Fi, abra a aba Rede e toque em Conectar (porta padrão 6000). Você também pode usar Buscar Rede para achar o IP automaticamente.'
+                  ),
+                  (
+                    '2. Como funciona o Auto-Boost (30❤ / 3 Rodas / Max Slots)?',
+                    'Com a opção Auto-aplicar ligada na aba Status, assim que o save carregar no jogo o app aplica 30 corações, 3 rodas de stamina e libera todos os slots (20 Armas / 14 Arcos / 20 Escudos). Ao entrar/sair de Shrines ou viajar rápido, a stamina é restaurada automaticamente.'
+                  ),
+                  (
+                    '3. Como adicionar Master Sword, Hylian Shield, Flechas e Materiais?',
+                    'Na aba Status, role até Bolsa & Durabilidade. Use "+ Add Item" para criar itens novos (incluindo Master Sword, Hylian Shield, comidas e materiais), "Reparar Tudo (999)" para durabilidade máxima, ou "999 Flechas / Materiais". Depois, abra e feche o menu (+) no jogo para atualizar a tela.'
+                  ),
+                  (
+                    '4. Como usar a aba Roupas (Sets)?',
+                    'Escolha qualquer set (ou peça individual: Cabeça, Peito, Calça). O app adiciona as peças novas na sua bolsa sem apagar suas roupas atuais. Como o modelo 3D do Link só recarrega ao trocar pelo jogo, clique na peça dentro do menu (+) ou faça Save & Load / Viagem Rápida para vestir no Link.'
+                  ),
+                  (
+                    '5. O que fica salvo no .sav e o que precisa do app?',
+                    'Rupees, Armaduras, Armas, Arcos, Escudos e Itens da bolsa ficam gravados no seu arquivo .sav ao salvar o jogo. Já Corações máximos, Stamina máxima e Slots do Hestu são flags de progressão e são reaplicados automaticamente pelo app sempre que você conectar.'
+                  ),
+                  (
+                    '6. Por que não dá para teleportar clicando no mapa do BotW?',
+                    'A engine de física Havok do BotW sobrescreve a posição do Link a cada frame. Por isso o mapa funciona como GPS ao vivo, rastreando Shrines, Torres e Pins salvos em tempo real.'
+                  ),
+                ])
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 8),
+                    iconColor: th.accent,
+                    collapsedIconColor: Colors.white54,
+                    title: Text(
+                      item.$1,
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                    children: [
+                      Text(
+                        item.$2,
+                        style: const TextStyle(color: Colors.white70, fontSize: 11.5, height: 1.35),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: th.cardBg,
+              borderRadius: BorderRadius.circular(th.cardRadius),
+              border: Border.all(color: th.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Créditos',
+                  style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'SwitchHUD (NS Companion)',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Idealização e Desenvolvimento: Thiago Serrão Braule Pinto (garfnadeck)\n'
+                  'Engenharia Reversa, UI e Automação: Antigravity (Google DeepMind)\n'
+                  'Protocolos & Homebrew: sys-botbase (olliz0r) • emuiibo (XorTroll)\n'
+                  'Jogos suportados: Zelda: Breath of the Wild (v1.0.0 / v1.6.0) & Pokémon Legends: Z-A',
+                  style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                ),
+              ],
+            ),
           ),
         ],
       ),
