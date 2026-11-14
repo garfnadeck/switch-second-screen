@@ -352,6 +352,7 @@ class SysBotbaseClient extends ChangeNotifier {
   double _circleAngle = 0;
   DateTime _lastAutoHeal = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime _lastShinyAlert = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _lastBotwStaminaFix = DateTime.fromMillisecondsSinceEpoch(0);
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -798,6 +799,13 @@ class SysBotbaseClient extends ChangeNotifier {
         final cur = bd.getFloat32(0, Endian.little);
         final maxS = bd.getFloat32(4, Endian.little);
         if (maxS > 0 && cur >= 0 && cur <= maxS + 10) {
+          if (botwAutoBoostOnConnect && maxS < 2990.0) {
+            final now = DateTime.now();
+            if (now.difference(_lastBotwStaminaFix).inMilliseconds >= 1500) {
+              _lastBotwStaminaFix = now;
+              unawaited(pokeBotwStaminaFull(threeWheels: true));
+            }
+          }
           final pct = ((cur / maxS) * 100.0).round().clamp(0, 100);
           if (pct != botwStaminaPct) {
             botwStaminaPct = pct;
