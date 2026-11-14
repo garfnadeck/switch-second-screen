@@ -417,6 +417,8 @@ class SysBotbaseClient extends ChangeNotifier {
       );
 
       _titlePollCnt = 0;
+      _botwStatsCycle = 0;
+      _botwForceFullRefresh = true;
       _startPolling();
       notifyListeners();
     } catch (e) {
@@ -530,17 +532,50 @@ class SysBotbaseClient extends ChangeNotifier {
     }
   }
 
+  int _botwStatsCycle = 0;
+  bool _botwForceFullRefresh = true;
+  bool _gameRunning = false;
+  DateTime _gameAttachWaitUntil = DateTime.fromMillisecondsSinceEpoch(0);
+
   void _startPolling() {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(milliseconds: 55), (_) async {
       if (!connected || _busy) return;
       final checkTitle = _titlePollCnt == 0 ||
-          (profile != GameProfile.pokemonZa && _titlePollCnt % 10 == 0) ||
+          !_gameRunning ||
+          (profile != GameProfile.pokemonZa && _titlePollCnt % 5 == 0) ||
           (_titlePollCnt % 40 == 0);
       _titlePollCnt++;
 
       if (checkTitle) {
         final tid = await _sendAndWait('getTitleID');
+        final cleanTid = (tid ?? '').trim().toUpperCase();
+        bool hasGame = cleanTid.isNotEmpty && cleanTid != '0000000000000000';
+        if (hasGame) {
+          final running = await _sendAndWait('isProgramRunning 0x$cleanTid');
+          if (running != null && running.trim() == '0') {
+            hasGame = false;
+          }
+        }
+        if (!hasGame) {
+          if (_gameRunning || titleId.isNotEmpty) {
+            _gameRunning = false;
+            titleId = '';
+            buildId = '';
+            linkStatus = 'ok (tela Home)';
+            notifyListeners();
+          }
+          return;
+        }
+        if (!_gameRunning) {
+          _gameRunning = true;
+          // Give Atmosphere dmnt ~6s on game launch before attaching pointerPeek
+          _gameAttachWaitUntil = DateTime.now().add(const Duration(seconds: 6));
+          _botwForceFullRefresh = true;
+          linkStatus = 'ok (carregando jogo...)';
+          notifyListeners();
+          return;
+        }
         final bid = await _sendAndWait('getBuildID');
         _applyDetectedTitle(tid, bid);
         if (profile != GameProfile.pokemonZa) {
@@ -549,11 +584,14 @@ class SysBotbaseClient extends ChangeNotifier {
             linkStatus = ver.isNotEmpty ? 'ok ($ver)' : 'ok ($titleId)';
             notifyListeners();
           }
-          if (profile == GameProfile.zeldaBotw) {
+          if (profile == GameProfile.zeldaBotw &&
+              DateTime.now().isAfter(_gameAttachWaitUntil)) {
             await _pollBotwStats();
           }
           return;
         }
+      } else if (!_gameRunning || DateTime.now().isBefore(_gameAttachWaitUntil)) {
+        return;
       } else if (profile != GameProfile.pokemonZa) {
         if (profile == GameProfile.zeldaBotw && _titlePollCnt % 2 == 0) {
           await _pollBotwStats();
@@ -586,6 +624,9 @@ class SysBotbaseClient extends ChangeNotifier {
   Future<void> _pollBotwStats() async {
     final p = activeBotwProfile;
     if (p == null) return;
+    final full = _botwForceFullRefresh;
+    _botwForceFullRefresh = false;
+    final cycle = _botwStatsCycle++;
     bool changed = false;
 
     if (p.staminaChain.isNotEmpty) {
@@ -605,7 +646,7 @@ class SysBotbaseClient extends ChangeNotifier {
       }
     }
 
-    if (p.heartsChain.isNotEmpty && _titlePollCnt % 4 == 0) {
+    if (p.heartsChain.isNotEmpty && (full || cycle % 2 == 0)) {
       final hex = await _sendAndWait('pointerPeek 4 ${_chainArgs(p.heartsChain)}');
       final raw = hex != null ? Pa9Crypto.hexToBytes(hex) : null;
       if (raw != null && raw.length >= 4) {
@@ -618,7 +659,7 @@ class SysBotbaseClient extends ChangeNotifier {
       }
     }
 
-    if (p.maxHeartsChain.isNotEmpty && _titlePollCnt % 8 == 0) {
+    if (p.maxHeartsChain.isNotEmpty && (full || cycle % 4 == 0)) {
       final hex = await _sendAndWait('pointerPeek 4 ${_chainArgs(p.maxHeartsChain)}');
       final raw = hex != null ? Pa9Crypto.hexToBytes(hex) : null;
       if (raw != null && raw.length >= 4) {
@@ -631,7 +672,7 @@ class SysBotbaseClient extends ChangeNotifier {
       }
     }
 
-    if (p.rupeesChain.isNotEmpty && _titlePollCnt % 8 == 4) {
+    if (p.rupeesChain.isNotEmpty && (full || cycle % 4 == 2)) {
       final hex = await _sendAndWait('pointerPeek 4 ${_chainArgs(p.rupeesChain)}');
       final raw = hex != null ? Pa9Crypto.hexToBytes(hex) : null;
       if (raw != null && raw.length >= 4) {
@@ -770,16 +811,17 @@ class SysBotbaseClient extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    if (p.heartsChain.isNotEmpty) {
-      await _sendPoke('pointerPoke 0x$hexU32 ${_chainArgs(p.heartsChain)}');
-      await _sendPoke('pointerPoke 0x$hexU32 0x02CC5FE0 0xE40 0x5B08 0x5DB8');
-      botwHeartsCur = q;
-    }
     if (setMax && p.maxHeartsChain.isNotEmpty) {
       final f = ByteData(4)..setFloat32(0, q.toDouble(), Endian.little);
       await _sendPoke('pointerPoke 0x${_toLittleEndianHex(f.buffer.asUint8List())} ${_chainArgs(p.maxHeartsChain)}');
       await _sendPoke('pointerPoke 0x$hexU32 0x02CC5FE0 0xE40 0x5B08 0x5DE0');
       botwHeartsMax = q;
+      await Future.delayed(const Duration(milliseconds: 80));
+    }
+    if (p.heartsChain.isNotEmpty) {
+      await _sendPoke('pointerPoke 0x$hexU32 ${_chainArgs(p.heartsChain)}');
+      await _sendPoke('pointerPoke 0x$hexU32 0x02CC5FE0 0xE40 0x5B08 0x5DB8');
+      botwHeartsCur = q;
     }
     lastLog = 'BotW: Coracoes -> ${(q / 4).toStringAsFixed(0)}';
     notifyListeners();

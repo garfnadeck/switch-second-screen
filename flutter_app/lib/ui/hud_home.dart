@@ -1550,12 +1550,19 @@ class _HudHomeState extends State<HudHome> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.link, size: 16),
-                    label: const Text('Conectar'),
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F3460), foregroundColor: Colors.white),
+                    icon: Icon(c.connected ? Icons.link_off : Icons.link, size: 16),
+                    label: Text(c.connected ? 'Desconectar' : 'Conectar'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: c.connected ? const Color(0xFF7B112C) : const Color(0xFF0F3460),
+                      foregroundColor: Colors.white,
+                    ),
                     onPressed: () {
-                      final p = int.tryParse(_portCtrl.text.trim()) ?? 6000;
-                      c.updateTarget(_ipCtrl.text.trim(), p);
+                      if (c.connected) {
+                        c.disconnect(status: 'desconectado manualmente');
+                      } else {
+                        final p = int.tryParse(_portCtrl.text.trim()) ?? 6000;
+                        c.updateTarget(_ipCtrl.text.trim(), p);
+                      }
                     },
                   ),
                 ),
