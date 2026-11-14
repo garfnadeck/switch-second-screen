@@ -699,10 +699,13 @@
             <summary><span>📅 2026</span><span class="chev"></span></summary>
 
             <details class="month" open>
-                <summary><span>Novembro</span><span class="count">3</span></summary>
+                <summary><span>Novembro</span><span class="count">4</span></summary>
                 <div class="date-list">
+                    <button class="date-btn active" data-date="2026-11-14" onclick="selectDate('2026-11-14', this)">
+                        <span>14/11/2026</span><span class="tag-version new">Atual</span>
+                    </button>
                     <button class="date-btn" data-date="2026-11-13" onclick="selectDate('2026-11-13', this)">
-                        <span>13/11/2026</span><span class="tag-version new">Atual</span>
+                        <span>13/11/2026</span><span class="tag-version">Anterior</span>
                     </button>
                     <button class="date-btn" data-date="2026-11-12" onclick="selectDate('2026-11-12', this)">
                         <span>12/11/2026</span>
@@ -741,7 +744,8 @@
 
     <main class="content-area">
         <select id="mobile-date" class="sidebar-mobile" aria-label="Data" onchange="selectDate(this.value)" style="margin-bottom:14px;">
-            <option value="2026-11-13">13/11/2026 · Atual</option>
+            <option value="2026-11-14">14/11/2026 · Atual</option>
+            <option value="2026-11-13">13/11/2026 · Anterior</option>
             <option value="2026-11-12">12/11/2026 · Anterior</option>
             <option value="2026-11-09">09/11/2026 · Anterior</option>
             <option value="2026-10-23">23/10/2026 · Anterior</option>
@@ -749,6 +753,50 @@
             <option value="2026-04-15">15/04/2026 · Atualizado</option>
             <option value="2026-04-14">14/04/2026 · Base</option>
         </select>
+
+        <!-- CONTEÚDO: 14/11/2026 -->
+        <div id="content-2026-11-14" class="date-content-view">
+            <div class="hero">
+                <div class="eyebrow">REGISTRO DE 14/11/2026 // MANUAL DE CHEATS + CORREÇÕES BOTW v1.6.0 (94ccb4d)</div>
+                <h2>Manual de Funcionamento dos Cheats no Jogo &amp; Correções Definitivas no BotW</h2>
+                <p>Mapeamento ao vivo no Switch (<code>sys-botbase</code> v2.5) validando a ordem de escrita de <strong>30 Corações</strong>, eliminação do crash <code>010000000000000d</code> (<code>dmnt</code>) via <code>isProgramRunning</code> + limpeza de <code>cheats</code> conflitantes, refresh completo na conexão e guia completo de como cada cheat funciona no jogo.</p>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h2>📖 Manual: RAM em Tempo Real vs Arquivo de Save (.sav)</h2>
+                    <p><strong>Por que Corações, Stamina e Rupees voltam ao padrão ao reiniciar o jogo?</strong><br>
+                    Testes ao vivo comprovaram que o <code>SaveMgr</code> do BotW grava o arquivo <code>game_data.sav</code> a partir de seu próprio buffer interno de save, e <strong>não</strong> lê alterações feitas direto na RAM (mesmo comportamento dos cheats do EdiZon):<br>
+                    • <strong>Durante a sessão atual:</strong> <em>30 Corações</em>, <em>Stamina 3x</em> e <em>Rupees</em> funcionam imediatamente em tempo real.<br>
+                    • <strong>Ao fechar e reabrir o jogo:</strong> basta tocar novamente nos botões do app para reaplicar em 1 segundo.<br>
+                    • <strong>Para gravar permanente no <code>.sav</code>:</strong> extraia o save com <em>JKSV/Checkpoint</em> e edite no PC/web (ex.: BotW Save Editor).</p>
+                </div>
+                <div class="card">
+                    <h2>❤️ Manual: Como Usar os Cheats de BotW no App</h2>
+                    <p><strong>1. 30 Corações / Curar Full:</strong> escreve primeiro o máximo (<code>0x02C9FD70→0x38→0x2A8</code> + <code>TriggerParam MaxHartValue 0x5DE0</code>), aguarda <code>80 ms</code> e só depois escreve a vida atual (<code>0x02CA1A78→0x80→0x848</code> + <code>CurrentHart 0x5DB8</code>) — evitando que o jogo limite para 3 corações.<br>
+                    <strong>2. Stamina 3x:</strong> grava <code>3000.0f</code> em <code>[0x02C9FD70, 0x38, 0x2AC]</code> (atual + máx). Gaste ou corra um pouco para a roda atualizar.<br>
+                    <strong>3. +10k / 999k Rupees:</strong> escreve direto em <code>TriggerParam CurrentRupee</code> (<code>[0x02CC5FE0, 0xE40, 0x5B08, 0x5D90]</code>).<br>
+                    <strong>4. Mapa, Pins e Teleporte:</strong> segure <strong>1s</strong> em qualquer ponto do mapa de Hyrule (ou toque em um Pin/GPS) para confirmar o teleporte.</p>
+                </div>
+                <div class="card">
+                    <h2>🛡️ Prevenção do Crash 010000000000000d (dmnt)</h2>
+                    <p>O kernel do Switch permite apenas <strong>1 debugger</strong> anexado ao jogo. Quando <code>cheats/toggles.txt</code> do EdiZon está ativo no BotW, o <code>dmnt</code> do Atmosphere disputa o processo com o <code>sys-botbase</code> e gera <code>std::abort() (0xffe)</code> ao fechar/reabrir o jogo.<br><br>
+                    <strong>Solução aplicada no app e no Switch:</strong><br>
+                    • App checa <code>isProgramRunning</code> antes de ler memória, pausa na tela Home e aguarda <strong>6s</strong> após o jogo abrir.<br>
+                    • Pasta <code>/atmosphere/contents/01007EF00011E000/cheats</code> renomeada para <code>cheats.bak</code> para não exigir segurar <code>L</code> ao abrir o Zelda.<br>
+                    • Aba Config ganhou botão <strong>Desconectar</strong> para liberar o socket TCP manualmente.</p>
+                </div>
+                <div class="card">
+                    <h2>🎁 Manual: Como Ativar o Amiibo (emuiibo + Tesla)</h2>
+                    <p>O botão <strong>Enviar</strong> da aba Amiibo grava o arquivo virtual via FTP em <code>/emuiibo/amiibo/</code> (o LED azul do botão Home pisca durante o envio FTP), mas não liga a emulação sozinho.<br><br>
+                    <strong>Passo a passo no Switch:</strong><br>
+                    1. No controle físico, segure <code>L + ▼ + R3</code> (clique o analógico direito para dentro) para abrir o <strong>Tesla Menu</strong>.<br>
+                    2. Entre em <code>emuiibo</code> → deixe <strong>Emulation: ON</strong> (<code>L+R</code>) → aperte <code>A</code> em <em>Not active virtual amiibo</em> e escolha o Amiibo (ex.: <code>Zelda BotW</code>). <em>(Opcional: <code>ZL+ZR</code> ativa Random UUID para uso ilimitado).</em><br>
+                    3. Se aparecer <em>not intercepted</em>, feche e reabra o Zelda já com o <code>emuiibo</code> ligado.<br>
+                    4. No BotW: <code>+ → System → Options → amiibo → Use amiibo</code> e use a <strong>Runa do Amiibo (<code>L</code>)</strong> mirando no chão.</p>
+                </div>
+            </div>
+        </div>
 
         <!-- CONTEÚDO: 13/11/2026 -->
         <div id="content-2026-11-13" class="date-content-view">
