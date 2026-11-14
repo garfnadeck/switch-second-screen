@@ -862,8 +862,10 @@ class _HudHomeState extends State<HudHome> {
                 style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 12),
               ),
               const Spacer(),
+              _miniBtn('+ Add Item', const Color(0xFF1B5E20), () => _showBotwAddItemDialog(c)),
+              const SizedBox(width: 4),
               _miniBtn(
-                c.botwInventoryLoading ? 'Lendo...' : 'Sincronizar Bolsa',
+                c.botwInventoryLoading ? 'Lendo...' : 'Sincronizar',
                 const Color(0xFF0F3460),
                 c.botwInventoryLoading ? () {} : () => c.syncBotwInventory(),
               ),
@@ -1011,6 +1013,131 @@ class _HudHomeState extends State<HudHome> {
               }).toList(),
             ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _showBotwAddItemDialog(SysBotbaseClient c) async {
+    const quickItems = [
+      ('Weapon_Sword_070', 'Master Sword', 0, 4000),
+      ('Weapon_Shield_030', 'Hylian Shield', 3, 80000),
+      ('Weapon_Bow_072', 'Twilight Bow', 1, 10000),
+      ('Weapon_Bow_023', 'Ancient Bow', 1, 12000),
+      ('Weapon_Sword_047', "Royal Guard's Sword", 0, 1400),
+      ('BombArrow_A', 'Bomb Arrow x999', 2, 999),
+      ('AncientArrow', 'Ancient Arrow x999', 2, 999),
+      ('FireArrow', 'Fire Arrow x999', 2, 999),
+      ('IceArrow', 'Ice Arrow x999', 2, 999),
+      ('ElectricArrow', 'Shock Arrow x999', 2, 999),
+      ('Item_Fruit_J', 'Hearty Durian x999', 7, 999),
+      ('Item_Ore_A', 'Diamond x999', 7, 999),
+    ];
+    final idCtrl = TextEditingController();
+    final valCtrl = TextEditingController(text: '999');
+    int selType = 7;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          backgroundColor: const Color(0xFF14182E),
+          title: const Text('Adicionar Item na Bolsa', style: TextStyle(color: Colors.white, fontSize: 15)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Cria um novo slot direto na bolsa (até 420 itens). Abra e feche (+) no jogo após adicionar.',
+                  style: TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+                const SizedBox(height: 10),
+                for (final q in quickItems)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E2646),
+                        foregroundColor: Colors.white,
+                        alignment: Alignment.centerLeft,
+                      ),
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        c.addBotwPouchItem(id: q.$1, type: q.$3, value: q.$4);
+                      },
+                      child: Text('${q.$2}  (${q.$1})', style: const TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                const Divider(color: Colors.white24),
+                TextField(
+                  controller: idCtrl,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  decoration: const InputDecoration(
+                    labelText: 'ID customizado (ex: Item_Ore_B)',
+                    labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButton<int>(
+                        value: selType,
+                        dropdownColor: const Color(0xFF14182E),
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        isExpanded: true,
+                        items: const [
+                          DropdownMenuItem(value: 0, child: Text('Arma (0)')),
+                          DropdownMenuItem(value: 1, child: Text('Arco (1)')),
+                          DropdownMenuItem(value: 2, child: Text('Flecha (2)')),
+                          DropdownMenuItem(value: 3, child: Text('Escudo (3)')),
+                          DropdownMenuItem(value: 4, child: Text('Cabeça (4)')),
+                          DropdownMenuItem(value: 5, child: Text('Peito (5)')),
+                          DropdownMenuItem(value: 6, child: Text('Calça (6)')),
+                          DropdownMenuItem(value: 7, child: Text('Material (7)')),
+                          DropdownMenuItem(value: 8, child: Text('Comida (8)')),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) setDlgState(() => selType = v);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 80,
+                      child: TextField(
+                        controller: valCtrl,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        decoration: const InputDecoration(
+                          labelText: 'Valor',
+                          labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Fechar')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)),
+              onPressed: () {
+                final id = idCtrl.text.trim();
+                final val = int.tryParse(valCtrl.text.trim()) ?? 1;
+                Navigator.of(ctx).pop();
+                if (id.isNotEmpty) {
+                  c.addBotwPouchItem(id: id, type: selType, value: val);
+                }
+              },
+              child: const Text('Adicionar'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1277,7 +1404,7 @@ class _HudHomeState extends State<HudHome> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Converte uma peça existente de cada parte na sua bolsa (prioriza o que estiver equipado). Depois de aplicar, abra e feche o menu (+) no jogo.',
+                  'Se alguma parte (Cabeça, Peito ou Calça) não existir na bolsa, o app cria o slot automaticamente! Depois de aplicar, abra e feche o menu (+) no jogo.',
                   style: TextStyle(fontSize: 10, color: Colors.white60),
                 ),
               ],

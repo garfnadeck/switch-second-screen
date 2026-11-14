@@ -1215,6 +1215,121 @@ class SysBotbaseClient extends ChangeNotifier {
     }
   }
 
+  static int _defaultItemUseForType(int type) {
+    switch (type) {
+      case 0:
+        return 0;
+      case 1:
+        return 3;
+      case 2:
+        return 8;
+      case 3:
+        return 4;
+      case 4:
+        return 5;
+      case 5:
+        return 6;
+      case 6:
+        return 7;
+      case 9:
+        return 9;
+      default:
+        return 10;
+    }
+  }
+
+  Future<BotwPouchItem?> addBotwPouchItem({
+    required String id,
+    required int type,
+    int value = 0,
+  }) async {
+    if (!connected || id.trim().isEmpty) return null;
+    final heapBase = await _getHeapBase();
+    if (heapBase == null) return null;
+    final pmHex = await _sendAndWaitQueued('peekMain 0x02CA6D48 8', timeoutMs: 1000);
+    final pmRaw = pmHex != null ? Pa9Crypto.hexToBytes(pmHex) : null;
+    if (pmRaw == null || pmRaw.length < 8) return null;
+    final pmAddr = ByteData.sublistView(pmRaw).getUint64(0, Endian.little);
+    if (pmAddr <= heapBase) return null;
+
+    final list1Head = pmAddr + 0x60;
+    final list2Head = pmAddr + 0x78;
+    final listsHex = await _sendAndWaitQueued('peek 0x${(list1Head - heapBase).toRadixString(16)} 48', timeoutMs: 1000);
+    final listsRaw = listsHex != null ? Pa9Crypto.hexToBytes(listsHex) : null;
+    if (listsRaw == null || listsRaw.length < 48) return null;
+    final lbd = ByteData.sublistView(listsRaw);
+    final p1 = lbd.getUint64(0, Endian.little);
+    final c1 = lbd.getInt32(16, Endian.little);
+    final n2 = lbd.getUint64(32, Endian.little);
+    final c2 = lbd.getInt32(40, Endian.little);
+    final o2 = lbd.getInt32(44, Endian.little);
+    if (c2 <= 0 || n2 == 0 || n2 == list2Head) {
+      lastLog = 'BotW: Bolsa cheia (sem slots livres)!';
+      notifyListeners();
+      return null;
+    }
+
+    final freeItem = n2 - o2;
+    final freeHex = await _sendAndWaitQueued('peek 0x${(freeItem - heapBase).toRadixString(16)} 32', timeoutMs: 900);
+    final freeRaw = freeHex != null ? Pa9Crypto.hexToBytes(freeHex) : null;
+    if (freeRaw == null || freeRaw.length < 24) return null;
+    final nextAfterFree = ByteData.sublistView(freeRaw).getUint64(16, Endian.little);
+
+    Future<void> pokeU64(int absAddr, int v) async {
+      final b = ByteData(8)..setUint64(0, v, Endian.little);
+      await _sendPoke('poke 0x${(absAddr - heapBase).toRadixString(16)} 0x${_toLittleEndianHex(b.buffer.asUint8List())}');
+    }
+
+    Future<void> pokeI32(int absAddr, int v) async {
+      final b = ByteData(4)..setInt32(0, v, Endian.little);
+      await _sendPoke('poke 0x${(absAddr - heapBase).toRadixString(16)} 0x${_toLittleEndianHex(b.buffer.asUint8List())}');
+    }
+
+    // 1. Unlink n2 from mList2
+    await pokeU64(list2Head + 8, nextAfterFree);
+    await pokeU64(nextAfterFree, list2Head);
+    await pokeI32(list2Head + 16, c2 - 1);
+
+    // 2. Populate freeItem fields + ASCII id (64B zero-padded)
+    final cleanId = id.trim();
+    final meta = ByteData(14)
+      ..setInt32(0, type, Endian.little)
+      ..setInt32(4, _defaultItemUseForType(type), Endian.little)
+      ..setInt32(8, value, Endian.little)
+      ..setUint8(12, 0) // equipped = false
+      ..setUint8(13, 1); // inInventory = true
+    await _sendPoke(
+        'poke 0x${((freeItem + 0x18) - heapBase).toRadixString(16)} 0x${_toLittleEndianHex(meta.buffer.asUint8List())}');
+
+    final strBuf = Uint8List(64);
+    final enc = utf8.encode(cleanId);
+    strBuf.setRange(0, enc.length > 63 ? 63 : enc.length, enc);
+    await _sendPoke('poke 0x${((freeItem + 0x3C) - heapBase).toRadixString(16)} 0x${_toLittleEndianHex(strBuf)}');
+
+    // 3. Link n2 at end of mList1
+    final linkBuf = ByteData(16)
+      ..setUint64(0, p1, Endian.little)
+      ..setUint64(8, list1Head, Endian.little);
+    await _sendPoke(
+        'poke 0x${((freeItem + 0x08) - heapBase).toRadixString(16)} 0x${_toLittleEndianHex(linkBuf.buffer.asUint8List())}');
+    await pokeU64(p1 + 8, n2);
+    await pokeU64(list1Head, n2);
+    await pokeI32(list1Head + 16, c1 + 1);
+
+    final added = BotwPouchItem(
+      index: botwInventory.length,
+      heapOffset: freeItem - heapBase,
+      type: type,
+      value: value,
+      equipped: false,
+      id: cleanId,
+    );
+    botwInventory.add(added);
+    lastLog = 'BotW: Adicionado ${added.displayName}!';
+    notifyListeners();
+    return added;
+  }
+
   Future<String> applyBotwArmorSet({
     required String setName,
     String? headId,
@@ -1236,13 +1351,14 @@ class SysBotbaseClient extends ChangeNotifier {
     }
 
     final applied = <String>[];
-    final missing = <String>[];
+    final created = <String>[];
 
     Future<void> tryPart(int type, String? id, String label) async {
       if (id == null || id.isEmpty) return;
       final slot = pickSlot(type);
       if (slot == null) {
-        missing.add(label);
+        final added = await addBotwPouchItem(id: id, type: type, value: 0);
+        if (added != null) created.add(label);
         return;
       }
       await convertBotwItem(slot, id);
@@ -1253,11 +1369,10 @@ class SysBotbaseClient extends ChangeNotifier {
     await tryPart(5, upperId, 'Peito');
     await tryPart(6, lowerId, 'Calça');
 
-    final msg = applied.isEmpty
-        ? 'Nenhum slot de armadura na bolsa (${missing.join(", ")}). Pegue uma peça no jogo primeiro.'
-        : (missing.isEmpty
-            ? 'Set $setName aplicado (${applied.join(", ")})! Abra/feche o menu (+).'
-            : 'Set $setName: ${applied.join(", ")} aplicado. Sem slot p/: ${missing.join(", ")}.');
+    final parts = [...applied, ...created.map((e) => '$e (novo)')];
+    final msg = parts.isEmpty
+        ? 'Nao foi possivel aplicar $setName (verifique a conexao).'
+        : 'Set $setName aplicado (${parts.join(", ")})! Abra/feche o menu (+).';
     lastLog = 'BotW: $msg';
     notifyListeners();
     return msg;
