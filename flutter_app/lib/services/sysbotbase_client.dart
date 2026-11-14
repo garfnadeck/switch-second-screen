@@ -156,6 +156,45 @@ class BotwPouchItem {
     'Obj_DRStone_Get': 'Sheikah Slate',
     'Obj_DungeonClearSeal': 'Spirit Orb',
     'Obj_KorokNuts': 'Korok Seed',
+    'Armor_001_Head': 'Hylian Hood',
+    'Armor_001_Upper': 'Hylian Tunic',
+    'Armor_001_Lower': 'Hylian Trousers',
+    'Armor_005_Head': 'Ancient Helm',
+    'Armor_005_Upper': 'Ancient Cuirass',
+    'Armor_005_Lower': 'Ancient Greaves',
+    'Armor_006_Head': 'Zora Helm',
+    'Armor_006_Upper': 'Zora Armor',
+    'Armor_006_Lower': 'Zora Greaves',
+    'Armor_008_Head': 'Stealth Mask',
+    'Armor_008_Upper': 'Stealth Chest Guard',
+    'Armor_008_Lower': 'Stealth Tights',
+    'Armor_009_Head': 'Barbarian Helm',
+    'Armor_009_Upper': 'Barbarian Armor',
+    'Armor_009_Lower': 'Barbarian Leg Wraps',
+    'Armor_011_Head': 'Flamebreaker Helm',
+    'Armor_011_Upper': 'Flamebreaker Armor',
+    'Armor_011_Lower': 'Flamebreaker Boots',
+    'Armor_012_Head': 'Snowquill Headdress',
+    'Armor_012_Upper': 'Snowquill Tunic',
+    'Armor_012_Lower': 'Snowquill Trousers',
+    'Armor_014_Head': 'Desert Voe Headband',
+    'Armor_014_Upper': 'Desert Voe Spaulder',
+    'Armor_014_Lower': 'Desert Voe Trousers',
+    'Armor_017_Head': "Climber's Bandanna",
+    'Armor_017_Upper': 'Climbing Gear',
+    'Armor_017_Lower': 'Climbing Boots',
+    'Armor_020_Head': 'Rubber Helm',
+    'Armor_020_Upper': 'Rubber Armor',
+    'Armor_020_Lower': 'Rubber Tights',
+    'Armor_043_Upper': 'Old Shirt',
+    'Armor_043_Lower': 'Well-Worn Trousers',
+    'Armor_044_Upper': "Champion's Tunic",
+    'Armor_046_Head': 'Dark Hood',
+    'Armor_046_Upper': 'Dark Tunic',
+    'Armor_046_Lower': 'Dark Trousers',
+    'Armor_060_Head': 'Fierce Deity Mask',
+    'Armor_060_Upper': 'Fierce Deity Armor',
+    'Armor_060_Lower': 'Fierce Deity Boots',
   };
 
   String get displayName => _knownNames[id] ?? id.replaceAll('_', ' ');
@@ -1174,6 +1213,54 @@ class SysBotbaseClient extends ChangeNotifier {
       lastLog = 'BotW: Convertido -> ${item.displayName}';
       notifyListeners();
     }
+  }
+
+  Future<String> applyBotwArmorSet({
+    required String setName,
+    String? headId,
+    String? upperId,
+    String? lowerId,
+  }) async {
+    if (!connected) {
+      lastLog = 'BotW: conecte ao Switch primeiro';
+      notifyListeners();
+      return lastLog;
+    }
+    if (botwInventory.isEmpty) await syncBotwInventory();
+
+    BotwPouchItem? pickSlot(int type) {
+      final list = botwInventory.where((e) => e.type == type).toList();
+      if (list.isEmpty) return null;
+      final eq = list.where((e) => e.equipped).toList();
+      return eq.isNotEmpty ? eq.first : list.first;
+    }
+
+    final applied = <String>[];
+    final missing = <String>[];
+
+    Future<void> tryPart(int type, String? id, String label) async {
+      if (id == null || id.isEmpty) return;
+      final slot = pickSlot(type);
+      if (slot == null) {
+        missing.add(label);
+        return;
+      }
+      await convertBotwItem(slot, id);
+      applied.add(label);
+    }
+
+    await tryPart(4, headId, 'Cabeça');
+    await tryPart(5, upperId, 'Peito');
+    await tryPart(6, lowerId, 'Calça');
+
+    final msg = applied.isEmpty
+        ? 'Nenhum slot de armadura na bolsa (${missing.join(", ")}). Pegue uma peça no jogo primeiro.'
+        : (missing.isEmpty
+            ? 'Set $setName aplicado (${applied.join(", ")})! Abra/feche o menu (+).'
+            : 'Set $setName: ${applied.join(", ")} aplicado. Sem slot p/: ${missing.join(", ")}.');
+    lastLog = 'BotW: $msg';
+    notifyListeners();
+    return msg;
   }
 
   Future<void> _pollPartySlot(int slot) async {

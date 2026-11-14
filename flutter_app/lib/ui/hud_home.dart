@@ -45,6 +45,7 @@ class _HudHomeState extends State<HudHome> {
   static const _tabs = [
     (icon: Icons.favorite_rounded, label: 'Status'),
     (icon: Icons.map_rounded, label: 'Mapa'),
+    (icon: Icons.checkroom_rounded, label: 'Roupas'),
     (icon: Icons.gamepad_rounded, label: 'Macros'),
     (icon: Icons.nfc_rounded, label: 'Amiibo'),
     (icon: Icons.wifi_rounded, label: 'Rede'),
@@ -130,6 +131,7 @@ class _HudHomeState extends State<HudHome> {
                         children: [
                           _buildStatusTab(c, th),
                           _buildMapTab(c, th),
+                          _buildBotwArmorSetsTab(c, th),
                           _buildMacrosTab(c, th),
                           _buildAmiiboTab(c, th),
                           _buildNetTab(c, th),
@@ -1100,6 +1102,268 @@ class _HudHomeState extends State<HudHome> {
             },
             child: const Text('Aplicar ID'),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBotwArmorSetsTab(SysBotbaseClient c, HudThemeConfig th) {
+    if (c.profile != GameProfile.zeldaBotw) {
+      return Center(
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: th.cardBg,
+            borderRadius: BorderRadius.circular(th.cardRadius),
+            border: Border.all(color: th.cardBorder),
+          ),
+          child: const Text(
+            'Aba de Sets de Roupas exclusiva para Zelda: Breath of the Wild.',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    final heads = c.botwInventory.where((e) => e.type == 4).toList();
+    final uppers = c.botwInventory.where((e) => e.type == 5).toList();
+    final lowers = c.botwInventory.where((e) => e.type == 6).toList();
+
+    const sets = [
+      (
+        name: "Champion's / Hylian",
+        bonus: 'Mostra HP exato dos inimigos (Túnica do Campeão)',
+        color: Color(0xFF0288D1),
+        head: 'Armor_001_Head',
+        upper: 'Armor_044_Upper',
+        lower: 'Armor_001_Lower',
+      ),
+      (
+        name: 'Sheikah (Stealth)',
+        bonus: 'Furtividade máxima + Velocidade à noite',
+        color: Color(0xFF3949AB),
+        head: 'Armor_008_Head',
+        upper: 'Armor_008_Upper',
+        lower: 'Armor_008_Lower',
+      ),
+      (
+        name: 'Climbing (Escalada)',
+        bonus: 'Escalar super rápido + menor gasto de stamina',
+        color: Color(0xFF2E7D32),
+        head: 'Armor_017_Head',
+        upper: 'Armor_017_Upper',
+        lower: 'Armor_017_Lower',
+      ),
+      (
+        name: 'Barbarian (Ataque +50%)',
+        bonus: 'Ataque nível 3 (+50% de dano)',
+        color: Color(0xFFC62828),
+        head: 'Armor_009_Head',
+        upper: 'Armor_009_Upper',
+        lower: 'Armor_009_Lower',
+      ),
+      (
+        name: 'Ancient (Defesa Máxima)',
+        bonus: 'Defesa 84 + Bônus em armas ancestrais',
+        color: Color(0xFF00838F),
+        head: 'Armor_005_Head',
+        upper: 'Armor_005_Upper',
+        lower: 'Armor_005_Lower',
+      ),
+      (
+        name: 'Zora (Nado & Cachoeira)',
+        bonus: 'Nadar rápido + subir cachoeiras',
+        color: Color(0xFF0277BD),
+        head: 'Armor_006_Head',
+        upper: 'Armor_006_Upper',
+        lower: 'Armor_006_Lower',
+      ),
+      (
+        name: 'Flamebreaker (Vulcão)',
+        bonus: 'Imunidade ao fogo / Death Mountain',
+        color: Color(0xFFD84315),
+        head: 'Armor_011_Head',
+        upper: 'Armor_011_Upper',
+        lower: 'Armor_011_Lower',
+      ),
+      (
+        name: 'Snowquill (Neve / Frio)',
+        bonus: 'Resistência total ao frio + Unfreezable',
+        color: Color(0xFF00ACC1),
+        head: 'Armor_012_Head',
+        upper: 'Armor_012_Upper',
+        lower: 'Armor_012_Lower',
+      ),
+      (
+        name: 'Rubber (Raios)',
+        bonus: 'Imunidade a raios e ataques elétricos',
+        color: Color(0xFFF9A825),
+        head: 'Armor_020_Head',
+        upper: 'Armor_020_Upper',
+        lower: 'Armor_020_Lower',
+      ),
+      (
+        name: 'Gerudo Voe (Deserto)',
+        bonus: 'Resistência ao calor intenso',
+        color: Color(0xFFEF6C00),
+        head: 'Armor_014_Head',
+        upper: 'Armor_014_Upper',
+        lower: 'Armor_014_Lower',
+      ),
+      (
+        name: 'Dark Link',
+        bonus: 'Visual sombrio + Velocidade à noite',
+        color: Color(0xFF4A148C),
+        head: 'Armor_046_Head',
+        upper: 'Armor_046_Upper',
+        lower: 'Armor_046_Lower',
+      ),
+      (
+        name: 'Fierce Deity',
+        bonus: "Ataque +50% (visual Majora's Mask)",
+        color: Color(0xFF6A1B9A),
+        head: 'Armor_060_Head',
+        upper: 'Armor_060_Upper',
+        lower: 'Armor_060_Lower',
+      ),
+    ];
+
+    Future<void> applyFeedback(Future<String> Function() fn) async {
+      final msg = await fn();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
+      );
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: th.cardBg,
+              borderRadius: BorderRadius.circular(th.cardRadius),
+              border: Border.all(color: th.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Sets de Roupas (BotW)',
+                      style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                    const Spacer(),
+                    _miniBtn(
+                      c.botwInventoryLoading ? 'Lendo...' : 'Sincronizar Bolsa',
+                      const Color(0xFF0F3460),
+                      c.botwInventoryLoading ? () {} : () => c.syncBotwInventory(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _statusBadge('Cabeça (${heads.length})', heads.isNotEmpty, const Color(0xFF1B5E20)),
+                    _statusBadge('Peito (${uppers.length})', uppers.isNotEmpty, const Color(0xFF1B5E20)),
+                    _statusBadge('Calça (${lowers.length})', lowers.isNotEmpty, const Color(0xFF1B5E20)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Converte uma peça existente de cada parte na sua bolsa (prioriza o que estiver equipado). Depois de aplicar, abra e feche o menu (+) no jogo.',
+                  style: TextStyle(fontSize: 10, color: Colors.white60),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final s in sets)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: th.cardBg,
+                borderRadius: BorderRadius.circular(th.cardRadius),
+                border: Border.all(color: s.color.withValues(alpha: 0.55)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(color: s.color, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              s.name,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                            Text(
+                              s.bonus,
+                              style: const TextStyle(color: Colors.white70, fontSize: 10),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _miniBtn(
+                        'Aplicar Set',
+                        s.color,
+                        () => applyFeedback(
+                          () => c.applyBotwArmorSet(
+                            setName: s.name,
+                            headId: s.head,
+                            upperId: s.upper,
+                            lowerId: s.lower,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _miniBtn(
+                          'Só Cabeça',
+                          const Color(0xFF1A2038),
+                          () => applyFeedback(() => c.applyBotwArmorSet(setName: '${s.name} (Cabeça)', headId: s.head)),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: _miniBtn(
+                          'Só Peito',
+                          const Color(0xFF1A2038),
+                          () => applyFeedback(() => c.applyBotwArmorSet(setName: '${s.name} (Peito)', upperId: s.upper)),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: _miniBtn(
+                          'Só Calça',
+                          const Color(0xFF1A2038),
+                          () => applyFeedback(() => c.applyBotwArmorSet(setName: '${s.name} (Calça)', lowerId: s.lower)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
