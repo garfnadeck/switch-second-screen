@@ -716,7 +716,7 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
                   const SizedBox(width: 6),
                   const Expanded(
                     child: Text(
-                      'Auto-aplicar ao conectar (30❤ / 3 Rodas / Max Slots)',
+                      'Auto-aplicar ao conectar (30❤ / 3 Rodas / 999k / Slots)',
                       style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
                     ),
                   ),

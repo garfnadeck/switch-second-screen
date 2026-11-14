@@ -985,8 +985,10 @@ class SysBotbaseClient extends ChangeNotifier {
     await Future.delayed(const Duration(milliseconds: 100));
     await pokeBotwStaminaFull(threeWheels: true);
     await Future.delayed(const Duration(milliseconds: 100));
+    await pokeBotwRupees(999999);
+    await Future.delayed(const Duration(milliseconds: 100));
     await pokeBotwMaxSlots();
-    lastLog = 'BotW: Auto-Boost aplicado (30❤ / 3 Rodas / Max Slots)!';
+    lastLog = 'BotW: Auto-Boost aplicado (30❤ / 3 Rodas / 999k Rupees / Max Slots)!';
     notifyListeners();
   }
 
