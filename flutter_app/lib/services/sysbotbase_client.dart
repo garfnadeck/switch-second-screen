@@ -333,6 +333,8 @@ class SysBotbaseClient extends ChangeNotifier {
   Map<String, int> _botwExtraFlagIdx = {};
   bool botwProgressSyncing = false;
   bool _botwSyncedOnce = false;
+  bool botwAutoBoostOnConnect = true;
+  bool _botwAutoAppliedOnce = false;
   List<BotwPouchItem> botwInventory = [];
   bool botwInventoryLoading = false;
   int? _cachedHeapBase;
@@ -365,6 +367,7 @@ class SysBotbaseClient extends ChangeNotifier {
     botwBeasts = prefs.getInt('botwBeasts') ?? 0;
     botwMasterSword = prefs.getBool('botwMasterSword') ?? false;
     botwHylianShield = prefs.getBool('botwHylianShield') ?? false;
+    botwAutoBoostOnConnect = prefs.getBool('botwAutoBoostOnConnect') ?? true;
     botwSelectedVersion = prefs.getString('botwSelectedVersion') ?? 'auto';
     final fwRaw = prefs.getString('favWarps');
     if (fwRaw != null) {
@@ -606,6 +609,8 @@ class SysBotbaseClient extends ChangeNotifier {
     } catch (_) {}
     _socket = null;
     _cachedHeapBase = null;
+    _botwSyncedOnce = false;
+    _botwAutoAppliedOnce = false;
     connected = false;
     linkStatus = status;
     notifyListeners();
@@ -881,6 +886,25 @@ class SysBotbaseClient extends ChangeNotifier {
       unawaited(syncBotwProgress());
       unawaited(syncBotwInventory());
     }
+    if (botwAutoBoostOnConnect && !_botwAutoAppliedOnce && botwHeartsCur > 0 && botwHeartsMax >= 12) {
+      _botwAutoAppliedOnce = true;
+      unawaited(_applyBotwAutoBoost());
+    }
+  }
+
+  Future<void> setBotwAutoBoostOnConnect(bool value) async {
+    botwAutoBoostOnConnect = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('botwAutoBoostOnConnect', value);
+    notifyListeners();
+  }
+
+  Future<void> _applyBotwAutoBoost() async {
+    await pokeBotwHearts(120, setMax: true);
+    await pokeBotwStaminaFull(threeWheels: true);
+    await pokeBotwMaxSlots();
+    lastLog = 'BotW: Auto-Boost aplicado (30❤ / 3 Rodas / Max Slots)!';
+    notifyListeners();
   }
 
   String _botwRegionName(double x, double z) {

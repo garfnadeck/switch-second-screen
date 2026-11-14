@@ -679,6 +679,49 @@ class _HudHomeState extends State<HudHome> {
             ],
           ),
           const SizedBox(height: 6),
+          InkWell(
+            onTap: () => c.setBotwAutoBoostOnConnect(!c.botwAutoBoostOnConnect),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: c.botwAutoBoostOnConnect
+                    ? const Color(0xFF0E2A3A)
+                    : const Color(0xFF101526),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: c.botwAutoBoostOnConnect ? Colors.cyanAccent : Colors.white24,
+                  width: 0.9,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    c.botwAutoBoostOnConnect ? Icons.bolt : Icons.bolt_outlined,
+                    size: 16,
+                    color: c.botwAutoBoostOnConnect ? Colors.cyanAccent : Colors.white54,
+                  ),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text(
+                      'Auto-aplicar ao conectar (30❤ / 3 Rodas / Max Slots)',
+                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  SizedBox(
+                    height: 22,
+                    child: Switch(
+                      value: c.botwAutoBoostOnConnect,
+                      onChanged: c.setBotwAutoBoostOnConnect,
+                      activeThumbColor: Colors.cyanAccent,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
           Row(
             children: [
               const Text('Versao:', style: TextStyle(fontSize: 11, color: Color(0xFF99A2C8))),
