@@ -38,6 +38,7 @@ class _HudHomeState extends State<HudHome> {
   String _amiiboMsg = '';
   bool _amiiboBusy = false;
   String _botwShrineFilter = 'all'; // 'all', 'done', 'missing', 'off'
+  String _botwInvFilter = 'all'; // 'all', 'gear', 'arrows', 'mat', 'food', 'other'
   bool _botwShowKoroks = false;
   ({String name, double x, double z})? _botwNavTarget;
 
@@ -549,9 +550,19 @@ class _HudHomeState extends State<HudHome> {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  'Hyrule HUD (BotW)',
-                  style: TextStyle(color: th.titleColor, fontWeight: FontWeight.w700, fontSize: 13),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hyrule HUD (BotW)',
+                      style: TextStyle(color: th.titleColor, fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                    if (c.connected)
+                      Text(
+                        '${c.zoneName.isNotEmpty ? c.zoneName : "Hyrule"} • X:${c.posX.toStringAsFixed(0)} Y:${c.posAlt.toStringAsFixed(0)} Z:${c.posY.toStringAsFixed(0)}',
+                        style: const TextStyle(fontSize: 10, color: Color(0xFF00E5FF), fontWeight: FontWeight.w600),
+                      ),
+                  ],
                 ),
               ),
               Text(
@@ -659,6 +670,9 @@ class _HudHomeState extends State<HudHome> {
               _miniBtn('Stamina 3x', const Color(0xFF00695C), () => c.pokeBotwStaminaFull(threeWheels: true)),
               _miniBtn('+10k Rupees', const Color(0xFF1B5E20), () => c.pokeBotwRupees(c.botwRupees + 10000)),
               _miniBtn('999k Rupees', const Color(0xFF2E7D32), () => c.pokeBotwRupees(999999)),
+              _miniBtn('Reparar Tudo (999)', const Color(0xFF0277BD), () => c.repairAllBotwGear(durability: 99900)),
+              _miniBtn('999 Flechas', const Color(0xFF6A1B9A), () => c.maxAllBotwStackables(arrowsOnly: true)),
+              _miniBtn('999 Materiais', const Color(0xFFE65100), () => c.maxAllBotwStackables(arrowsOnly: false)),
             ],
           ),
           const SizedBox(height: 6),
@@ -755,6 +769,8 @@ class _HudHomeState extends State<HudHome> {
             ),
           ),
           const SizedBox(height: 8),
+          _buildBotwEquippedAndInventoryCard(c, th),
+          const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -780,6 +796,216 @@ class _HudHomeState extends State<HudHome> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBotwEquippedAndInventoryCard(SysBotbaseClient c, HudThemeConfig th) {
+    final equipped = c.botwInventory.where((e) => e.equipped).toList();
+    final filtered = c.botwInventory.where((e) {
+      switch (_botwInvFilter) {
+        case 'gear':
+          return e.isGear;
+        case 'arrows':
+          return e.isArrow;
+        case 'mat':
+          return e.type == 7;
+        case 'food':
+          return e.type == 8;
+        case 'other':
+          return e.isArmor || e.type == 9;
+        default:
+          return true;
+      }
+    }).toList();
+
+    Color typeColor(int t) {
+      switch (t) {
+        case 0:
+          return const Color(0xFF4FC3F7);
+        case 1:
+          return const Color(0xFFBA68C8);
+        case 2:
+          return const Color(0xFFFFD54F);
+        case 3:
+          return const Color(0xFF4DB6AC);
+        case 4:
+        case 5:
+        case 6:
+          return const Color(0xFF90CAF9);
+        case 7:
+          return const Color(0xFF81C784);
+        case 8:
+          return const Color(0xFFFF8A65);
+        default:
+          return const Color(0xFFB0BEC5);
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: th.cardBg,
+        borderRadius: BorderRadius.circular(th.cardRadius),
+        border: Border.all(color: th.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Bolsa & Durabilidade (${c.botwInventory.length})',
+                style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 12),
+              ),
+              const Spacer(),
+              _miniBtn(
+                c.botwInventoryLoading ? 'Lendo...' : 'Sincronizar Bolsa',
+                const Color(0xFF0F3460),
+                c.botwInventoryLoading ? () {} : () => c.syncBotwInventory(),
+              ),
+            ],
+          ),
+          if (equipped.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const Text('Em uso agora:', style: TextStyle(fontSize: 10, color: Color(0xFF99A2C8))),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: equipped.map((item) {
+                final col = typeColor(item.type);
+                final valText = item.isGear ? '${item.durability.toStringAsFixed(0)} dur.' : 'x${item.value}';
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF101324),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: col.withValues(alpha: 0.55)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${item.categoryLabel}: ${item.displayName}',
+                        style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(valText, style: TextStyle(fontSize: 10, color: col, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final f in [
+                  ('all', 'Tudo'),
+                  ('gear', 'Armas/Escudos'),
+                  ('arrows', 'Flechas'),
+                  ('mat', 'Materiais'),
+                  ('food', 'Comida'),
+                  ('other', 'Armadura/Chave'),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(f.$2, style: const TextStyle(fontSize: 10)),
+                      selected: _botwInvFilter == f.$1,
+                      selectedColor: const Color(0xFF006064),
+                      backgroundColor: const Color(0xFF101324),
+                      onSelected: (_) => setState(() => _botwInvFilter = f.$1),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (c.botwInventory.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                c.connected
+                    ? 'Toque em "Sincronizar Bolsa" com o save carregado para listar armas, flechas e itens.'
+                    : 'Conecte ao Switch para ler e editar a bolsa do Link.',
+                style: const TextStyle(fontSize: 11, color: Colors.white54),
+              ),
+            )
+          else if (filtered.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('Nenhum item nesta categoria.', style: TextStyle(fontSize: 11, color: Colors.white54)),
+            )
+          else
+            Column(
+              children: filtered.take(30).map((item) {
+                final col = typeColor(item.type);
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF101324),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: item.equipped ? col.withValues(alpha: 0.7) : const Color(0xFF1E2540),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: col.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          item.categoryLabel,
+                          style: TextStyle(fontSize: 9, color: col, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.displayName,
+                              style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              item.isGear
+                                  ? 'Durabilidade: ${item.durability.toStringAsFixed(0)}${item.equipped ? " • EQUIPADO" : ""}'
+                                  : (item.isStackable
+                                      ? 'Qtd: ${item.value}${item.equipped ? " • EQUIPADO" : ""}'
+                                      : (item.equipped ? 'EQUIPADO' : item.id)),
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: item.equipped ? const Color(0xFFFFD166) : const Color(0xFF8892B0),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (item.isGear) ...[
+                        _miniBtn('100', const Color(0xFF0277BD), () => c.setBotwItemValue(item, 10000)),
+                        const SizedBox(width: 4),
+                        _miniBtn('999', const Color(0xFF00695C), () => c.setBotwItemValue(item, 99900)),
+                      ] else if (item.isStackable) ...[
+                        _miniBtn('+50', const Color(0xFF283593), () => c.setBotwItemValue(item, item.value + 50)),
+                        const SizedBox(width: 4),
+                        _miniBtn('x999', const Color(0xFF6A1B9A), () => c.setBotwItemValue(item, 999)),
+                      ],
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
         ],
       ),
     );
@@ -1961,7 +2187,8 @@ class _HudHomeState extends State<HudHome> {
               },
               child: const Text('Limpar GPS', style: TextStyle(color: Colors.orangeAccent)),
             ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00838F)),
             onPressed: () {
               final label = pinIndex != null
                   ? c.botwPins[pinIndex].name
@@ -1969,15 +2196,7 @@ class _HudHomeState extends State<HudHome> {
               setState(() => _botwNavTarget = (name: label, x: x, z: z));
               Navigator.of(ctx).pop();
             },
-            child: const Text('Destino (GPS)', style: TextStyle(color: Color(0xFF00E5FF))),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00838F)),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              c.pokeBotwPosition(x, y, z);
-            },
-            child: const Text('Teleporte (Exp.)'),
+            child: const Text('Destino (GPS)'),
           ),
         ],
       ),

@@ -50,6 +50,107 @@ class BotwPin {
       );
 }
 
+class BotwPouchItem {
+  final int index;
+  final int heapOffset;
+  final int type; // 0=Sword, 1=Bow, 2=Arrow, 3=Shield, 4..6=Armor, 7=Material, 8=Food, 9=KeyItem
+  int value;
+  final bool equipped;
+  final String id;
+
+  BotwPouchItem({
+    required this.index,
+    required this.heapOffset,
+    required this.type,
+    required this.value,
+    required this.equipped,
+    required this.id,
+  });
+
+  bool get isGear => type == 0 || type == 1 || type == 3;
+  bool get isArrow => type == 2;
+  bool get isArmor => type == 4 || type == 5 || type == 6;
+  bool get isStackable => type == 2 || type == 7 || type == 8;
+  double get durability => value / 100.0;
+
+  String get categoryLabel {
+    switch (type) {
+      case 0:
+        return 'Arma';
+      case 1:
+        return 'Arco';
+      case 2:
+        return 'Flecha';
+      case 3:
+        return 'Escudo';
+      case 4:
+      case 5:
+      case 6:
+        return 'Armadura';
+      case 7:
+        return 'Material';
+      case 8:
+        return 'Comida';
+      case 9:
+        return 'Chave';
+      default:
+        return 'Item';
+    }
+  }
+
+  static const Map<String, String> _knownNames = {
+    'Weapon_Sword_001': "Traveler's Sword",
+    'Weapon_Sword_002': "Soldier's Broadsword",
+    'Weapon_Sword_003': "Knight's Broadsword",
+    'Weapon_Sword_004': 'Boko Club',
+    'Weapon_Sword_005': 'Spiked Boko Club',
+    'Weapon_Sword_043': 'Torch',
+    'Weapon_Sword_044': 'Tree Branch',
+    'Weapon_Sword_047': 'Royal Guard\'s Sword',
+    'Weapon_Sword_058': 'Master Sword',
+    'Weapon_Sword_070': 'Master Sword',
+    'Weapon_Lsword_031': 'Iron Sledgehammer',
+    'Weapon_Lsword_032': 'Woodcutter\'s Axe',
+    'Weapon_Bow_001': "Traveler's Bow",
+    'Weapon_Bow_002': "Soldier's Bow",
+    'Weapon_Bow_004': 'Boko Bow',
+    'Weapon_Bow_038': 'Wooden Bow',
+    'Weapon_Shield_001': 'Wooden Shield',
+    'Weapon_Shield_004': 'Boko Shield',
+    'Weapon_Shield_030': 'Hylian Shield',
+    'Weapon_Shield_035': "Traveler's Shield",
+    'Weapon_Shield_040': 'Pot Lid',
+    'NormalArrow': 'Normal Arrow',
+    'FireArrow': 'Fire Arrow',
+    'IceArrow': 'Ice Arrow',
+    'ElectricArrow': 'Shock Arrow',
+    'BombArrow_A': 'Bomb Arrow',
+    'AncientArrow': 'Ancient Arrow',
+    'Item_Fruit_A': 'Apple',
+    'Item_Fruit_I': 'Spicy Pepper',
+    'Item_Fruit_K': 'Acorn',
+    'Item_Fruit_L': 'Chickaloo Tree Nut',
+    'Item_Mushroom_A': 'Stamella Shroom',
+    'Item_Mushroom_E': 'Hylian Shroom',
+    'Item_MushroomGet_D': 'Rushroom',
+    'Item_PlantGet_I': 'Blue Nightshade',
+    'Item_Enemy_00': 'Bokoblin Horn',
+    'Item_Enemy_01': 'Bokoblin Fang',
+    'Item_Enemy_27': 'Octo Balloon',
+    'Item_Enemy_28': 'Octorok Eyeball',
+    'Item_Enemy_40': 'Chuchu Jelly',
+    'Item_Ore_B': 'Ruby',
+    'Item_Ore_E': 'Opal',
+    'Item_Ore_F': 'Amber',
+    'Obj_FireWoodBundle': 'Wood',
+    'Obj_DRStone_Get': 'Sheikah Slate',
+    'Obj_DungeonClearSeal': 'Spirit Orb',
+    'Obj_KorokNuts': 'Korok Seed',
+  };
+
+  String get displayName => _knownNames[id] ?? id.replaceAll('_', ' ');
+}
+
 class BotwMemoryProfile {
   final String versionLabel;
   final List<int> heartsChain;
@@ -183,6 +284,9 @@ class SysBotbaseClient extends ChangeNotifier {
   Map<String, int> _botwExtraFlagIdx = {};
   bool botwProgressSyncing = false;
   bool _botwSyncedOnce = false;
+  List<BotwPouchItem> botwInventory = [];
+  bool botwInventoryLoading = false;
+  int? _cachedHeapBase;
 
   // TCP internals
   Socket? _socket;
@@ -452,6 +556,7 @@ class SysBotbaseClient extends ChangeNotifier {
       _socket?.destroy();
     } catch (_) {}
     _socket = null;
+    _cachedHeapBase = null;
     connected = false;
     linkStatus = status;
     notifyListeners();
@@ -725,6 +830,7 @@ class SysBotbaseClient extends ChangeNotifier {
     if (!_botwSyncedOnce && !botwProgressSyncing && botwShrineList.isNotEmpty) {
       _botwSyncedOnce = true;
       unawaited(syncBotwProgress());
+      unawaited(syncBotwInventory());
     }
   }
 
@@ -921,6 +1027,125 @@ class SysBotbaseClient extends ChangeNotifier {
       botwProgressSyncing = false;
       notifyListeners();
     }
+  }
+
+  Future<int?> _getHeapBase() async {
+    if (_cachedHeapBase != null) return _cachedHeapBase;
+    final res = await _sendAndWaitQueued('getHeapBase', timeoutMs: 1000);
+    if (res == null || res.trim().isEmpty) return null;
+    final val = int.tryParse(res.trim(), radix: 16);
+    if (val != null && val > 0) _cachedHeapBase = val;
+    return _cachedHeapBase;
+  }
+
+  Future<void> syncBotwInventory() async {
+    if (!connected || botwInventoryLoading) return;
+    botwInventoryLoading = true;
+    notifyListeners();
+    try {
+      final heapBase = await _getHeapBase();
+      if (heapBase == null) return;
+      final headHex = await _sendAndWaitQueued('pointerPeek 24 0x02CA6D48 0x60', timeoutMs: 1200);
+      final head = headHex != null ? Pa9Crypto.hexToBytes(headHex) : null;
+      if (head == null || head.length < 24) return;
+      final bd = ByteData.sublistView(head);
+      int nodePtr = bd.getUint64(8, Endian.little);
+      final count = bd.getInt32(16, Endian.little).clamp(0, 420);
+      final nodeOff = bd.getInt32(20, Endian.little);
+      if (nodePtr == 0 || count == 0) {
+        botwInventory = [];
+        return;
+      }
+
+      final items = <BotwPouchItem>[];
+      for (int i = 0; i < count; i++) {
+        final itemAddr = nodePtr - nodeOff;
+        final rel = itemAddr - heapBase;
+        if (rel <= 0) break;
+        final hex = await _sendAndWaitQueued('peek 0x${rel.toRadixString(16)} 144', timeoutMs: 900);
+        final raw = hex != null ? Pa9Crypto.hexToBytes(hex) : null;
+        if (raw == null || raw.length < 0x80) break;
+        final ibd = ByteData.sublistView(raw);
+        final nextNode = ibd.getUint64(0x10, Endian.little);
+        final mType = ibd.getInt32(0x18, Endian.little);
+        final mVal = ibd.getInt32(0x20, Endian.little);
+        final mEq = raw[0x24] != 0;
+        final nameBytes = raw.sublist(0x3C, 0x7C);
+        final zeroIdx = nameBytes.indexOf(0);
+        final id = String.fromCharCodes(zeroIdx >= 0 ? nameBytes.sublist(0, zeroIdx) : nameBytes).trim();
+        if (id.isNotEmpty) {
+          items.add(BotwPouchItem(
+            index: i,
+            heapOffset: rel,
+            type: mType,
+            value: mVal,
+            equipped: mEq,
+            id: id,
+          ));
+        }
+        nodePtr = nextNode;
+        if (nodePtr == 0) break;
+      }
+      botwInventory = items;
+      lastLog = 'BotW: Bolsa sincronizada (${items.length} itens)';
+    } finally {
+      botwInventoryLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> setBotwItemValue(BotwPouchItem item, int newValue) async {
+    if (!connected) return;
+    final maxV = item.isGear ? 99900 : 999;
+    final minV = item.isGear ? 100 : 1;
+    final clamped = newValue.clamp(minV, maxV);
+    final b = ByteData(4)..setInt32(0, clamped, Endian.little);
+    final hex = _toLittleEndianHex(b.buffer.asUint8List());
+    final addr = item.heapOffset + 0x20;
+    await _sendPoke('poke 0x${addr.toRadixString(16)} 0x$hex');
+    item.value = clamped;
+    final desc = item.isGear ? '${(clamped / 100).toStringAsFixed(0)} dur.' : 'x$clamped';
+    lastLog = 'BotW: ${item.displayName} -> $desc';
+    notifyListeners();
+  }
+
+  Future<void> repairAllBotwGear({int durability = 99900}) async {
+    if (!connected) return;
+    if (botwInventory.isEmpty) await syncBotwInventory();
+    int count = 0;
+    for (final item in botwInventory) {
+      if (item.isGear) {
+        final b = ByteData(4)..setInt32(0, durability, Endian.little);
+        final hex = _toLittleEndianHex(b.buffer.asUint8List());
+        await _sendPoke('poke 0x${(item.heapOffset + 0x20).toRadixString(16)} 0x$hex');
+        item.value = durability;
+        count++;
+      }
+    }
+    lastLog = count > 0
+        ? 'BotW: $count equipamentos com durabilidade ${(durability / 100).toStringAsFixed(0)}!'
+        : 'BotW: nenhum equipamento na bolsa';
+    notifyListeners();
+  }
+
+  Future<void> maxAllBotwStackables({bool arrowsOnly = false, int count = 999}) async {
+    if (!connected) return;
+    if (botwInventory.isEmpty) await syncBotwInventory();
+    int updated = 0;
+    for (final item in botwInventory) {
+      final match = arrowsOnly ? item.isArrow : item.type == 7;
+      if (match) {
+        final b = ByteData(4)..setInt32(0, count, Endian.little);
+        final hex = _toLittleEndianHex(b.buffer.asUint8List());
+        await _sendPoke('poke 0x${(item.heapOffset + 0x20).toRadixString(16)} 0x$hex');
+        item.value = count;
+        updated++;
+      }
+    }
+    lastLog = updated > 0
+        ? 'BotW: $updated ${arrowsOnly ? "tipos de flechas" : "materiais"} -> x$count!'
+        : 'BotW: nenhum item correspondente na bolsa';
+    notifyListeners();
   }
 
   Future<void> _pollPartySlot(int slot) async {
