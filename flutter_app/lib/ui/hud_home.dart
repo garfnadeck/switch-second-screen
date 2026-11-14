@@ -993,6 +993,8 @@ class _HudHomeState extends State<HudHome> {
                         ),
                       ),
                       if (item.isGear) ...[
+                        _miniBtn('Trocar', const Color(0xFF4527A0), () => _showBotwConvertDialog(c, item)),
+                        const SizedBox(width: 4),
                         _miniBtn('100', const Color(0xFF0277BD), () => c.setBotwItemValue(item, 10000)),
                         const SizedBox(width: 4),
                         _miniBtn('999', const Color(0xFF00695C), () => c.setBotwItemValue(item, 99900)),
@@ -1006,6 +1008,98 @@ class _HudHomeState extends State<HudHome> {
                 );
               }).toList(),
             ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showBotwConvertDialog(SysBotbaseClient c, BotwPouchItem item) async {
+    final presets = switch (item.type) {
+      0 => const [
+          ('Weapon_Sword_070', 'Master Sword', 4000),
+          ('Weapon_Sword_047', "Royal Guard's Sword (48)", 1400),
+          ('Weapon_Sword_024', 'Royal Broadsword (36)', 3600),
+          ('Weapon_Lsword_055', 'Royal Claymore (52)', 4000),
+          ('Weapon_Spear_024', 'Royal Halberd (26)', 5000),
+        ],
+      1 => const [
+          ('Weapon_Bow_072', 'Twilight Bow', 10000),
+          ('Weapon_Bow_036', 'Royal Bow (38)', 6000),
+          ('Weapon_Bow_023', 'Ancient Bow (44)', 12000),
+          ('Weapon_Bow_033', "Royal Guard's Bow (50)", 2000),
+        ],
+      3 => const [
+          ('Weapon_Shield_030', 'Hylian Shield (90)', 80000),
+          ('Weapon_Shield_033', "Royal Guard's Shield (70)", 1400),
+          ('Weapon_Shield_022', 'Royal Shield (55)', 2900),
+          ('Weapon_Shield_038', 'Ancient Shield (70)', 3200),
+        ],
+      _ => const <(String, String, int)>[],
+    };
+    final customCtrl = TextEditingController(text: item.id);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF14182E),
+        title: Text(
+          'Converter ${item.displayName}',
+          style: const TextStyle(color: Colors.white, fontSize: 15),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Substitui o item deste slot mantendo a categoria. Depois abra e feche o menu (+) no jogo.',
+                style: TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+              const SizedBox(height: 10),
+              for (final p in presets)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E2646),
+                      foregroundColor: Colors.white,
+                      alignment: Alignment.centerLeft,
+                    ),
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      c.convertBotwItem(item, p.$1, newValue: p.$3);
+                    },
+                    child: Text('${p.$2}  (${p.$1})', style: const TextStyle(fontSize: 12)),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: customCtrl,
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+                decoration: const InputDecoration(
+                  labelText: 'ID customizado (ex: Weapon_Sword_070)',
+                  labelStyle: TextStyle(color: Colors.white54, fontSize: 11),
+                  isDense: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4527A0)),
+            onPressed: () {
+              final id = customCtrl.text.trim();
+              Navigator.of(ctx).pop();
+              if (id.isNotEmpty) {
+                c.convertBotwItem(item, id);
+              }
+            },
+            child: const Text('Aplicar ID'),
+          ),
         ],
       ),
     );

@@ -56,7 +56,7 @@ class BotwPouchItem {
   final int type; // 0=Sword, 1=Bow, 2=Arrow, 3=Shield, 4..6=Armor, 7=Material, 8=Food, 9=KeyItem
   int value;
   final bool equipped;
-  final String id;
+  String id;
 
   BotwPouchItem({
     required this.index,
@@ -106,19 +106,29 @@ class BotwPouchItem {
     'Weapon_Sword_005': 'Spiked Boko Club',
     'Weapon_Sword_043': 'Torch',
     'Weapon_Sword_044': 'Tree Branch',
-    'Weapon_Sword_047': 'Royal Guard\'s Sword',
+    'Weapon_Sword_047': "Royal Guard's Sword",
+    'Weapon_Sword_024': 'Royal Broadsword',
     'Weapon_Sword_058': 'Master Sword',
     'Weapon_Sword_070': 'Master Sword',
     'Weapon_Lsword_031': 'Iron Sledgehammer',
-    'Weapon_Lsword_032': 'Woodcutter\'s Axe',
+    'Weapon_Lsword_032': "Woodcutter's Axe",
+    'Weapon_Lsword_055': 'Royal Claymore',
+    'Weapon_Spear_024': 'Royal Halberd',
     'Weapon_Bow_001': "Traveler's Bow",
     'Weapon_Bow_002': "Soldier's Bow",
     'Weapon_Bow_004': 'Boko Bow',
+    'Weapon_Bow_023': 'Ancient Bow',
+    'Weapon_Bow_033': "Royal Guard's Bow",
+    'Weapon_Bow_036': 'Royal Bow',
     'Weapon_Bow_038': 'Wooden Bow',
+    'Weapon_Bow_072': 'Twilight Bow',
     'Weapon_Shield_001': 'Wooden Shield',
     'Weapon_Shield_004': 'Boko Shield',
+    'Weapon_Shield_022': 'Royal Shield',
     'Weapon_Shield_030': 'Hylian Shield',
+    'Weapon_Shield_033': "Royal Guard's Shield",
     'Weapon_Shield_035': "Traveler's Shield",
+    'Weapon_Shield_038': 'Ancient Shield',
     'Weapon_Shield_040': 'Pot Lid',
     'NormalArrow': 'Normal Arrow',
     'FireArrow': 'Fire Arrow',
@@ -1146,6 +1156,24 @@ class SysBotbaseClient extends ChangeNotifier {
         ? 'BotW: $updated ${arrowsOnly ? "tipos de flechas" : "materiais"} -> x$count!'
         : 'BotW: nenhum item correspondente na bolsa';
     notifyListeners();
+  }
+
+  Future<void> convertBotwItem(BotwPouchItem item, String newId, {int? newValue}) async {
+    if (!connected || newId.trim().isEmpty) return;
+    final cleanId = newId.trim();
+    final bytes = Uint8List(64);
+    final encoded = utf8.encode(cleanId);
+    final len = encoded.length > 63 ? 63 : encoded.length;
+    bytes.setRange(0, len, encoded);
+    final idHex = _toLittleEndianHex(bytes);
+    await _sendPoke('poke 0x${(item.heapOffset + 0x3C).toRadixString(16)} 0x$idHex');
+    item.id = cleanId;
+    if (newValue != null) {
+      await setBotwItemValue(item, newValue);
+    } else {
+      lastLog = 'BotW: Convertido -> ${item.displayName}';
+      notifyListeners();
+    }
   }
 
   Future<void> _pollPartySlot(int slot) async {
