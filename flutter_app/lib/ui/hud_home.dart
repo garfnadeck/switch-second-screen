@@ -51,7 +51,6 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
     (icon: Icons.map_rounded, label: 'Mapa'),
     (icon: Icons.checkroom_rounded, label: 'Roupas'),
     (icon: Icons.gamepad_rounded, label: 'Macros'),
-    (icon: Icons.nfc_rounded, label: 'Amiibo'),
     (icon: Icons.wifi_rounded, label: 'Rede'),
     (icon: Icons.tune_rounded, label: 'Config'),
   ];
@@ -146,7 +145,6 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
                           _buildMapTab(c, th),
                           _buildBotwArmorSetsTab(c, th),
                           _buildMacrosTab(c, th),
-                          _buildAmiiboTab(c, th),
                           _buildNetTab(c, th),
                           _buildConfigTab(c, th),
                         ],
@@ -2013,6 +2011,7 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
     );
   }
 
+  // ignore: unused_element
   Widget _buildAmiiboTab(SysBotbaseClient c, HudThemeConfig th) {
     final ftpPort = int.tryParse(_ftpPortCtrl.text.trim()) ?? 5000;
     return SingleChildScrollView(
@@ -2596,7 +2595,7 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'SwitchHUD (NS Companion) v1.1.0',
+                  'SwitchHUD (NS Companion) v1.1.1',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
                 ),
                 const SizedBox(height: 2),
