@@ -1,10 +1,10 @@
-# SwitchHUD (NS Companion) — v1.1.1
+# SwitchHUD (NS Companion) — v1.1.2
 
 > [🇧🇷 Português](README.md) | 🇺🇸 **English**
 
 Real-time second-screen HUD and utility companion for **Nintendo Switch (Atmosphère + `sys-botbase`)**, built with **Flutter** for **iOS** and **Android**.
 
-[![Release v1.1.1](https://img.shields.io/badge/Release-v1.1.1-00B4D8?style=for-the-badge)](https://github.com/garfnadeck/switch-second-screen/releases/tag/v1.1.1)
+[![Release v1.1.2](https://img.shields.io/badge/Release-v1.1.2-00B4D8?style=for-the-badge)](https://github.com/garfnadeck/switch-second-screen/releases/tag/v1.1.2)
 
 ---
 
@@ -47,13 +47,13 @@ Real-time second-screen HUD and utility companion for **Nintendo Switch (Atmosph
    - Install [`sys-botbase`](https://github.com/olliz0r/sys-botbase) on your SD card under `atmosphere/contents/430000000000000B/`.
    - Connect your Switch and phone/tablet to the **same Wi-Fi network**.
 2. **Install SwitchHUD:**
-   - Download `app-release.apk` (Android) or `SwitchHUD-ios-unsigned.ipa` (iOS via AltStore/Sideloadly/Xcode) from **[Releases](https://github.com/garfnadeck/switch-second-screen/releases/tag/v1.1.1)**.
+   - Download `app-release.apk` (Android) or `SwitchHUD-ios-unsigned.ipa` (iOS via AltStore/Sideloadly/Xcode) from **[Releases](https://github.com/garfnadeck/switch-second-screen/releases/tag/v1.1.2)**.
 3. **Connect:**
    - Open the **Rede** tab, enter your Switch IP (default port `6000`) or tap **Buscar Rede**, and hit **Conectar**.
 
 ### What persists in `.sav`?
-- **Saved to `.sav` when saving in-game:** Rupees, Armor, Weapons, Bows, Shields, and added/edited pouch items.
-- **Re-applied by Auto-Boost on connect:** Max Hearts, Max Stamina (3 wheels), and Hestu Max Slots (`20/14/20`).
+- **Saved to `.sav` when saving in-game:** Armor, Weapons, Bows, Shields, and added/edited pouch items.
+- **Re-applied by Auto-Boost on connect:** Max Hearts (`30❤`), Max Stamina (`3 wheels`), **999,999 Rupees**, and Hestu Max Slots (`20/14/20`) — when restarting the game, these values reset to your save state and are automatically re-applied by the app upon connecting.
 
 ---
 

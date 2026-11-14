@@ -2509,7 +2509,7 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
                   ),
                   (
                     '5. O que fica salvo no .sav e o que precisa do app?',
-                    'Rupees, Armaduras, Armas, Arcos, Escudos e Itens da bolsa ficam gravados no seu arquivo .sav ao salvar o jogo. Já Corações máximos, Stamina máxima e Slots do Hestu são flags de progressão e são reaplicados automaticamente pelo app sempre que você conectar.'
+                    'Armaduras, Armas, Arcos, Escudos e Itens da bolsa ficam gravados no seu arquivo .sav ao salvar o jogo. Já Corações máximos, Stamina máxima, Rupees (999k) e Slots do Hestu são reaplicados automaticamente pelo Auto-Boost do app sempre que você conectar.'
                   ),
                   (
                     '6. Por que não dá para teleportar clicando no mapa do BotW?',

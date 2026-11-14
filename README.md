@@ -1,10 +1,10 @@
-# SwitchHUD (NS Companion) — v1.1.1
+# SwitchHUD (NS Companion) — v1.1.2
 
 > 🇧🇷 **Português** | [🇺🇸 English](README.en.md)
 
 Segunda tela em tempo real e painel de utilitários para **Nintendo Switch (Atmosphère + `sys-botbase`)**, feito em **Flutter** para **iOS** e **Android**.
 
-[![Release v1.1.1](https://img.shields.io/badge/Release-v1.1.1-00B4D8?style=for-the-badge)](https://github.com/garfnadeck/switch-second-screen/releases/tag/v1.1.1)
+[![Release v1.1.2](https://img.shields.io/badge/Release-v1.1.2-00B4D8?style=for-the-badge)](https://github.com/garfnadeck/switch-second-screen/releases/tag/v1.1.2)
 
 ---
 
@@ -47,13 +47,13 @@ Segunda tela em tempo real e painel de utilitários para **Nintendo Switch (Atmo
    - Instale o [`sys-botbase`](https://github.com/olliz0r/sys-botbase) no cartão SD em `atmosphere/contents/430000000000000B/`.
    - Conecte o Switch e o celular na **mesma rede Wi-Fi**.
 2. **Instale o SwitchHUD:**
-   - Baixe o `app-release.apk` (Android) ou o `SwitchHUD-ios-unsigned.ipa` (iOS via AltStore/Sideloadly/Xcode) na página de **[Releases](https://github.com/garfnadeck/switch-second-screen/releases/tag/v1.1.1)**.
+   - Baixe o `app-release.apk` (Android) ou o `SwitchHUD-ios-unsigned.ipa` (iOS via AltStore/Sideloadly/Xcode) na página de **[Releases](https://github.com/garfnadeck/switch-second-screen/releases/tag/v1.1.2)**.
 3. **Conecte:**
    - Abra a aba **Rede**, informe o IP do Switch (porta padrão `6000`) ou toque em **Buscar Rede** e clique em **Conectar**.
 
 ### O que fica salvo no `.sav`?
-- **Salva no `.sav` ao salvar o jogo:** Rupees, Armaduras, Armas, Arcos, Escudos e Itens criados/editados na bolsa.
-- **Reaplicado pelo Auto-Boost ao conectar:** Corações máximos, Stamina máxima (3 rodas) e Slots máximos do Hestu (`20/14/20`).
+- **Salva no `.sav` ao salvar o jogo:** Armaduras, Armas, Arcos, Escudos e Itens criados/editados na bolsa.
+- **Reaplicado pelo Auto-Boost ao conectar:** Corações máximos (`30❤`), Stamina máxima (`3 rodas`), **999.999 Rupees** e Slots máximos do Hestu (`20/14/20`) — ao reiniciar o jogo, esses valores voltam ao estado do save e são reaplicados automaticamente pelo app ao conectar.
 
 ---
 
