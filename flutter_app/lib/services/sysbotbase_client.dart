@@ -1160,7 +1160,7 @@ class SysBotbaseClient extends ChangeNotifier {
 
   Future<void> repairAllBotwGear({int durability = 99900}) async {
     if (!connected) return;
-    if (botwInventory.isEmpty) await syncBotwInventory();
+    await syncBotwInventory();
     int count = 0;
     for (final item in botwInventory) {
       if (item.isGear) {
@@ -1179,7 +1179,7 @@ class SysBotbaseClient extends ChangeNotifier {
 
   Future<void> maxAllBotwStackables({bool arrowsOnly = false, int count = 999}) async {
     if (!connected) return;
-    if (botwInventory.isEmpty) await syncBotwInventory();
+    await syncBotwInventory();
     int updated = 0;
     for (final item in botwInventory) {
       final match = arrowsOnly ? item.isArrow : item.type == 7;
@@ -1365,7 +1365,7 @@ class SysBotbaseClient extends ChangeNotifier {
       notifyListeners();
       return lastLog;
     }
-    if (botwInventory.isEmpty) await syncBotwInventory();
+    await syncBotwInventory();
 
     final equippedParts = <String>[];
     final createdParts = <String>[];
@@ -1411,7 +1411,7 @@ class SysBotbaseClient extends ChangeNotifier {
     ];
     final msg = parts.isEmpty
         ? 'Nao foi possivel aplicar $setName (verifique a conexao).'
-        : 'Set $setName equipado (${parts.join(", ")})! Abra/feche o menu (+).';
+        : 'Set $setName na bolsa (${parts.join(", ")})! Selecione no menu (+) ou salve/recarregue p/ vestir.';
     lastLog = 'BotW: $msg';
     notifyListeners();
     return msg;
