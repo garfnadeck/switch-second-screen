@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/game_state.dart';
 import '../services/emuiibo_ftp_service.dart';
 import '../services/sysbotbase_client.dart';
@@ -2599,9 +2600,52 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
                 ),
                 const SizedBox(height: 2),
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text(
+                      'Idealização e Desenvolvimento: ',
+                      style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                    ),
+                    InkWell(
+                      onTap: () => _openExternalUrl('https://github.com/garfnadeck'),
+                      child: const Text(
+                        'garfnadeck',
+                        style: TextStyle(
+                          color: Colors.cyanAccent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          decoration: TextDecoration.underline,
+                          decorationColor: Colors.cyanAccent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text(
+                      'GitHub: ',
+                      style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
+                    ),
+                    InkWell(
+                      onTap: () => _openExternalUrl('https://github.com/garfnadeck/switch-second-screen'),
+                      child: const Text(
+                        'https://github.com/garfnadeck/switch-second-screen',
+                        style: TextStyle(
+                          color: Colors.cyanAccent,
+                          fontSize: 11,
+                          decoration: TextDecoration.underline,
+                          decorationColor: Colors.cyanAccent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 const Text(
-                  'Idealização e Desenvolvimento: garfnadeck\n'
-                  'GitHub: https://github.com/garfnadeck/switch-second-screen\n'
                   'Protocolos & Homebrew: sys-botbase (olliz0r) • emuiibo (XorTroll)\n'
                   'Jogos suportados: Zelda: Breath of the Wild (v1.6.0) & Pokémon Legends: Z-A',
                   style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
@@ -2612,6 +2656,20 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  Future<void> _openExternalUrl(String url) async {
+    try {
+      await const MethodChannel('com.switchhud.switch_hud/bg')
+          .invokeMethod('openUrl', {'url': url});
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: url));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Link copiado: $url')),
+        );
+      }
+    }
   }
 
   Widget _buildBotwMapTab(SysBotbaseClient c, HudThemeConfig th) {

@@ -34,6 +34,14 @@ class MainActivity : FlutterActivity() {
                         stopService(Intent(this, HudForegroundService::class.java))
                         result.success(true)
                     }
+                    "openUrl" -> {
+                        val url = call.argument<String>("url")
+                        if (!url.isNullOrBlank()) {
+                            val i = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                            startActivity(i)
+                        }
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }

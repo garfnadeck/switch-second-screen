@@ -36,6 +36,21 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     let window = UIWindow(windowScene: windowScene)
     let controller = FlutterViewController()
     GeneratedPluginRegistrant.register(with: controller)
+    let channel = FlutterMethodChannel(
+      name: "com.switchhud.switch_hud/bg",
+      binaryMessenger: controller.binaryMessenger
+    )
+    channel.setMethodCallHandler { call, result in
+      if call.method == "openUrl",
+         let args = call.arguments as? [String: Any],
+         let urlStr = args["url"] as? String,
+         let url = URL(string: urlStr) {
+        UIApplication.shared.open(url, options: [:], completionHandler: nil)
+        result(true)
+      } else {
+        result(FlutterMethodNotImplemented)
+      }
+    }
     window.rootViewController = controller
     self.window = window
     window.makeKeyAndVisible()
