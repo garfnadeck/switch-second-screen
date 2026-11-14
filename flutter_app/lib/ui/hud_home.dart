@@ -2391,75 +2391,32 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Diagnostico & Acoes',
+                Text('Diagnóstico',
                     style: TextStyle(color: th.accent, fontWeight: FontWeight.w700, fontSize: 13)),
                 const SizedBox(height: 4),
                 Text('Switch: ${c.switchIp}:${c.switchPort} (${c.linkStatus})',
                     style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                Text(
+                  'Jogo: ${c.profile == GameProfile.zeldaBotw ? 'Zelda: Breath of the Wild (v1.6.0)' : 'Pokémon Legends: Z-A'}',
+                  style: const TextStyle(fontSize: 12, color: Colors.white70),
+                ),
                 Text('Macros executadas: ${c.macroExecutions}',
                     style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF6B4E00), foregroundColor: const Color(0xFFFFE27A)),
-                        onPressed: c.triggerTestShiny,
-                        child: const Text('Testar Shiny (5s)', style: TextStyle(fontSize: 12)),
-                      ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4527A0),
+                      foregroundColor: Colors.white,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1B5E20), foregroundColor: Colors.white),
-                        onPressed: () => c.editPokemon(0, PokeEditAction.healPartyAll),
-                        child: const Text('Curar Time (RAM)', style: TextStyle(fontSize: 12)),
-                      ),
-                    ),
-                  ],
+                    onPressed: () => c.setTheme(c.uiTheme + 1),
+                    icon: const Icon(Icons.palette_outlined, size: 16),
+                    label: Text('Tema: ${th.name}'),
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 10),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 3.0,
-            children: [
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4527A0), foregroundColor: Colors.white),
-                onPressed: () => c.setTheme(c.uiTheme + 1),
-                child: Text('Tema: ${th.name}'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: c.soundEnabled ? const Color(0xFF1B5E20) : const Color(0xFF37474F),
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: c.toggleSound,
-                child: Text(c.soundEnabled ? 'Som: ON' : 'Som: OFF'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: c.autoStopShiny ? const Color(0xFF1B5E20) : const Color(0xFF37474F),
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: c.toggleAutoStop,
-                child: Text(c.autoStopShiny ? 'AutoStop: ON' : 'AutoStop: OFF'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: c.autoHeal ? const Color(0xFF1B5E20) : const Color(0xFF37474F),
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: c.toggleAutoHeal,
-                child: Text(c.autoHeal ? 'AutoCura: ON' : 'AutoCura: OFF'),
-              ),
-            ],
           ),
           const SizedBox(height: 12),
           Container(
@@ -2595,7 +2552,7 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'SwitchHUD (NS Companion) v1.1.1',
+                  'SwitchHUD (NS Companion) v1.1.2',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
                 ),
                 const SizedBox(height: 2),
