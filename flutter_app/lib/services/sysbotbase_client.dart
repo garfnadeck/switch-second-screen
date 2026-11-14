@@ -219,7 +219,6 @@ class BotwMemoryProfile {
 
 class SysBotbaseClient extends ChangeNotifier {
   static const Map<String, BotwMemoryProfile> botwVersions = {
-    '2094F152836683A3': BotwMemoryProfile(versionLabel: 'BotW 1.0.0'),
     '8E9978D50BDD20B4': BotwMemoryProfile(
       versionLabel: 'BotW 1.6.0',
       heartsChain: [0x02CA1A78, 0x80, 0x848],
@@ -271,7 +270,6 @@ class SysBotbaseClient extends ChangeNotifier {
   String buildId = '';
 
   BotwMemoryProfile? get activeBotwProfile {
-    if (botwSelectedVersion == '1.0.0') return botwVersions['2094F152836683A3'];
     if (botwSelectedVersion == '1.6.0') return botwVersions['8E9978D50BDD20B4'];
     final bid = buildId.toUpperCase();
     for (final entry in botwVersions.entries) {

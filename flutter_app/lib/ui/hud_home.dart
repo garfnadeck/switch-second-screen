@@ -738,7 +738,7 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
             children: [
               const Text('Versao:', style: TextStyle(fontSize: 11, color: Color(0xFF99A2C8))),
               const SizedBox(width: 6),
-              ...['auto', '1.0.0', '1.6.0'].map((v) {
+              ...['auto', '1.6.0'].map((v) {
                 final sel = c.botwSelectedVersion == v;
                 return Padding(
                   padding: const EdgeInsets.only(right: 6),
@@ -2600,10 +2600,10 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
                 ),
                 const SizedBox(height: 2),
                 const Text(
-                  'Idealização e Desenvolvimento: Thiago Serrão Braule Pinto (garfnadeck)\n'
-                  'Engenharia Reversa, UI e Automação: Antigravity (Google DeepMind)\n'
+                  'Idealização e Desenvolvimento: garfnadeck\n'
+                  'GitHub: https://github.com/garfnadeck/switch-second-screen\n'
                   'Protocolos & Homebrew: sys-botbase (olliz0r) • emuiibo (XorTroll)\n'
-                  'Jogos suportados: Zelda: Breath of the Wild (v1.0.0 / v1.6.0) & Pokémon Legends: Z-A',
+                  'Jogos suportados: Zelda: Breath of the Wild (v1.6.0) & Pokémon Legends: Z-A',
                   style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.4),
                 ),
               ],
