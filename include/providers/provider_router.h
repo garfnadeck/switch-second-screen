@@ -58,6 +58,21 @@ public:
         tcp_prov.teleportPlayer(state, wx, wy_alt, wz_map);
     }
 
+    // Zelda BotW v1.6.0: Boosts, Bolsa & Armaduras
+    bool botwSetHearts(GameState &state, uint8_t h)  { return tcp_prov.botwSetHearts(state, h); }
+    bool botwSetStamina(GameState &state, float s)   { return tcp_prov.botwSetStamina(state, s); }
+    bool botwSetRupees(GameState &state, uint32_t r) { return tcp_prov.botwSetRupees(state, r); }
+    bool botwSetMaxSlots(GameState &state)           { return tcp_prov.botwSetMaxSlots(state); }
+    bool botwApplyAllBoost(GameState &state)         { return tcp_prov.botwApplyAllBoost(state); }
+#ifdef ARDUINO
+    String botwGetPouchJson()                        { return tcp_prov.botwGetPouchJson(); }
+#endif
+    int  botwRepairAll()                             { return tcp_prov.botwRepairAll(); }
+    int  botwMaxStackables(int32_t t)                { return tcp_prov.botwMaxStackables(t); }
+    bool botwConvertItem(uint64_t a, const char *id, int32_t t, int32_t v) { return tcp_prov.botwConvertItem(a, id, t, v); }
+    bool botwAddItem(const char *id, int32_t t, int32_t v) { return tcp_prov.botwAddItem(id, t, v); }
+    int  botwApplyArmorSet(const char *h, const char *u, const char *l) { return tcp_prov.botwApplyArmorSet(h, u, l); }
+
     void switchMode(GameState &state, SwitchMode new_mode) {
         state.mode = new_mode;
         if (new_mode == SwitchMode::MOCK_SIMULATOR) {

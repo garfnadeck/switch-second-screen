@@ -114,6 +114,7 @@ static bool saveSettings() {
     f.print("sound=");       f.print(state.sound_enabled ? 1 : 0); f.print("\n");
     f.print("autostop=");    f.print(state.auto_stop_shiny ? 1 : 0); f.print("\n");
     f.print("autoheal=");    f.print(state.auto_heal ? 1 : 0); f.print("\n");
+    f.print("botw_boost=");  f.print(state.botw_auto_boost ? 1 : 0); f.print("\n");
     f.print("theme=");       f.print((int)state.ui_theme); f.print("\n");
     f.close();
     return true;
@@ -141,6 +142,7 @@ static void loadSettings() {
         else if (k == "sound")        { state.sound_enabled = (v.toInt() != 0); }
         else if (k == "autostop")     { state.auto_stop_shiny = (v.toInt() != 0); }
         else if (k == "autoheal")     { state.auto_heal = (v.toInt() != 0); }
+        else if (k == "botw_boost")   { state.botw_auto_boost = (v.toInt() != 0); }
         else if (k == "theme")        { state.ui_theme = (uint8_t)(v.toInt() % 4); }
     }
     f.close();
@@ -501,6 +503,11 @@ void setup() {
                    ",\"shiny_name\":\"" + clean(state.shiny_stash_name) + "\"" +
                    ",\"bat_pct\":" + String(state.battery_pct) +
                    ",\"bat_mv\":" + String(state.battery_mv) +
+                   ",\"botw_auto_boost\":" + (state.botw_auto_boost ? "true" : "false") +
+                   ",\"zelda\":{\"hc\":" + String(state.zelda.hearts_current) +
+                   ",\"hm\":" + String(state.zelda.hearts_max) +
+                   ",\"st\":" + String(state.zelda.stamina_pct) +
+                   ",\"rup\":" + String((unsigned long)state.zelda.rupees) + "}" +
                    ",\"link\":\"" + clean(state.link_status) + "\",\"party\":[";
         for (int i = 0; i < 6; i++) {
             const PokemonSlot &p = state.party[i];
@@ -644,6 +651,66 @@ void setup() {
         server.send(200, "application/json", "{\"ok\":true}");
     });
 
+    // Zelda BotW v1.6.0: Boosts (30❤, 3 Rodas, 999k Rupees, Max Slots) e Bolsa / Durabilidade
+    server.on("/api/botw/boost", HTTP_POST, []() {
+        String act = server.hasArg("action") ? server.arg("action") : "all";
+        bool ok = false;
+        if (act == "all") {
+            ok = router.botwApplyAllBoost(state);
+        } else if (act == "hearts") {
+            int h = server.hasArg("hearts") ? server.arg("hearts").toInt() : 30;
+            if (h < 1) h = 1; if (h > 40) h = 40;
+            ok = router.botwSetHearts(state, (uint8_t)h);
+        } else if (act == "stamina") {
+            float st = server.hasArg("stamina") ? server.arg("stamina").toFloat() : 3000.0f;
+            if (st < 1000.0f) st = 1000.0f; if (st > 3000.0f) st = 3000.0f;
+            ok = router.botwSetStamina(state, st);
+        } else if (act == "rupees") {
+            uint32_t rup = server.hasArg("rupees") ? (uint32_t)server.arg("rupees").toInt() : 999999u;
+            if (rup > 999999u) rup = 999999u;
+            ok = router.botwSetRupees(state, rup);
+        } else if (act == "slots") {
+            ok = router.botwSetMaxSlots(state);
+        }
+        server.send(ok ? 200 : 503, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
+    });
+
+    server.on("/api/botw/pouch", HTTP_GET, []() {
+        server.send(200, "application/json", router.botwGetPouchJson());
+    });
+
+    server.on("/api/botw/pouch", HTTP_POST, []() {
+        String act = server.hasArg("action") ? server.arg("action") : "";
+        if (act == "repair") {
+            int c = router.botwRepairAll();
+            server.send(c >= 0 ? 200 : 503, "application/json", String("{\"ok\":") + (c >= 0 ? "true" : "false") + ",\"count\":" + String(c) + "}");
+        } else if (act == "arrows") {
+            int c = router.botwMaxStackables(2);
+            server.send(c >= 0 ? 200 : 503, "application/json", String("{\"ok\":") + (c >= 0 ? "true" : "false") + ",\"count\":" + String(c) + "}");
+        } else if (act == "materials") {
+            int c = router.botwMaxStackables(7);
+            server.send(c >= 0 ? 200 : 503, "application/json", String("{\"ok\":") + (c >= 0 ? "true" : "false") + ",\"count\":" + String(c) + "}");
+        } else if (act == "convert") {
+            uint64_t addr = strtoull(server.arg("addr").c_str(), nullptr, 0);
+            String id = server.arg("id");
+            int32_t tp = server.hasArg("type") ? server.arg("type").toInt() : -1;
+            int32_t vl = server.hasArg("val") ? server.arg("val").toInt() : -1;
+            bool ok = router.botwConvertItem(addr, id.c_str(), tp, vl);
+            server.send(ok ? 200 : 400, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
+        } else if (act == "add") {
+            String id = server.arg("id");
+            int32_t tp = server.hasArg("type") ? server.arg("type").toInt() : 0;
+            int32_t vl = server.hasArg("val") ? server.arg("val").toInt() : 99900;
+            bool ok = router.botwAddItem(id.c_str(), tp, vl);
+            server.send(ok ? 200 : 503, "application/json", ok ? "{\"ok\":true}" : "{\"ok\":false}");
+        } else if (act == "armorset") {
+            int c = router.botwApplyArmorSet(server.arg("head").c_str(), server.arg("upper").c_str(), server.arg("lower").c_str());
+            server.send(c > 0 ? 200 : 503, "application/json", String("{\"ok\":") + (c > 0 ? "true" : "false") + ",\"added\":" + String(c) + "}");
+        } else {
+            server.send(400, "application/json", "{\"ok\":false}");
+        }
+    });
+
     server.on("/api/display/flip", HTTP_POST, []() {
         state.screen_flip = server.hasArg("flip") ? (server.arg("flip").toInt() != 0) : !state.screen_flip;
         state.screen_flip_changed = true;
@@ -729,6 +796,7 @@ void setup() {
                    ",\"audio_ready\":" + (es3c35p_extra::isAudioReady() ? "true" : "false") +
                    ",\"autostop\":" + (state.auto_stop_shiny ? "true" : "false") +
                    ",\"autoheal\":" + (state.auto_heal ? "true" : "false") +
+                   ",\"botw_auto_boost\":" + (state.botw_auto_boost ? "true" : "false") +
                    ",\"flip\":" + (state.screen_flip ? "true" : "false") +
                    ",\"theme\":" + String((int)state.ui_theme) +
                    ",\"sd\":" + (AssetManager::isSDReady() ? "true" : "false") + "}";
@@ -755,6 +823,9 @@ void setup() {
         }
         if (server.hasArg("autoheal")) {
             state.auto_heal = (server.arg("autoheal").toInt() != 0 || server.arg("autoheal") == "true");
+        }
+        if (server.hasArg("botw_auto_boost")) {
+            state.botw_auto_boost = (server.arg("botw_auto_boost").toInt() != 0 || server.arg("botw_auto_boost") == "true");
         }
         if (server.hasArg("theme")) {
             state.ui_theme = (uint8_t)(server.arg("theme").toInt() % 4);

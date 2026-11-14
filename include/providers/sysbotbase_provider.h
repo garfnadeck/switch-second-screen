@@ -62,6 +62,8 @@ private:
     uint32_t sent_ms = 0, last_poll_ms = 0, last_try_ms = 0, last_auto_scan_ms = 0;
     uint8_t  title_poll_cnt = 0;
     uint8_t  botw_step = 0;
+    bool     botw_auto_applied = false;
+    uint32_t last_botw_stam_fix_ms = 0;
     bool     awaiting_title = false;
     bool     linked = false;
     bool     telemetry_only = false;
@@ -114,6 +116,7 @@ private:
 
     void disconnect() {
         rx_len = 0; awaiting = false; next_req = 0;
+        botw_auto_applied = false;
 #ifdef ARDUINO
         client.stop();
 #else
@@ -442,7 +445,7 @@ private:
             } else if (botw_step == 2) {
                 sendRaw("pointerPeek 4 0x2CC5FE0 0xE40 0x5B08 0x5D90\r\n");
             } else {
-                sendRaw("pointerPeek 12 0x2CC5DE8 0x30 0x10 0x8 0x10 0x190\r\n");
+                sendRaw("pointerPeek 48 0x2CA1140 0x60 0x398\r\n");
             }
             awaiting = true; sent_ms = millis(); return;
         }
@@ -473,7 +476,7 @@ private:
         bool za = (state.profile == GameProfile::POKEMON_LEGENDS_ZA);
         bool botw = (state.profile == GameProfile::ZELDA_BOTW);
         if (botw) {
-            static uint8_t bbuf[16];
+            static uint8_t bbuf[48];
             uint16_t bn = hexToBytes(rx, bbuf, sizeof(bbuf));
             if (botw_step == 0 && bn >= 8) {
                 float curS = 0, maxS = 0;
@@ -483,6 +486,10 @@ private:
                     int pct = (int)((curS / maxS) * 100.0f + 0.5f);
                     if (pct < 0) pct = 0; if (pct > 100) pct = 100;
                     state.zelda.stamina_pct = (uint8_t)pct;
+                    if (state.botw_auto_boost && maxS < 2990.0f && (millis() - last_botw_stam_fix_ms > 2000)) {
+                        last_botw_stam_fix_ms = millis();
+                        botwSetStamina(state, 3000.0f);
+                    }
                 }
             } else if (botw_step == 1 && bn >= 4) {
                 uint32_t curH = 0;
@@ -490,16 +497,20 @@ private:
                 if (curH <= 160) {
                     state.zelda.hearts_current = (uint8_t)curH;
                     if (state.zelda.hearts_max < state.zelda.hearts_current) state.zelda.hearts_max = state.zelda.hearts_current;
+                    if (state.botw_auto_boost && !botw_auto_applied && curH > 0) {
+                        botw_auto_applied = true;
+                        botwApplyAllBoost(state);
+                    }
                 }
             } else if (botw_step == 2 && bn >= 4) {
                 uint32_t rup = 0;
                 memcpy(&rup, bbuf, 4);
                 if (rup <= 999999) state.zelda.rupees = rup;
-            } else if (botw_step == 3 && bn >= 12) {
+            } else if (botw_step == 3 && bn >= 48) {
                 float px = 0, py = 0, pz = 0;
-                memcpy(&px, bbuf + 0, 4);
-                memcpy(&py, bbuf + 4, 4);
-                memcpy(&pz, bbuf + 8, 4);
+                memcpy(&px, bbuf + 12, 4);
+                memcpy(&py, bbuf + 28, 4);
+                memcpy(&pz, bbuf + 44, 4);
                 if (px > -6000.0f && px < 6000.0f && pz > -5000.0f && pz < 5000.0f) {
                     state.map.x = px;
                     state.map.y = py;
@@ -817,6 +828,110 @@ private:
         }
     }
 
+    // ---- Helpers sincronos para Zelda BotW v1.6.0 (stats & PauseMenuDataMgr) ----
+    static void bytesToHex(const uint8_t *in, uint16_t len, char *out) {
+        static const char HEX_DIGITS[] = "0123456789ABCDEF";
+        for (uint16_t i = 0; i < len; i++) {
+            out[i * 2]     = HEX_DIGITS[(in[i] >> 4) & 0x0F];
+            out[i * 2 + 1] = HEX_DIGITS[in[i] & 0x0F];
+        }
+        out[len * 2] = 0;
+    }
+
+    void flushPendingReply() {
+        if (!awaiting && !awaiting_title) return;
+        uint32_t t0 = millis();
+        while ((awaiting || awaiting_title) && (millis() - t0 < 250)) {
+            if (readLine()) {
+                rx_len = 0; awaiting = false; awaiting_title = false;
+                break;
+            }
+#ifdef ARDUINO
+            delay(2);
+#endif
+        }
+        rx_len = 0; awaiting = false; awaiting_title = false;
+    }
+
+    uint16_t syncPeek(const char *cmd, uint8_t *out, uint16_t max_bytes, uint32_t timeout_ms = 450) {
+        if (!isConnected()) return 0;
+        flushPendingReply();
+        rx_len = 0;
+        sendRaw(cmd);
+        uint32_t t0 = millis();
+        while (millis() - t0 < timeout_ms) {
+            if (readLine()) {
+                uint16_t n = hexToBytes(rx, out, max_bytes);
+                rx_len = 0;
+                return n;
+            }
+#ifdef ARDUINO
+            delay(2);
+#endif
+        }
+        rx_len = 0;
+        return 0;
+    }
+
+    void pokePtrBytes(const char *chain, const uint8_t *data, uint16_t len) {
+        if (!isConnected() || len > 32) return;
+        flushPendingReply();
+        char hex[68];
+        bytesToHex(data, len, hex);
+        char cmd[160];
+        snprintf(cmd, sizeof(cmd), "pointerPoke 0x%s %s\r\n", hex, chain);
+        sendRaw(cmd);
+#ifdef ARDUINO
+        delay(4);
+#endif
+    }
+
+    void pokePtrU32(const char *chain, uint32_t v) {
+        uint8_t b[4]; memcpy(b, &v, 4);
+        pokePtrBytes(chain, b, 4);
+    }
+
+    void pokePtrF32(const char *chain, float v) {
+        uint8_t b[4]; memcpy(b, &v, 4);
+        pokePtrBytes(chain, b, 4);
+    }
+
+    uint16_t peekAbsBytes(uint64_t addr, uint8_t *out, uint16_t len) {
+        char cmd[64];
+        snprintf(cmd, sizeof(cmd), "peekAbsolute 0x%llX %u\r\n", (unsigned long long)addr, (unsigned)len);
+        return syncPeek(cmd, out, len);
+    }
+
+    void pokeAbsBytes(uint64_t addr, const uint8_t *data, uint16_t len) {
+        if (!isConnected() || len > 64) return;
+        flushPendingReply();
+        char hex[132];
+        bytesToHex(data, len, hex);
+        char cmd[180];
+        snprintf(cmd, sizeof(cmd), "pokeAbsolute 0x%llX 0x%s\r\n", (unsigned long long)addr, hex);
+        sendRaw(cmd);
+#ifdef ARDUINO
+        delay(4);
+#endif
+    }
+
+    void pokeAbsI32(uint64_t addr, int32_t v) {
+        uint8_t b[4]; memcpy(b, &v, 4);
+        pokeAbsBytes(addr, b, 4);
+    }
+
+    void pokeAbsU64(uint64_t addr, uint64_t v) {
+        uint8_t b[8]; memcpy(b, &v, 8);
+        pokeAbsBytes(addr, b, 8);
+    }
+
+    bool readBotwPauseMgr(uint64_t &pmAddr) {
+        uint8_t b[8];
+        if (syncPeek("peekMain 0x02CA6D48 8\r\n", b, 8) < 8) return false;
+        memcpy(&pmAddr, b, 8);
+        return pmAddr > 0x10000000ULL;
+    }
+
 public:
     ~SysBotbaseProvider() override { disconnect(); }
 
@@ -840,6 +955,214 @@ public:
                  lumioseZoneName(wx, wz_map, wy_alt));
         sendPositionPoke(wx, wy_alt, wz_map);
         setLink(state, "teleporte enviado!");
+    }
+
+    // ---- Zelda BotW v1.6.0: Boosts, Bolsa & Durabilidade ----
+    bool botwSetHearts(GameState &state, uint8_t hearts_count) {
+        if (!isConnected()) return false;
+        uint32_t qh = (uint32_t)hearts_count * 4u;
+        pokePtrU32("0x2CA1A78 0x80 0x848", qh);
+        pokePtrU32("0x2CC5FE0 0xE40 0x5B08 0x5DB8", qh);
+        pokePtrF32("0x2C9FD70 0x38 0x2A8", (float)qh);
+        pokePtrU32("0x2CC5FE0 0xE40 0x5B08 0x5DE0", qh);
+        state.zelda.hearts_current = (uint8_t)(qh > 160 ? 160 : qh);
+        state.zelda.hearts_max = state.zelda.hearts_current;
+        return true;
+    }
+
+    bool botwSetStamina(GameState &state, float stamina_val) {
+        if (!isConnected()) return false;
+        uint8_t b8[8];
+        memcpy(b8 + 0, &stamina_val, 4);
+        memcpy(b8 + 4, &stamina_val, 4);
+        pokePtrBytes("0x2C9FD70 0x38 0x2AC", b8, 8);
+        state.zelda.stamina_pct = 100;
+        return true;
+    }
+
+    bool botwSetRupees(GameState &state, uint32_t rupees) {
+        if (!isConnected()) return false;
+        pokePtrU32("0x2CC5FE0 0xE40 0x5B08 0x5D90", rupees);
+        state.zelda.rupees = rupees;
+        return true;
+    }
+
+    bool botwSetMaxSlots(GameState &state) {
+        if (!isConnected()) return false;
+        pokePtrU32("0x2CC5FE0 0xE40 0x5B08 0x6920", 20);
+        pokePtrU32("0x2CC5FE0 0xE40 0x5B08 0xE008", 14);
+        pokePtrU32("0x2CC5FE0 0xE40 0x5B08 0xE030", 20);
+        (void)state;
+        return true;
+    }
+
+    bool botwApplyAllBoost(GameState &state) {
+        if (!isConnected()) return false;
+        botwSetHearts(state, 30);
+        botwSetStamina(state, 3000.0f);
+        botwSetRupees(state, 999999u);
+        botwSetMaxSlots(state);
+        setLink(state, "BotW Boost aplicado!");
+        return true;
+    }
+
+#ifdef ARDUINO
+    String botwGetPouchJson() {
+        uint64_t pmAddr = 0;
+        if (!isConnected() || !readBotwPauseMgr(pmAddr)) return "{\"ok\":false,\"items\":[]}";
+        uint64_t head1 = pmAddr + 0x60;
+        uint8_t hbuf[24];
+        if (peekAbsBytes(head1, hbuf, 24) < 24) return "{\"ok\":false,\"items\":[]}";
+        uint64_t node = 0; int32_t cnt = 0, off = 0;
+        memcpy(&node, hbuf + 8, 8);
+        memcpy(&cnt, hbuf + 16, 4);
+        memcpy(&off, hbuf + 20, 4);
+        if (cnt < 0 || cnt > 220) cnt = 220;
+        if (off < 0 || off > 0x18) off = 0x08;
+
+        String j = "{\"ok\":true,\"items\":[";
+        uint8_t ibuf[128];
+        int emitted = 0;
+        for (int i = 0; i < cnt && node != head1 && node > 0x10000000ULL; i++) {
+            uint64_t itemAddr = node - (uint64_t)off;
+            if (peekAbsBytes(itemAddr, ibuf, 128) < 128) break;
+            uint64_t nextNode = 0;
+            memcpy(&nextNode, ibuf + off + 8, 8);
+            int32_t itype = 0, ival = 0;
+            memcpy(&itype, ibuf + 0x18, 4);
+            memcpy(&ival, ibuf + 0x20, 4);
+            uint8_t eq = ibuf[0x24];
+            char id[65]; memcpy(id, ibuf + 0x3C, 64); id[64] = 0;
+            if (id[0]) {
+                if (emitted++) j += ",";
+                char addrHex[20];
+                snprintf(addrHex, sizeof(addrHex), "0x%llX", (unsigned long long)itemAddr);
+                j += "{\"addr\":\""; j += addrHex;
+                j += "\",\"id\":\"";
+                for (int k = 0; id[k]; k++) {
+                    char c = id[k];
+                    if (c == '"' || c == '\\') j += '_';
+                    else if ((uint8_t)c >= 32) j += c;
+                }
+                j += "\",\"type\":"; j += String(itype);
+                j += ",\"val\":"; j += String(ival);
+                j += ",\"eq\":"; j += (eq ? "true" : "false");
+                j += "}";
+            }
+            node = nextNode;
+        }
+        j += "]}";
+        return j;
+    }
+#endif
+
+    int botwRepairAll() {
+        uint64_t pmAddr = 0;
+        if (!isConnected() || !readBotwPauseMgr(pmAddr)) return -1;
+        uint64_t head1 = pmAddr + 0x60;
+        uint8_t hbuf[24];
+        if (peekAbsBytes(head1, hbuf, 24) < 24) return -1;
+        uint64_t node = 0; int32_t cnt = 0, off = 0;
+        memcpy(&node, hbuf + 8, 8); memcpy(&cnt, hbuf + 16, 4); memcpy(&off, hbuf + 20, 4);
+        if (cnt < 0 || cnt > 220) cnt = 220;
+        if (off < 0 || off > 0x18) off = 0x08;
+        uint8_t ibuf[64];
+        int changed = 0;
+        for (int i = 0; i < cnt && node != head1 && node > 0x10000000ULL; i++) {
+            uint64_t itemAddr = node - (uint64_t)off;
+            if (peekAbsBytes(itemAddr, ibuf, 40) < 40) break;
+            uint64_t nextNode = 0; memcpy(&nextNode, ibuf + off + 8, 8);
+            int32_t itype = 0; memcpy(&itype, ibuf + 0x18, 4);
+            if (itype == 0 || itype == 1 || itype == 3) {
+                pokeAbsI32(itemAddr + 0x20, 99900);
+                changed++;
+            }
+            node = nextNode;
+        }
+        return changed;
+    }
+
+    int botwMaxStackables(int32_t targetType) {
+        uint64_t pmAddr = 0;
+        if (!isConnected() || !readBotwPauseMgr(pmAddr)) return -1;
+        uint64_t head1 = pmAddr + 0x60;
+        uint8_t hbuf[24];
+        if (peekAbsBytes(head1, hbuf, 24) < 24) return -1;
+        uint64_t node = 0; int32_t cnt = 0, off = 0;
+        memcpy(&node, hbuf + 8, 8); memcpy(&cnt, hbuf + 16, 4); memcpy(&off, hbuf + 20, 4);
+        if (cnt < 0 || cnt > 220) cnt = 220;
+        if (off < 0 || off > 0x18) off = 0x08;
+        uint8_t ibuf[40];
+        int changed = 0;
+        for (int i = 0; i < cnt && node != head1 && node > 0x10000000ULL; i++) {
+            uint64_t itemAddr = node - (uint64_t)off;
+            if (peekAbsBytes(itemAddr, ibuf, 40) < 40) break;
+            uint64_t nextNode = 0; memcpy(&nextNode, ibuf + off + 8, 8);
+            int32_t itype = 0; memcpy(&itype, ibuf + 0x18, 4);
+            if (itype == targetType) {
+                pokeAbsI32(itemAddr + 0x20, 999);
+                changed++;
+            }
+            node = nextNode;
+        }
+        return changed;
+    }
+
+    bool botwConvertItem(uint64_t itemAddr, const char *newId, int32_t newType, int32_t newVal) {
+        if (!isConnected() || itemAddr < 0x10000000ULL || !newId || !newId[0]) return false;
+        uint8_t id64[64] = {};
+        snprintf((char *)id64, sizeof(id64), "%s", newId);
+        if (newType >= 0) pokeAbsI32(itemAddr + 0x18, newType);
+        if (newVal >= 0)  pokeAbsI32(itemAddr + 0x20, newVal);
+        pokeAbsBytes(itemAddr + 0x3C, id64, 64);
+        return true;
+    }
+
+    bool botwAddItem(const char *newId, int32_t newType, int32_t newVal) {
+        uint64_t pmAddr = 0;
+        if (!isConnected() || !newId || !newId[0] || !readBotwPauseMgr(pmAddr)) return false;
+        uint64_t head1 = pmAddr + 0x60;
+        uint64_t head2 = pmAddr + 0x78;
+        uint8_t h1[24], h2[24];
+        if (peekAbsBytes(head2, h2, 24) < 24) return false;
+        uint64_t node = 0; int32_t cnt2 = 0, off2 = 0;
+        memcpy(&node, h2 + 8, 8); memcpy(&cnt2, h2 + 16, 4); memcpy(&off2, h2 + 20, 4);
+        if (cnt2 <= 0 || node == head2 || node < 0x10000000ULL) return false;
+        if (off2 < 0 || off2 > 0x18) off2 = 0x08;
+
+        uint8_t nbuf[16];
+        if (peekAbsBytes(node, nbuf, 16) < 16) return false;
+        uint64_t next2 = 0; memcpy(&next2, nbuf + 8, 8);
+        pokeAbsU64(head2 + 8, next2);
+        pokeAbsU64(next2 + 0, head2);
+        pokeAbsI32(head2 + 16, cnt2 - 1);
+
+        uint64_t itemAddr = node - (uint64_t)off2;
+        uint8_t id64[64] = {};
+        snprintf((char *)id64, sizeof(id64), "%s", newId);
+        uint8_t flags[2] = { 0, 1 }; // equipped=0, inInventory=1
+        pokeAbsI32(itemAddr + 0x18, newType);
+        pokeAbsI32(itemAddr + 0x20, newVal);
+        pokeAbsBytes(itemAddr + 0x24, flags, 2);
+        pokeAbsBytes(itemAddr + 0x3C, id64, 64);
+
+        if (peekAbsBytes(head1, h1, 24) < 24) return false;
+        uint64_t prev1 = 0; int32_t cnt1 = 0;
+        memcpy(&prev1, h1 + 0, 8); memcpy(&cnt1, h1 + 16, 4);
+        pokeAbsU64(node + 0, prev1);
+        pokeAbsU64(node + 8, head1);
+        pokeAbsU64(prev1 + 8, node);
+        pokeAbsU64(head1 + 0, node);
+        pokeAbsI32(head1 + 16, cnt1 + 1);
+        return true;
+    }
+
+    int botwApplyArmorSet(const char *headId, const char *upperId, const char *lowerId) {
+        int added = 0;
+        if (headId && headId[0]   && botwAddItem(headId, 4, 1))  added++;
+        if (upperId && upperId[0] && botwAddItem(upperId, 5, 1)) added++;
+        if (lowerId && lowerId[0] && botwAddItem(lowerId, 6, 1)) added++;
+        return added;
     }
 
     // ---- telemetria paralela (USB HID continua sendo o provider ativo) ----
