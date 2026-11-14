@@ -1197,6 +1197,30 @@ class SysBotbaseClient extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> pokeBotwMaxSlots({int weapons = 20, int bows = 14, int shields = 20}) async {
+    if (!connected) {
+      lastLog = 'BotW: conecte ao Switch primeiro';
+      notifyListeners();
+      return;
+    }
+    final check = await _sendAndWaitQueued('pointerPeek 4 0x02CC5FE0 0xE40 0x5B08 0x6920');
+    if (check == null || check.trim().isEmpty) {
+      lastLog = 'BotW: entre no jogo (save carregado) p/ liberar slots';
+      notifyListeners();
+      return;
+    }
+    Future<void> writeSlot(int off, int val) async {
+      final b = ByteData(4)..setInt32(0, val, Endian.little);
+      await _sendPoke('pointerPoke 0x${_toLittleEndianHex(b.buffer.asUint8List())} 0x02CC5FE0 0xE40 0x5B08 0x${off.toRadixString(16)}');
+    }
+
+    await writeSlot(0x6920, weapons);
+    await writeSlot(0xE008, bows);
+    await writeSlot(0xE030, shields);
+    lastLog = 'BotW: Slots liberados ($weapons Armas / $bows Arcos / $shields Escudos)!';
+    notifyListeners();
+  }
+
   Future<void> convertBotwItem(BotwPouchItem item, String newId, {int? newValue}) async {
     if (!connected || newId.trim().isEmpty) return;
     final cleanId = newId.trim();

@@ -675,6 +675,7 @@ class _HudHomeState extends State<HudHome> {
               _miniBtn('Reparar Tudo (999)', const Color(0xFF0277BD), () => c.repairAllBotwGear(durability: 99900)),
               _miniBtn('999 Flechas', const Color(0xFF6A1B9A), () => c.maxAllBotwStackables(arrowsOnly: true)),
               _miniBtn('999 Materiais', const Color(0xFFE65100), () => c.maxAllBotwStackables(arrowsOnly: false)),
+              _miniBtn('Max Slots (20/14/20)', const Color(0xFF37474F), () => c.pokeBotwMaxSlots()),
             ],
           ),
           const SizedBox(height: 6),
