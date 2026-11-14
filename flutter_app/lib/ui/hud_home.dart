@@ -2596,7 +2596,7 @@ class _HudHomeState extends State<HudHome> with WidgetsBindingObserver {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'SwitchHUD (NS Companion)',
+                  'SwitchHUD (NS Companion) v1.1.0',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12),
                 ),
                 const SizedBox(height: 2),
