@@ -55,7 +55,7 @@ class BotwPouchItem {
   final int heapOffset;
   final int type; // 0=Sword, 1=Bow, 2=Arrow, 3=Shield, 4..6=Armor, 7=Material, 8=Food, 9=KeyItem
   int value;
-  final bool equipped;
+  bool equipped;
   String id;
 
   BotwPouchItem({
@@ -1367,36 +1367,51 @@ class SysBotbaseClient extends ChangeNotifier {
     }
     if (botwInventory.isEmpty) await syncBotwInventory();
 
-    BotwPouchItem? pickSlot(int type) {
-      final list = botwInventory.where((e) => e.type == type).toList();
-      if (list.isEmpty) return null;
-      final eq = list.where((e) => e.equipped).toList();
-      return eq.isNotEmpty ? eq.first : list.first;
-    }
+    final equippedParts = <String>[];
+    final createdParts = <String>[];
 
-    final applied = <String>[];
-    final created = <String>[];
-
-    Future<void> tryPart(int type, String? id, String label) async {
+    Future<void> applyPart(int type, String? id, String label) async {
       if (id == null || id.isEmpty) return;
-      final slot = pickSlot(type);
-      if (slot == null) {
-        final added = await addBotwPouchItem(id: id, type: type, value: 0);
-        if (added != null) created.add(label);
-        return;
+      BotwPouchItem? target;
+      final existing = botwInventory.where((e) => e.type == type && e.id == id).toList();
+      if (existing.isNotEmpty) {
+        target = existing.first;
+      } else {
+        target = await addBotwPouchItem(id: id, type: type, value: 0);
+        if (target != null) {
+          createdParts.add(label);
+        } else {
+          // Fallback somente se a bolsa global (420 itens) estiver cheia
+          final sameType = botwInventory.where((e) => e.type == type).toList();
+          if (sameType.isEmpty) return;
+          final eq = sameType.where((e) => e.equipped).toList();
+          target = eq.isNotEmpty ? eq.first : sameType.first;
+          await convertBotwItem(target, id);
+        }
       }
-      await convertBotwItem(slot, id);
-      applied.add(label);
+
+      // Desequipa outras peças da mesma categoria e equipa a peça escolhida
+      for (final other in botwInventory.where((e) => e.type == type && e.equipped && e != target)) {
+        await _sendPoke('poke 0x${(other.heapOffset + 0x24).toRadixString(16)} 0x00');
+        other.equipped = false;
+      }
+      if (!target.equipped) {
+        await _sendPoke('poke 0x${(target.heapOffset + 0x24).toRadixString(16)} 0x01');
+        target.equipped = true;
+      }
+      equippedParts.add(label);
     }
 
-    await tryPart(4, headId, 'Cabeça');
-    await tryPart(5, upperId, 'Peito');
-    await tryPart(6, lowerId, 'Calça');
+    await applyPart(4, headId, 'Cabeça');
+    await applyPart(5, upperId, 'Peito');
+    await applyPart(6, lowerId, 'Calça');
 
-    final parts = [...applied, ...created.map((e) => '$e (novo)')];
+    final parts = [
+      for (final l in equippedParts) createdParts.contains(l) ? '$l (novo)' : l,
+    ];
     final msg = parts.isEmpty
         ? 'Nao foi possivel aplicar $setName (verifique a conexao).'
-        : 'Set $setName aplicado (${parts.join(", ")})! Abra/feche o menu (+).';
+        : 'Set $setName equipado (${parts.join(", ")})! Abra/feche o menu (+).';
     lastLog = 'BotW: $msg';
     notifyListeners();
     return msg;
