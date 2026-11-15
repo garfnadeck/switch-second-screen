@@ -2,7 +2,7 @@
 
 > 🇧🇷 **Português** | [🇺🇸 English](README.en.md)
 
-Segunda tela em tempo real e painel de utilitários para **Nintendo Switch (Atmosphère + `sys-botbase`)**, feito em **Flutter** para **iOS** e **Android**.
+Segunda tela em tempo real e painel de utilitários para **Nintendo Switch (Atmosphère + `sys-botbase`)**, disponível como **App Mobile (Flutter — iOS/Android)** e **Firmware ESP32-S3 (Display LVGL + Web Dashboard responsivo)**.
 
 [![Release v1.1.2](https://img.shields.io/badge/Release-v1.1.2-00B4D8?style=for-the-badge)](https://github.com/garfnadeck/switch-second-screen/releases/tag/v1.1.2)
 
@@ -33,11 +33,15 @@ Segunda tela em tempo real e painel de utilitários para **Nintendo Switch (Atmo
 
 ---
 
-## Recursos Gerais do App
+## Recursos Gerais do App & ESP32-S3
 - **Auto-Reconexão Automática:** reconecta automaticamente ao voltar do segundo plano ou caso o Wi-Fi/Switch reinicie.
 - **Android Foreground Service:** mantém a conexão TCP e o Auto-Boost ativos em segundo plano no Android com notificação fixa.
 - **iOS:** pausa conexões em segundo plano por política do sistema, mas reconecta instantaneamente ao reabrir o app.
-- **FAQ & Créditos integrados:** manual passo a passo dentro da aba **Config**.
+- **ESP32-S3 + Web Dashboard Responsivo (`http://<IP_DA_PLACA>/`):**
+  - Interface web completa para Desktop, Tablet e Celular (sem limite de `480x320`), com leitura ao vivo de BotW v1.6.0 (`Matrix34f` GPS, Corações, Stamina, Rupees), **Auto-Boost**, editor de **Bolsa & Durabilidade** (`PauseMenuDataMgr`), **12 Conjuntos de Armadura**, **Time Pokémon**, **Macros/USB HID** e **FAQ & Créditos**.
+  - **Atualização sem fio (OTA):** atualize o firmware e o LittleFS via `espota.py` ou pela aba **Config & Rede** (`/api/ota`).
+  - **Tela LVGL fluida:** conexão não-bloqueante ao `sys-botbase` para manter o toque e o display responsivos mesmo com o Switch desligado.
+- **FAQ & Créditos integrados:** manual passo a passo dentro da aba **Config** (app) e **FAQ & Créditos** (Web).
 
 ---
 
@@ -59,6 +63,7 @@ Segunda tela em tempo real e painel de utilitários para **Nintendo Switch (Atmo
 
 ## Compilar pelo Código-Fonte
 
+### App Mobile (Flutter)
 ```bash
 cd flutter_app
 flutter pub get
@@ -70,6 +75,20 @@ flutter build apk --release
 
 # iOS (macOS + Xcode)
 flutter build ios --release
+```
+
+### Firmware ESP32-S3 (PlatformIO)
+```bash
+# Compilar firmware + imagem LittleFS (Web Dashboard)
+pio run -e esp32-s3-hud
+pio run -e esp32-s3-hud -t buildfs
+
+# Gravar via USB
+pio run -e esp32-s3-hud -t upload -t uploadfs
+
+# Ou atualizar via OTA (substitua pelo IP da placa)
+python3 ~/.platformio/packages/framework-arduinoespressif32/tools/espota.py -i 192.168.15.11 -s -f .pio/build/esp32-s3-hud/littlefs.bin
+python3 ~/.platformio/packages/framework-arduinoespressif32/tools/espota.py -i 192.168.15.11 -f .pio/build/esp32-s3-hud/firmware.bin
 ```
 
 ---

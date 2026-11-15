@@ -2,7 +2,7 @@
 
 > [🇧🇷 Português](README.md) | 🇺🇸 **English**
 
-Real-time second-screen HUD and utility companion for **Nintendo Switch (Atmosphère + `sys-botbase`)**, built with **Flutter** for **iOS** and **Android**.
+Real-time second-screen HUD and utility companion for **Nintendo Switch (Atmosphère + `sys-botbase`)**, available as a **Mobile App (Flutter — iOS/Android)** and **ESP32-S3 Firmware (LVGL Display + Responsive Web Dashboard)**.
 
 [![Release v1.1.2](https://img.shields.io/badge/Release-v1.1.2-00B4D8?style=for-the-badge)](https://github.com/garfnadeck/switch-second-screen/releases/tag/v1.1.2)
 
@@ -33,11 +33,15 @@ Real-time second-screen HUD and utility companion for **Nintendo Switch (Atmosph
 
 ---
 
-## General Features
+## General Features (App & ESP32-S3)
 - **Auto-Reconnect:** automatically reconnects when returning from background or if Wi-Fi/Switch drops.
 - **Android Foreground Service:** keeps the TCP connection and Auto-Boost running in the background on Android with a persistent notification.
 - **iOS:** iOS suspends background sockets after a few seconds by OS policy, and the app automatically reconnects as soon as you return to it.
-- **Built-in FAQ & Credits:** step-by-step guide available right inside the **Config** tab.
+- **ESP32-S3 + Responsive Web Dashboard (`http://<BOARD_IP>/`):**
+  - Full multi-column web dashboard for Desktop, Tablet, and Mobile (no longer locked to `480x320`), featuring live BotW v1.6.0 telemetry (`Matrix34f` GPS, Hearts, Stamina, Rupees), **Auto-Boost**, **Pouch & Durability** editor (`PauseMenuDataMgr`), **12 Armor Sets**, **Pokémon Party**, **Macros/USB HID**, and **FAQ & Credits**.
+  - **Wireless OTA Updates:** flash firmware and LittleFS over Wi-Fi via `espota.py` or the **Config & Rede** tab (`/api/ota`).
+  - **Smooth LVGL UI:** low-timeout non-blocking `sys-botbase` polling keeps touch and display responsive even when the Switch is offline.
+- **Built-in FAQ & Credits:** step-by-step guide available right inside the **Config** tab (app) and **FAQ & Créditos** (Web).
 
 ---
 
@@ -59,6 +63,7 @@ Real-time second-screen HUD and utility companion for **Nintendo Switch (Atmosph
 
 ## Build from Source
 
+### Mobile App (Flutter)
 ```bash
 cd flutter_app
 flutter pub get
@@ -70,6 +75,20 @@ flutter build apk --release
 
 # iOS (macOS + Xcode)
 flutter build ios --release
+```
+
+### ESP32-S3 Firmware (PlatformIO)
+```bash
+# Build firmware + LittleFS image (Web Dashboard)
+pio run -e esp32-s3-hud
+pio run -e esp32-s3-hud -t buildfs
+
+# Flash over USB
+pio run -e esp32-s3-hud -t upload -t uploadfs
+
+# Or update over Wi-Fi (OTA — replace with your board IP)
+python3 ~/.platformio/packages/framework-arduinoespressif32/tools/espota.py -i 192.168.15.11 -s -f .pio/build/esp32-s3-hud/littlefs.bin
+python3 ~/.platformio/packages/framework-arduinoespressif32/tools/espota.py -i 192.168.15.11 -f .pio/build/esp32-s3-hud/firmware.bin
 ```
 
 ---
