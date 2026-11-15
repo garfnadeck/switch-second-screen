@@ -88,8 +88,8 @@ private:
     // com 150 ms ele era pulado na busca e a conexao direta falhava.
     // Valores de 1 s ou mais de proposito: ha versoes da biblioteca de rede do ESP32 que
     // arredondam limites abaixo de 1 s para zero, e a conexao falha na hora.
-    static constexpr int TIMEOUT_CONEXAO_MS = 2000;     // conexao direta no IP configurado
-    static constexpr int TIMEOUT_BUSCA_MS   = 1000;     // por endereco, durante a busca
+    static constexpr int TIMEOUT_CONEXAO_MS = 250;      // conexao direta no IP configurado (nao trava o LVGL)
+    static constexpr int TIMEOUT_BUSCA_MS   = 120;      // por endereco, durante a busca manual
 
     bool connectToSwitch(const char* ip, uint16_t port, int timeout_ms = TIMEOUT_CONEXAO_MS) {
         disconnect();
@@ -672,7 +672,7 @@ private:
         if (scan_state == 1) { scanStep(state); return; }   // 1 endereco por chamada (ate TIMEOUT_BUSCA_MS)
 
         if (!isConnected()) {
-            if (now - last_try_ms >= 5000) {             // tenta reconectar a cada 5 s (connect bloqueia ate 150 ms)
+            if (now - last_try_ms >= 8000) {             // tenta reconectar a cada 8 s (connect rapido <= 250 ms)
                 last_try_ms = now;
                 uint32_t t0 = millis();
                 linked = connectToSwitch(state.switch_ip, state.switch_port);
@@ -683,16 +683,6 @@ private:
                     setLink(state, txt);
                 }
                 if (!linked && !telemetry_only) state.connected = false;
-#ifdef ARDUINO
-                if (!linked && WiFi.status() == WL_CONNECTED &&
-                    (last_auto_scan_ms == 0 || now - last_auto_scan_ms >= 30000)) {
-                    last_auto_scan_ms = now;
-                    IPAddress lip = WiFi.localIP();
-                    char prefix[20];
-                    snprintf(prefix, sizeof(prefix), "%d.%d.%d.", lip[0], lip[1], lip[2]);
-                    startScan(state, prefix, 1, 254);
-                }
-#endif
             }
             return;
         }
